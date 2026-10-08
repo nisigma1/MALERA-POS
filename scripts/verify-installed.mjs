@@ -11,11 +11,11 @@ if(!installerA||!installerB) throw Error('Usage: verify-installed.mjs <installer
 const directory=createQaDirectory('installed');
 const install=path.join(directory,'application');
 const exe=path.join(install,'FOX Kafeteri.exe');
-const evidence={directory,install,checks:[],versions:[]};
+const evidence={directory,install,checks:[],installers:[path.resolve(installerA),path.resolve(installerB)]};
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
 function installVersion(file) {
   const result=spawnSync(path.resolve(file),['/S',`/D=${install}`],{windowsHide:true,timeout:120000});
-  assert.equal(result.status,0,`Installer exit ${result.status}: ${result.stderr}`);
+  assert.equal(result.status,0,`Installer exit ${result.status}: ${result.error?.message||result.stderr}`);
   assert.ok(fs.existsSync(exe),'Installed executable missing');
 }
 let running,ws;
@@ -56,12 +56,29 @@ function snapshot() {
   assert.equal(result.status,0,result.stderr);const data=JSON.parse(result.stdout);assert.equal(data.integrity,'ok');return data;
 }
 const okay=(value,message)=>{assert.ok(value,message);evidence.checks.push(message);};
+function shortcuts(expected) {
+  const script=path.join(directory,'inspect-shortcuts.ps1');
+  fs.writeFileSync(script,`$ErrorActionPreference='Stop';$desktop=[Environment]::GetFolderPath('DesktopDirectory');$menu=Join-Path $env:APPDATA 'Microsoft/Windows/Start Menu/Programs';$shell=New-Object -ComObject WScript.Shell;$links=@(Get-ChildItem -LiteralPath $desktop,$menu -Recurse -Filter '*FOX*.lnk' -ErrorAction SilentlyContinue | ForEach-Object { @{path=$_.FullName;target=$shell.CreateShortcut($_.FullName).TargetPath} });ConvertTo-Json -InputObject $links -Compress`);
+  const result=spawnSync('powershell.exe',['-NoProfile','-File',script],{windowsHide:true,encoding:'utf8',timeout:30000});
+  assert.equal(result.status,0,result.stderr);const links=JSON.parse(result.stdout.trim());
+  const own=links.filter(l=>l.target.toLowerCase()===exe.toLowerCase());
+  if(expected)okay(own.length>=2,'actual Desktop and Start Menu shortcuts target installed executable');
+  else okay(own.length===0,'uninstall removes QA shortcuts');
+  evidence.shortcuts=links;return own;
+}
 try {
-  installVersion(installerA);let session=await launch();let {evaluate,command}=session;
+  installVersion(installerA);const links=shortcuts(true);let session=await launch();let {evaluate,command}=session;
   const fresh=snapshot();fs.writeFileSync(path.join(directory,'fresh.json'),JSON.stringify(fresh,null,2));
   okay(fresh.tables.cafe_tables.length===27&&fresh.tables.products.length===21,'fresh canonical references');
   okay(fresh.tables.orders.length===0&&fresh.tables.inventory_movements.length===0,'fresh zero transactions');
   okay(fresh.tables.products.every(p=>p.selling_price_cents===null&&p.purchase_cost_cents===null&&p.track_inventory===null)&&fresh.tables.inventory_balances.every(p=>p.quantity===null),'fresh no invented configuration');
+  for(const code of fresh.tables.cafe_tables.map(t=>t.code)) {
+    await evaluate(`document.querySelector('[data-table-code="${code}"]').click()`);
+    for(let i=0;i<100;i++){if(await evaluate(`document.querySelector('#order-heading')?.textContent==='Tavolina ${code}'`))break;await pause(20);}
+    okay(await evaluate(`document.querySelector('#order-heading')?.textContent==='Tavolina ${code}'`),`clickable installed ${code}`);
+  }
+  okay(snapshot().tables.orders.length===0,'free table selection creates no order');
+  const floor=await command('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(directory,'installed-floor.png'),Buffer.from(floor.data,'base64'));
   const api=code=>evaluate(`(async()=>{${code}})()`);
   const mutation=await api(`const p=(await fox.products.list()).find(p=>p.id==='KAFE-1');return fox.products.update({...p,sellingPriceCents:100,purchaseCostCents:50,trackInventory:true,lowStockThreshold:2,active:true});`);
   okay(mutation.ok,'installed product configuration');
@@ -84,12 +101,16 @@ try {
   const second=spawn(exe,[],{env:session.env,windowsHide:true,stdio:'ignore'});
   const secondExit=await Promise.race([new Promise(r=>second.on('exit',r)),pause(10000).then(()=>undefined)]);
   okay(secondExit===0&&running.exitCode===null,'installed second launch exits; original stays');
+  const linked=spawnSync('powershell.exe',['-NoProfile','-Command',`$p=Start-Process -FilePath '${links[0].path.replaceAll("'","''")}' -PassThru -Wait -WindowStyle Hidden;exit $p.ExitCode`],{env:session.env,windowsHide:true,encoding:'utf8',timeout:15000});
+  okay(linked.status===0&&running.exitCode===null,'actual shortcut second launch leaves one operational instance');
   const beforeUpgrade=snapshot();fs.writeFileSync(path.join(directory,'before-upgrade.json'),JSON.stringify(beforeUpgrade,null,2));await close();
   installVersion(installerB);session=await launch();evaluate=session.evaluate;command=session.command;
   assert.deepEqual(snapshot(),beforeUpgrade);assert.deepEqual(await api(`return fox.reports.getSalesReport('ALL');`),report);evidence.checks.push('real installer A to B preserves all database rows and reports');
   await close();const uninstaller=fs.readdirSync(install).find(n=>/^Uninstall.*\.exe$/i.test(n));assert.ok(uninstaller);
   const uninstalled=spawnSync(path.join(install,uninstaller),['/S'],{windowsHide:true,timeout:120000});assert.equal(uninstalled.status,0);
   okay(fs.existsSync(path.join(directory,'fox.sqlite')),'uninstall preserves userData');
+  for(let i=0;i<100&&fs.existsSync(exe);i++)await pause(100);
+  okay(!fs.existsSync(exe),'uninstall removes application executable');shortcuts(false);
   installVersion(installerB);session=await launch();assert.deepEqual(snapshot(),beforeUpgrade);evidence.checks.push('actual reinstall preserves all business rows');await close();
   // Remove QA installation and its shortcuts/registration, retaining test evidence.
   const cleanup=spawnSync(path.join(install,uninstaller),['/S'],{windowsHide:true,timeout:120000});assert.equal(cleanup.status,0);
