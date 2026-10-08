@@ -30,7 +30,7 @@ async function launch() {
   assert.ok(page,'Installed renderer not found');
   assert.ok(page.url.startsWith('file:'),'Production file assets required');
   ws=new WebSocket(page.webSocketDebuggerUrl);await new Promise((resolve,reject)=>{ws.onopen=resolve;ws.onerror=reject;});
-  let sequence=0;const pending=new Map();ws.onmessage=event=>{const msg=JSON.parse(event.data);if(msg.id){const cb=pending.get(msg.id);pending.delete(msg.id);if(msg.error)cb.reject(Error(JSON.stringify(msg.error)));else cb.resolve(msg.result);}};
+  let sequence=0;const pending=new Map();ws.onmessage=event=>{const msg=JSON.parse(event.data);if(msg.id){const cb=pending.get(msg.id);pending.delete(msg.id);if(!cb)return;if(msg.error)cb.reject(Error(JSON.stringify(msg.error)));else cb.resolve(msg.result);}};
   const command=(method,params={})=>new Promise((resolve,reject)=>{const id=++sequence;pending.set(id,{resolve,reject});ws.send(JSON.stringify({id,method,params}));});
   const evaluate=async expression=>{const value=await command('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true});if(value.exceptionDetails)throw Error(JSON.stringify(value.exceptionDetails));return value.result.value;};
   for(let i=0;i<100;i++){if(await evaluate('Boolean(window.fox && document.querySelectorAll("[data-table-code]").length===27)'))break;await pause(100);}

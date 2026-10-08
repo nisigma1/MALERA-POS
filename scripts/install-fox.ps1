@@ -1,6 +1,6 @@
 param([Parameter(Mandatory=$true)][ValidatePattern('^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$')][string]$Repository, [string]$Tag)
 $ErrorActionPreference = 'Stop'
-if (-not [Environment]::Is64BitOperatingSystem -or $env:OS -ne 'Windows_NT') { throw 'Requires Windows x64' }
+if (-not [Environment]::Is64BitOperatingSystem -or $env:OS -ne 'Windows_NT' -or ($env:PROCESSOR_ARCHITECTURE -ne 'AMD64' -and $env:PROCESSOR_ARCHITEW6432 -ne 'AMD64')) { throw 'Requires Windows x64' }
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'Use the downloaded installer, or install and authenticate GitHub CLI first.' }
 gh auth status
 if ($LASTEXITCODE -ne 0) { throw 'GitHub authentication is required' }

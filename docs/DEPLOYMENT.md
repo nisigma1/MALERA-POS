@@ -16,6 +16,8 @@ Close FOX and confirm no FOX process remains before making a manual copy of the 
 
 If installation fails, preserve this folder and retry the verified installer. Do not delete, rename, reset or replace the database. If migration fails, stop and seek technical assistance; restoration from a known backup requires an explicit operator decision and may lose later transactions.
 
+Keep previous stable installers separately. Application rollback and database rollback are different: an older binary may reject a newer schema. Never blindly downgrade against a migrated database. Restore an approved pre-upgrade backup only after reviewing transactions written since the upgrade.
+
 ## Signing and security
 
 Current installer is **UNSIGNED**. No production code-signing certificate is available. Windows may show Unknown Publisher/SmartScreen. Do not disable Defender or bypass certificate verification; follow the site's security policy. Future real signing uses electron-builder's `CSC_LINK`/`CSC_KEY_PASSWORD` or Windows-specific `WIN_CSC_LINK`/`WIN_CSC_KEY_PASSWORD` via environment/GitHub Secrets. Never commit certificates or passwords. Validate Authenticode status after signing; checksums are then calculated from the signed final artifact.
