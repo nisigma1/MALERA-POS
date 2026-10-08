@@ -23,18 +23,25 @@ function scan(directory) {
 }
 scan(root);
 const archive=path.join(root,'win-unpacked/resources/app.asar');
-const files=asar.listPackage(archive);
+const files=asar.listPackage(archive).map(name=>name.replaceAll('\\','/'));
 if(files.some(name=>forbidden(name)||/^\/(?:tests|scripts|docs|work|\.github)\//.test(name))) throw Error('Forbidden ASAR content');
 const metadata=JSON.parse(asar.extractFile(archive,'package.json').toString());
 if(metadata.version!==version||metadata.name!=='fox-pos'||metadata.main!=='dist-electron/main.cjs') throw Error('Packaged metadata mismatch');
 const main=asar.extractFile(archive,'dist-electron/main.cjs').toString();
 if(main.includes('Intentional lost checkout response')||main.includes('checkout-expected.json')||secrets.test(main)) throw Error('QA or secrets embedded');
-for(const name of files.filter(n=>/\.(cjs|js|json|html|css)$/.test(n))) if(secrets.test(asar.extractFile(archive,name.replace(/^\//,'')).toString())) throw Error('ASAR secret pattern');
+for(const name of files.filter(n=>/\.(cjs|js|json|html|css)$/.test(n))) {
+  const relative=path.normalize(name.replace(/^\//,''));
+  const raw=asar.statFile(archive,relative,false);
+  const content=raw.unpacked?fs.readFileSync(path.join(archive+'.unpacked',relative)):asar.extractFile(archive,relative);
+  if(secrets.test(content.toString())) throw Error('ASAR secret pattern');
+}
 const exe=fs.readFileSync(installer);
 if(exe.readUInt16LE(0)!==0x5a4d) throw Error('Invalid installer executable');
 const appExe=fs.readFileSync(path.join(root,'win-unpacked/FOX Kafeteri.exe'));
 if(appExe.readUInt16LE(appExe.readUInt32LE(0x3c)+4)!==0x8664) throw Error('Not x64');
-if(!files.some(n=>n.endsWith('better_sqlite3.node'))) throw Error('Native SQLite missing');
+if(!files.includes('/node_modules/better-sqlite3/prebuilds/win32-x64.node')) throw Error('Native SQLite missing');
+const native=fs.readFileSync(path.join(archive+'.unpacked','node_modules/better-sqlite3/prebuilds/win32-x64.node'));
+if(native.readUInt16LE(native.readUInt32LE(0x3c)+4)!==0x8664) throw Error('SQLite is not x64');
 const sha256=crypto.createHash('sha256').update(exe).digest('hex');
 let commit; try {commit=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();} catch {throw Error('A source commit is required');}
 const checksum=`${sha256}  ${artifact}\n`;

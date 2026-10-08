@@ -39,14 +39,15 @@ async function launch() {
   return {evaluate,command,env,pid:running.pid};
 }
 async function close(force=false) {
-  ws?.close();
+  if(!force && ws?.readyState===WebSocket.OPEN) ws.send(JSON.stringify({id:999999,method:'Page.close'}));
   // Only the exact isolated QA process tree is terminated; never the operational app.
-  if(running&&running.exitCode===null) {
+  if(force&&running&&running.exitCode===null&&running.signalCode===null) {
     const args=['/PID',String(running.pid),'/T'];if(force)args.push('/F');
     spawnSync('taskkill',args,{windowsHide:true});
-    for(let i=0;i<100&&running.exitCode===null;i++)await pause(50);
-    if(running.exitCode===null)throw Error('QA process did not close');
   }
+  for(let i=0;i<200&&running&&running.exitCode===null&&running.signalCode===null;i++)await pause(50);
+  ws?.close();
+  if(running&&running.exitCode===null&&running.signalCode===null)throw Error('QA process did not close');
 }
 function snapshot() {
   const script=path.join(directory,'read-snapshot.cjs');

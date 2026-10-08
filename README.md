@@ -1,4 +1,6 @@
-# FOX Kafeteri — Phase 4.1
+# FOX Kafeteri — Phase 4.2 release candidate
+
+Private Windows x64 installer engineering: see [deployment](docs/DEPLOYMENT.md) and [release checklist](docs/RELEASE_CHECKLIST.md). Build `npm run package:win`, verify `./scripts/verify-release.ps1`; install the resulting NSIS executable. The source checkout is for development only. No printing, fiscalization or automatic updater is included.
 
 Local Windows POS with Tavolinat, Inventari, Raportet and Cilësimet. FOX currently accepts **CASH ONLY**. The operator confirms the order summary and “Para të gatshme”; there is no payment-method selector.
 
