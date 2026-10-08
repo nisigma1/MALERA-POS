@@ -1,0 +1,62 @@
+name: Windows release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing immutable version tag
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Validate exact tag and private repository
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+          REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ($env:RELEASE_TAG -ne "v$version" -or $version -notmatch '^\d+\.\d+\.\d+$') { throw 'Version/tag mismatch' }
+          if ($env:REPOSITORY_PRIVATE -ne 'true') { throw 'Repository must remain private' }
+          if ((git describe --tags --exact-match) -ne $env:RELEASE_TAG) { throw 'Not the tagged commit' }
+      - run: npm ci
+      - run: npm run rebuild:native
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm run package:win
+      - run: ./scripts/verify-release.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FOX-Windows-x64
+          path: |
+            release/FOX-Setup-*-x64.exe
+            release/FOX-Setup-*-x64.exe.sha256
+            release/release-manifest.json
+          if-no-files-found: error
+      - name: Create private draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        shell: pwsh
+        run: |
+          gh release view $env:RELEASE_TAG *> $null
+          if ($LASTEXITCODE -eq 0) { throw 'Release already exists; never replace immutable artifacts' }
+          gh release create $env:RELEASE_TAG --verify-tag --draft --title "FOX $env:RELEASE_TAG" --notes-file docs/RELEASE_NOTES.md release/FOX-Setup-*-x64.exe release/FOX-Setup-*-x64.exe.sha256 release/release-manifest.json
+          if ($LASTEXITCODE -ne 0) { throw 'Draft release creation failed' }

@@ -1,0 +1,44 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const asar = require('@electron/asar');
+const pkg = JSON.parse(fs.readFileSync('package.json','utf8'));
+const version = process.argv[2] || pkg.version;
+if (!/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?$/.test(version)) throw Error('Invalid version');
+const root = path.resolve(process.argv[3] || 'release');
+const artifact = `FOX-Setup-${version}-x64.exe`;
+const installer = path.join(root,artifact);
+const forbidden = name => /\.(?:sqlite(?:-wal|-shm)?|db(?:-wal|-shm)?|pfx|p12|pem|key)$/i.test(name) || /(?:^|[\\/])\.env(?:\.|$)/.test(name);
+const secrets = /(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{50,}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----)/;
+function scan(directory) {
+  for(const entry of fs.readdirSync(directory,{withFileTypes:true})) {
+    const filename=path.join(directory,entry.name);
+    if(forbidden(filename)) throw Error(`Forbidden release file: ${filename}`);
+    if(entry.isDirectory()) scan(filename);
+    else if(/\.(?:json|js|cjs|html|css|txt|yml)$/i.test(filename)&&fs.statSync(filename).size<5000000&&secrets.test(fs.readFileSync(filename,'utf8'))) throw Error('Secret pattern in release');
+  }
+}
+scan(root);
+const archive=path.join(root,'win-unpacked/resources/app.asar');
+const files=asar.listPackage(archive);
+if(files.some(name=>forbidden(name)||/^\/(?:tests|scripts|docs|work|\.github)\//.test(name))) throw Error('Forbidden ASAR content');
+const metadata=JSON.parse(asar.extractFile(archive,'package.json').toString());
+if(metadata.version!==version||metadata.name!=='fox-pos'||metadata.main!=='dist-electron/main.cjs') throw Error('Packaged metadata mismatch');
+const main=asar.extractFile(archive,'dist-electron/main.cjs').toString();
+if(main.includes('Intentional lost checkout response')||main.includes('checkout-expected.json')||secrets.test(main)) throw Error('QA or secrets embedded');
+for(const name of files.filter(n=>/\.(cjs|js|json|html|css)$/.test(n))) if(secrets.test(asar.extractFile(archive,name.replace(/^\//,'')).toString())) throw Error('ASAR secret pattern');
+const exe=fs.readFileSync(installer);
+if(exe.readUInt16LE(0)!==0x5a4d) throw Error('Invalid installer executable');
+const appExe=fs.readFileSync(path.join(root,'win-unpacked/FOX Kafeteri.exe'));
+if(appExe.readUInt16LE(appExe.readUInt32LE(0x3c)+4)!==0x8664) throw Error('Not x64');
+if(!files.some(n=>n.endsWith('better_sqlite3.node'))) throw Error('Native SQLite missing');
+const sha256=crypto.createHash('sha256').update(exe).digest('hex');
+let commit; try {commit=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();} catch {throw Error('A source commit is required');}
+const checksum=`${sha256}  ${artifact}\n`;
+const manifest={product:'FOX Kafeteri',appId:'com.foxkafeteri.pos',version,platform:'win32',arch:'x64',artifact,sha256,commit,builtAt:new Date().toISOString(),signing:'UNSIGNED',databaseBundled:false};
+fs.writeFileSync(installer+'.sha256',checksum);
+fs.writeFileSync(path.join(root,'release-manifest.json'),JSON.stringify(manifest,null,2)+'\n');
+console.log(JSON.stringify({passed:true,artifact,sha256,commit,asarEntries:files.length}));

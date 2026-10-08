@@ -1,0 +1,12 @@
+{
+  "appId": "com.foxkafeteri.pos",
+  "productName": "FOX Kafeteri",
+  "directories": { "output": "release" },
+  "files": ["dist/**/*", "dist-electron/main.cjs", "dist-electron/preload.cjs", "package.json", "!**/*.map", "!**/*.{sqlite,db,pfx,p12,pem,key}", "!**/.env*"],
+  "asar": true,
+  "asarUnpack": ["node_modules/better-sqlite3/build/Release/*.node"],
+  "npmRebuild": true,
+  "win": { "target": [{"target":"nsis","arch":["x64"]}], "artifactName": "FOX-Setup-${version}-${arch}.exe" },
+  "nsis": { "oneClick": false, "perMachine": false, "allowElevation": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true, "createStartMenuShortcut": true, "deleteAppDataOnUninstall": false, "runAfterFinish": false },
+  "publish": null
+}
