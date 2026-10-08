@@ -372,6 +372,11 @@ body:has([data-page="tables"]) .content { padding: 4px; background: var(--backgr
 .report-filter select { padding: 10px 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); }
 .recent-sales { margin-top: 24px; }
 .recent-sales h2 { font-size: 18px; }
+.recent-sales .sale-detail-row > td:first-child { max-width: none; overflow: visible; white-space: normal; text-align: left; background: var(--surface); }
+.sale-detail-row h3 { margin: 4px 0 12px; font-size: 16px; }
+.sale-detail-row p { color: var(--secondary); }
+.sale-detail-total { text-align: right; }
+.sale-item-details td:nth-child(n+2), .sale-item-details th:nth-child(n+2) { text-align: right; font-variant-numeric: tabular-nums; }
 .sales-scroll { overflow: auto; max-height: 420px; }
 .recent-sales table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .recent-sales th, .recent-sales td { padding: 12px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }

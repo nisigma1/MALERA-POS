@@ -29,27 +29,8 @@ export function createRepositories(db: Database.Database) {
       return { businessName: row.value };
     },
     getSummary(): ReportSummary {
-      // Never include OPEN or CANCELLED orders. Unknown cost remains unknown, not zero.
-      return db.transaction(() => {
-        const orders = db.prepare("SELECT COUNT(*) AS count FROM orders WHERE status='CLOSED'").get() as { count: number };
-        const totals = db.prepare(`SELECT COALESCE(SUM(i.quantity * i.unit_price_cents),0) AS sales,
-          COALESCE(SUM(i.quantity * i.unit_cost_cents),0) AS cost,
-          COUNT(CASE WHEN i.unit_cost_cents IS NULL THEN 1 END) AS unknownCosts,
-          COALESCE(SUM(i.quantity),0) AS quantity
-          FROM order_items i JOIN orders o ON o.id=i.order_id WHERE o.status='CLOSED'`).get() as { sales: number; cost: number; unknownCosts: number; quantity: number };
-        const expenses = db.prepare('SELECT COALESCE(SUM(amount_cents),0) AS total FROM expenses').get() as { total: number };
-        for (const amount of [totals.sales, totals.cost, expenses.total]) {
-          if (!Number.isSafeInteger(amount)) throw new Error('Report total exceeds safe integer cents');
-        }
-        const cost = totals.unknownCosts ? null : totals.cost;
-        const gross = cost === null ? null : totals.sales - cost;
-        return {
-          salesCents: totals.sales, costCents: cost, grossProfitCents: gross,
-          expensesCents: expenses.total, netProfitCents: gross === null ? null : gross - expenses.total,
-          completedOrders: orders.count, productsSold: totals.quantity,
-          averageOrderCents: orders.count ? Math.round(totals.sales / orders.count) : null,
-        };
-      })();
+      // Both IPC entry points use the same historical accounting and overflow checks.
+      return readSalesReport(db, 'ALL').summary;
     },
   };
 }

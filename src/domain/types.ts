@@ -50,4 +50,9 @@ export type ReportPeriod = 'TODAY' | '7_DAYS' | '30_DAYS' | 'ALL';
 export interface CompleteOrderRequest { orderId: string; expectedRevision?: string }
 export type CheckoutErrorCode = 'INVALID_REQUEST' | 'ORDER_NOT_OPEN' | 'ORDER_EMPTY' | 'INVENTORY_UNCONFIGURED' | 'STOCK_UNKNOWN' | 'INSUFFICIENT_STOCK' | 'ALREADY_COMPLETED' | 'ORDER_CHANGED' | 'CHECKOUT_FAILED';
 export type CheckoutResult = { ok: true; data: { orderId: string; saleNumber: number; paymentMethod: 'CASH'; totalCents: number; completedAt: string; workspace: OrderWorkspace } } | { ok: false; code: CheckoutErrorCode; message: string };
-export interface SalesReport { summary: ReportSummary; period: ReportPeriod; cashCents: number; cardCents: number; unknownPaymentCents: number; recentSales: { id: string; saleNumber: number; tableCode: string; completedAt: string; paymentMethod: HistoricalPaymentMethod | null; totalCents: number }[] }
+export interface SaleReportItem { id: string; name: string; quantity: number; unitPriceCents: number; unitCostCents: number | null; totalCents: number; costCents: number | null; profitCents: number | null }
+export interface SalesReport {
+  summary: ReportSummary; period: ReportPeriod; cashCents: number; cardCents: number; unknownPaymentCents: number;
+  costCoverage: { knownCostCents: number; missingCostLines: number; missingCostUnits: number; salesWithoutCostCents: number };
+  recentSales: { id: string; saleNumber: number; tableCode: string; completedAt: string; paymentMethod: HistoricalPaymentMethod | null; totalCents: number; items: SaleReportItem[] }[];
+}

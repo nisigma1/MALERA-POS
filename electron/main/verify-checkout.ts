@@ -135,6 +135,12 @@ export async function verifyCheckout(window: BrowserWindow, directory: string, d
   await click('[data-nav="reports"]'); await wait(`document.querySelectorAll('[data-sale-id]').length===3`);
   await assert(`document.querySelector('[data-cash-total]').textContent==='€4.50' && !document.querySelector('[data-card-total]') && document.querySelector('.notice').textContent.includes('Kosto e paplotë')`,'Report presentation failed');
   await assert(`[...document.querySelectorAll('[data-sale-id]')].every(row=>/^#[0-9]{6}$/.test(row.cells[0].textContent) && /^[0-9]{2}\\.[0-9]{2}\\.[0-9]{4} [0-9]{2}:[0-9]{2}$/.test(row.cells[1].textContent))`,'Human sale number/local date failed');
+  for(const sale of finalReport.recentSales) {
+    await click(`[data-sale-id="${sale.id}"] button`);
+    await wait(`document.querySelectorAll('[data-sale-item]').length===${sale.items.length}`);
+    await assert(`(() => {const actual=[...document.querySelectorAll('[data-sale-item]')].map(row=>({name:row.cells[0].textContent,quantity:Number(row.cells[1].textContent)}));return JSON.stringify(actual)===JSON.stringify(${JSON.stringify(sale.items.map(item=>({name:item.name,quantity:item.quantity})))});})()`,'Historical sale detail names/quantities failed');
+  }
+  await assert(`document.querySelector('[data-cost-coverage]').textContent.includes('1 njësi në 1 rreshta') && document.querySelector('[data-cost-coverage]').textContent.includes('€1.50')`,'Missing historical cost coverage failed');
   for(const [width,height] of [[1366,768],[1440,900],[1920,1080]]) { await resize(width!,height!); const metric=await evaluate(`({width:innerWidth,height:innerHeight,overflow:document.documentElement.scrollWidth>innerWidth,sales:document.querySelectorAll('[data-sale-id]').length})`); if(metric.overflow||metric.sales!==3)throw new Error('Report overflow'); reportMetrics.push(metric);await capture(`checkout-reports-${width}`); }
   // Native select changes the server filter, without renderer-side aggregation.
   await click('select[aria-label="Periudha e raportit"]'); window.webContents.sendInputEvent({type:'keyDown',keyCode:'Home'});window.webContents.sendInputEvent({type:'keyUp',keyCode:'Home'});window.webContents.sendInputEvent({type:'keyDown',keyCode:'Enter'});window.webContents.sendInputEvent({type:'keyUp',keyCode:'Enter'}); await pause(250);
