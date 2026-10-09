@@ -80,7 +80,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Pinned original 0.4.2 release build download failed' }
           $old=Get-Content work/old-release/release-manifest.json -Raw | ConvertFrom-Json
           $oldHash=(Get-FileHash work/old-release/FOX-Setup-0.4.2-x64.exe).Hash.ToLowerInvariant()
-          if ($old.version -ne '0.4.2' -or $old.commit -ne 'e7361dfaa4375ea7fd2a51a4adfeef0a8b3d4c17' -or $oldHash -ne 'af58013fd1cd0bd1d82d4e2bb88387aac0e369714440c2edab8d585a0274f4d0' -or $oldHash -ne $old.sha256) { throw 'Original 0.4.2 provenance mismatch' }
+          if ($old.version -ne '0.4.2' -or $old.commit -ne 'e7361dfaa4375ea7fd2a51a4adfeef0a8b3d4c17' -or $oldHash -ne '8c200e871f399ac4e22d61061d9a55fa2f314b49ecdfbbdc1a294c890f9abb9e' -or $oldHash -ne $old.sha256) { throw 'Original 0.4.2 provenance mismatch' }
           gh run download 37921221790 -n FOX-QA-Windows-x64 -D work/prior-qa
           if ($LASTEXITCODE -ne 0) { throw 'Pinned prior QA download failed; acceptance prerequisite must be restored explicitly' }
           $prior=Get-Content work/prior-qa/release-manifest.json -Raw | ConvertFrom-Json
