@@ -37,7 +37,8 @@ export function createDataProtection(window:BrowserWindow, db:Database.Database,
     backup:()=>run(async()=>{
       const selected=await dialog.showSaveDialog(window,{title:'Krijo backup',defaultPath:path.join(app.getPath('documents'),backupName('Backup')),filters:[{name:'FOX backup',extensions:['sqlite']}],properties:['showOverwriteConfirmation']});
       if(selected.canceled||!selected.filePath)return {ok:false,cancelled:true,message:''};
-      assertDestination(selected.filePath,db.name,app.getAppPath());
+      const installRoot=app.isPackaged?path.dirname(app.getPath('exe')):app.getAppPath();
+      assertDestination(selected.filePath,db.name,installRoot);
       const result=await createBackup(db,selected.filePath,app.getVersion());remember(selected.filePath,result.createdAt);
       return {ok:true,message:'Backup u krijua dhe u verifikua.'};
     }),
