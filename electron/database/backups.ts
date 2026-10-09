@@ -32,11 +32,11 @@ function flush(filename: string): void { const fd = fs.openSync(filename, 'r+');
 export function backupName(kind: string): string { return `FOX-${kind}-${new Date().toISOString().replace(/[:.]/g, '-')}-${crypto.randomBytes(3).toString('hex')}.sqlite`; }
 export function assertDestination(filename: string, databaseFile: string, installRoot?: string): void {
   if (!path.isAbsolute(filename) || path.extname(filename).toLowerCase() !== '.sqlite' || /[\x00-\x1f]/.test(filename)) throw Error('FOX_BACKUP_PATH');
-  const parent = fs.realpathSync(path.dirname(filename));
+  const parent = fs.realpathSync.native(path.dirname(filename));
   const target = path.join(parent, path.basename(filename));
   const same = (a: string, b: string) => path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
   if (same(target, databaseFile) || fs.existsSync(target) || fs.existsSync(target + '.json')) throw Error('FOX_BACKUP_OVERWRITE');
-  if (installRoot) { const rel = path.relative(fs.realpathSync(installRoot), target); if (!rel.startsWith('..') && !path.isAbsolute(rel)) throw Error('FOX_BACKUP_INSTALL_PATH'); }
+  if (installRoot) { const rel = path.relative(fs.realpathSync.native(installRoot), target); if (!rel.startsWith('..') && !path.isAbsolute(rel)) throw Error('FOX_BACKUP_INSTALL_PATH'); }
 }
 function finalize(dbFile: string, applicationVersion: string, hash: string): BackupManifest {
   assertRegularFile(dbFile);
