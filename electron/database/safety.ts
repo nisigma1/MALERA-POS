@@ -26,7 +26,7 @@ export function assertQaDirectory(directory: string, normalUserData?: string): v
     throw new Error('FOX verification cannot use the interactive database directory');
   }
   const marker = JSON.parse(fs.readFileSync(path.join(directory, '.fox-qa.json'), 'utf8')) as { version?: unknown; directory?: unknown };
-  if (marker.version !== 1 || marker.directory !== canonical(directory)) throw new Error('FOX verification directory is not authorized');
+  if (marker.version !== 1 || typeof marker.directory!=='string' || !path.isAbsolute(marker.directory) || canonical(marker.directory) !== canonical(directory)) throw new Error('FOX verification directory is not authorized');
 }
 export function verificationDirectory(normalUserData: string, env: NodeJS.ProcessEnv): string | undefined {
   const testing = env.NODE_ENV === 'test' || Boolean(env.VITEST) || Object.keys(env).some(key => key.startsWith('FOX_VERIFY_') && Boolean(env[key]));
