@@ -7,6 +7,7 @@ import { inspectDatabase } from './health';
 export interface BackupManifest {
   format: 'FOX_SQLITE_BACKUP'; formatVersion: 1; createdAt: string;
   applicationVersion: string; schemaVersion: number; sha256: string;
+  kind?: 'MANUAL' | 'PRE_MIGRATION' | 'PRE_RESTORE';
 }
 const maxSize = 8 * 1024 * 1024 * 1024;
 export function assertRegularFile(filename: string): void {
@@ -38,23 +39,23 @@ export function assertDestination(filename: string, databaseFile: string, instal
   if (same(target, databaseFile) || fs.existsSync(target) || fs.existsSync(target + '.json')) throw Error('FOX_BACKUP_OVERWRITE');
   if (installRoot) { const rel = path.relative(fs.realpathSync.native(installRoot), target); if (!rel.startsWith('..') && !path.isAbsolute(rel)) throw Error('FOX_BACKUP_INSTALL_PATH'); }
 }
-function finalize(dbFile: string, applicationVersion: string, hash: string): BackupManifest {
+function finalize(dbFile: string, applicationVersion: string, hash: string, kind: NonNullable<BackupManifest['kind']>): BackupManifest {
   assertRegularFile(dbFile);
   const snapshot = new Database(dbFile, { readonly: true, fileMustExist: true });
   let schemaVersion: number;
   try { schemaVersion = inspectDatabase(snapshot, true); } finally { snapshot.close(); }
-  const manifest: BackupManifest = { format: 'FOX_SQLITE_BACKUP', formatVersion: 1, createdAt: new Date().toISOString(), applicationVersion, schemaVersion, sha256: hash };
+  const manifest: BackupManifest = { format: 'FOX_SQLITE_BACKUP', formatVersion: 1, createdAt: new Date().toISOString(), applicationVersion, schemaVersion, sha256: hash, kind };
   flush(dbFile);
   durableWrite(dbFile + '.json', JSON.stringify(manifest, null, 2));
   return manifest;
 }
-export async function createBackup(db: Database.Database, filename: string, version: string): Promise<BackupManifest> {
+export async function createBackup(db: Database.Database, filename: string, version: string, kind: 'MANUAL' | 'PRE_RESTORE' = 'MANUAL'): Promise<BackupManifest> {
   assertDestination(filename, db.name);
   const stage = filename + `.partial-${crypto.randomUUID()}`;
   let published = false, publishedMetadata = false;
   try {
     await db.backup(stage);
-    const manifest = finalize(stage, version, await fileHash(stage));
+    const manifest = finalize(stage, version, await fileHash(stage),kind);
     // Source is a closed verified SQLite snapshot; exclusive copy supports USB/FAT too.
     fs.copyFileSync(stage, filename, fs.constants.COPYFILE_EXCL); published = true; flush(filename);
     fs.copyFileSync(stage + '.json', filename + '.json', fs.constants.COPYFILE_EXCL); publishedMetadata = true; flush(filename + '.json');
@@ -69,13 +70,20 @@ export function createMigrationBackup(db: Database.Database, directory: string, 
   // VACUUM INTO is SQLite's transactional consistent snapshot, including committed WAL data.
   // Startup has no competing services; manual/restore backups use the asynchronous backup API.
   db.prepare('VACUUM INTO ?').run(filename);
-  finalize(filename, version, syncHash(filename));
-  const retained = fs.readdirSync(directory).filter(name => /^FOX-before-v\d+-.*\.sqlite$/.test(name)).sort().reverse();
-  for (const name of retained.slice(5)) {
-    const old = path.join(directory, name);
-    try { const metadata = JSON.parse(fs.readFileSync(old + '.json', 'utf8')) as BackupManifest;
-      if (metadata.format === 'FOX_SQLITE_BACKUP' && metadata.sha256 === syncHash(old)) { fs.unlinkSync(old); fs.unlinkSync(old + '.json'); }
-    } catch { /* Unrecognized/incomplete files are preserved for support, never treated as owned backups. */ }
+  finalize(filename, version, syncHash(filename),'PRE_MIGRATION');
+  const retained: {name:string;createdAt:number}[]=[];
+  for(const name of fs.readdirSync(directory).filter(name=>/^FOX-before-v\d+-.*\.sqlite$/.test(name))) {
+    const candidate=path.join(directory,name);
+    try {
+      assertRegularFile(candidate);
+      const stat=fs.lstatSync(candidate+'.json');if(!stat.isFile()||stat.isSymbolicLink()||stat.size>4096)continue;
+      const metadata=JSON.parse(fs.readFileSync(candidate+'.json','utf8')) as BackupManifest;
+      if(metadata.format==='FOX_SQLITE_BACKUP'&&metadata.kind==='PRE_MIGRATION'&&Number.isFinite(Date.parse(metadata.createdAt))&&metadata.sha256===syncHash(candidate))retained.push({name,createdAt:Date.parse(metadata.createdAt)});
+    }catch { /* Unknown, legacy and incomplete files remain available for support. */ }
+  }
+  retained.sort((a,b)=>b.createdAt-a.createdAt||b.name.localeCompare(a.name));
+  for (const {name} of retained.slice(5)) {
+    const old=path.join(directory,name);fs.unlinkSync(old);fs.unlinkSync(old+'.json');
   }
   return filename;
 }
@@ -86,6 +94,7 @@ export async function validateBackup(filename: string): Promise<BackupManifest> 
   if (!metadataStat.isFile() || metadataStat.isSymbolicLink() || metadataStat.size > 4096) throw Error('FOX_BACKUP_MANIFEST');
   const metadata = JSON.parse(fs.readFileSync(filename + '.json', 'utf8')) as BackupManifest;
   if (metadata.format !== 'FOX_SQLITE_BACKUP' || metadata.formatVersion !== 1 || !/^\d+\.\d+\.\d+(?:-[\w.]+)?$/.test(metadata.applicationVersion) || !Number.isFinite(Date.parse(metadata.createdAt)) || !/^[a-f0-9]{64}$/.test(metadata.sha256)) throw Error('FOX_BACKUP_MANIFEST');
+  if(metadata.kind!==undefined&&!['MANUAL','PRE_MIGRATION','PRE_RESTORE'].includes(metadata.kind))throw Error('FOX_BACKUP_MANIFEST');
   if (await fileHash(filename) !== metadata.sha256) throw Error('FOX_BACKUP_CHECKSUM');
   const snapshot = new Database(filename, { readonly: true, fileMustExist: true });
   try { if (inspectDatabase(snapshot, true) !== metadata.schemaVersion) throw Error('FOX_BACKUP_SCHEMA'); } finally { snapshot.close(); }

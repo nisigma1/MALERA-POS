@@ -50,7 +50,7 @@ export async function replaceDatabase(db: Database.Database, backup: string, dir
   try {
     const backupDirectory = path.join(directory, 'backups'); fs.mkdirSync(backupDirectory, { recursive: true });
     const safety = path.join(backupDirectory, backupName('before-restore'));
-    await createBackup(db, safety, version);
+    await createBackup(db, safety, version,'PRE_RESTORE');
     inject?.('SAFETY_BACKUP');
     // Ensure all committed pages are in the original main file before renaming it.
     const checkpoint = db.pragma('wal_checkpoint(TRUNCATE)') as {busy:number}[];

@@ -33,3 +33,5 @@ The last verified manual backup and sanitized technical diagnostics are visible/
 Go-live choices are a fresh production database or an explicitly reviewed existing database. Neither is selected or executed automatically; current user history is preserved. Costs remain optional for selling and unknown historical costs remain unknown.
 
 SQLite mechanisms: [backup API](https://www.sqlite.org/backup.html), [VACUUM INTO](https://www.sqlite.org/lang_vacuum.html).
+
+Backup manifests distinguish MANUAL, PRE_MIGRATION and PRE_RESTORE. Retention considers only verified PRE_MIGRATION manifests, sorted by creation time. Manual backups remain protected even when the operator uses an automatic-looking filename; legacy manifests without a kind remain restorable and are preserved.
