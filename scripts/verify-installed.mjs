@@ -22,7 +22,7 @@ function installVersion(file) {
     assert.equal(verified.status,0,'Installed executable/helper/uninstaller signatures failed: '+verified.stderr);
   }
 }
-let running,ws;
+let running,ws,canonicalExecutable;
 async function launch() {
   const launchStarted=Date.now();
   const port=await new Promise(resolve=>{const s=net.createServer();s.listen(0,'127.0.0.1',()=>{const p=s.address().port;s.close(()=>resolve(p));});});
@@ -71,10 +71,12 @@ function shortcuts(expected) {
   fs.writeFileSync(script,`$ErrorActionPreference='Stop';$desktop=[Environment]::GetFolderPath('DesktopDirectory');$menu=Join-Path $env:APPDATA 'Microsoft/Windows/Start Menu/Programs';$shell=New-Object -ComObject WScript.Shell;$links=@(Get-ChildItem -LiteralPath $desktop,$menu -Recurse -Filter '*FOX*.lnk' -ErrorAction SilentlyContinue | ForEach-Object { @{path=$_.FullName;target=$shell.CreateShortcut($_.FullName).TargetPath} });ConvertTo-Json -InputObject $links -Compress`);
   const result=spawnSync('powershell.exe',['-NoProfile','-File',script],{windowsHide:true,encoding:'utf8',timeout:30000});
   assert.equal(result.status,0,result.stderr);const links=JSON.parse(result.stdout.trim());
-  const own=links.filter(l=>l.target.toLowerCase()===exe.toLowerCase());
+  if(fs.existsSync(exe))canonicalExecutable=fs.realpathSync.native(exe).toLowerCase();
+  const own=links.filter(l=>(fs.existsSync(l.target)?fs.realpathSync.native(l.target):l.target).toLowerCase()===canonicalExecutable);
+  evidence.shortcuts=links;
   if(expected)okay(own.length>=2,'actual Desktop and Start Menu shortcuts target installed executable');
   else okay(own.length===0,'uninstall removes QA shortcuts');
-  evidence.shortcuts=links;return own;
+  return own;
 }
 try {
   installVersion(installerA);const links=shortcuts(true);let session=await launch();let {evaluate,command}=session;
