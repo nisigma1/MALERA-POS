@@ -5,7 +5,7 @@ import os from 'node:os';
 // Resolve existing ancestors too, so junctions/symlinks cannot disguise an interactive path.
 function canonical(filename: string): string {
   const absolute = path.resolve(filename);
-  if (fs.existsSync(absolute)) return fs.realpathSync(absolute);
+  if (fs.existsSync(absolute)) return fs.realpathSync.native(absolute);
   return path.join(canonical(path.dirname(absolute)), path.basename(absolute));
 }
 function inside(root: string, target: string): boolean {
