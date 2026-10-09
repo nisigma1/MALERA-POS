@@ -137,6 +137,18 @@ try {
     okay(copy.every(r=>r.ok)&&copy[0].data.id===copy[1].data.id,'installed duplicate copy request idempotent');await submitted(copy[0].data.id);await keepOutput('installed-legacy-copy');
     const afterCopy=snapshot();for(const table of ['orders','order_items','order_payments','inventory_balances','inventory_movements','cafe_tables','products','expenses'])assert.deepEqual(afterCopy.tables[table],beforeCopy.tables[table]);assert.deepEqual(await api("return fox.reports.getSalesReport('ALL');"),reportCopy);okay(true,'installed legacy copy preserves finances and stock');
     await evaluate("document.querySelector('[data-nav=settings]').click()");await pause(300);okay(await evaluate('Boolean(document.querySelector("[aria-label=\"Printeri i kuponit\"]"))'),'installed receipt settings screen');
+    for(let i=0;i<100;i++){if(await evaluate(`document.querySelector('[aria-label="Printeri i kuponit"]').value===${JSON.stringify(target.Printer)}`))break;await pause(50);}
+    okay(await evaluate(`document.querySelector('[aria-label="Printeri i kuponit"]').value===${JSON.stringify(target.Printer)}`),'installed Settings shows exact persisted device');
+    await evaluate(`document.querySelector('.receipt-auto input').click()`);
+    for(let i=0;i<100&&(await api('return fox.receipts.getSettings();')).autoPrint;i++)await pause(50);
+    okay((await api('return fox.receipts.getSettings();')).autoPrint===false,'installed UI turns auto-print OFF');
+    await pause(150);await evaluate(`document.querySelector('.receipt-auto input').click()`);
+    for(let i=0;i<100&&!(await api('return fox.receipts.getSettings();')).autoPrint;i++)await pause(50);
+    okay((await api('return fox.receipts.getSettings();')).autoPrint===true,'installed UI turns tested auto-print ON');
+    await pause(150);const existingJobs=await api('return fox.receipts.recentJobs();');
+    await evaluate(`Array.from(document.querySelectorAll('.receipt-settings button')).find(b=>b.textContent==='Testo printerin').click()`);
+    let uiTest;for(let i=0;i<100;i++){uiTest=(await api('return fox.receipts.recentJobs();')).find(j=>j.kind==='TEST'&&!existingJobs.some(old=>old.id===j.id));if(uiTest)break;await pause(50);}
+    assert.ok(uiTest);await submitted(uiTest.id);await keepOutput('installed-ui-test-receipt');okay(true,'installed Testo printerin button executes real Windows pipeline');
     fs.writeFileSync(path.join(directory,'installed-receipt-settings.png'),Buffer.from((await command('Page.captureScreenshot',{format:'png'})).data,'base64'));
     const beforeRestart=snapshot();await close();session=await launch();evaluate=session.evaluate;command=session.command;assert.deepEqual(snapshot(),beforeRestart);okay((await api('return fox.receipts.getSettings();')).autoPrint===true,'installed printer config and receipt history persist through restart');
     evidence.receiptPipeline={windowsSpooler:true,physicalThermalPrinter:false,offlineRenderer:true};
