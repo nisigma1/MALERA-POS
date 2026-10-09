@@ -17,6 +17,7 @@ export async function verifyReceipts(window:MainWindow,directory:string,db:Datab
  const wait=async(condition:()=>boolean|Promise<boolean>)=>{for(let i=0;i<400;i++){if(await condition())return;await pause(50);}throw Error('Receipt QA condition timed out');};
  const printer=process.env.FOX_VERIFY_PRINTER!,output=process.env.FOX_VERIFY_PRINTER_OUTPUT!;
  assert.ok(printer?.startsWith('FOX QA Receipt '));assertTestDatabasePath(output);
+ const keepOutput=async(name:string)=>{for(let i=0;i<400;i++){if(fs.existsSync(output)&&fs.statSync(output).size>0){try{fs.renameSync(output,path.join(directory,name));return;}catch(error){if(!['EBUSY','EPERM'].includes((error as NodeJS.ErrnoException).code??''))throw error;}}await pause(50);}throw Error('Windows PDF output did not finish');};
  const printers=await api('return fox.receipts.listPrinters();');assert.ok(printers.ok);assert.ok(printers.data.some((p:{deviceName:string})=>p.deviceName===printer));
  const beforeTest=financial(db),reportBeforeTest=await api("return fox.reports.getSalesReport('ALL');");
  assert.deepEqual(repo.settings(),{deviceName:null,displayName:null,autoPrint:false,paperWidth:80,copies:1});
@@ -25,7 +26,7 @@ export async function verifyReceipts(window:MainWindow,directory:string,db:Datab
  assert.equal((await api(`return fox.receipts.saveSettings({deviceName:${JSON.stringify(printer)},autoPrint:false,paperWidth:80,copies:1});`)).data.saved,true);
  const test=await api('return fox.receipts.testPrint();');assert.ok(test.ok);
  await wait(()=>repo.recentJobs().find(j=>j.id===test.data.id)?.status==='SUBMITTED');await wait(()=>fs.existsSync(output)&&fs.statSync(output).size>0);
- fs.renameSync(output,path.join(directory,'windows-spool-test.pdf'));
+ await keepOutput('windows-spool-test.pdf');
  assert.deepEqual(financial(db),beforeTest);assert.deepEqual(await api("return fox.reports.getSalesReport('ALL');"),reportBeforeTest);
  assert.equal((await api(`return fox.receipts.saveSettings({deviceName:${JSON.stringify(printer)},autoPrint:true,paperWidth:80,copies:1});`)).data.saved,true);
  await api("const p=(await fox.products.list()).find(p=>p.id==='KAFE-1');return fox.products.update({...p,name:'Çaj ë Ë ç Ç <script>alert(1)</script>',sellingPriceCents:100,purchaseCostCents:50,trackInventory:true,lowStockThreshold:2});");
@@ -34,12 +35,12 @@ export async function verifyReceipts(window:MainWindow,directory:string,db:Datab
  const id=added.data.order.id;
  const sale=await api(`return fox.orders.completeOrder({orderId:${JSON.stringify(id)}});`);assert.ok(sale.ok);
  await wait(()=>repo.state(id).jobs[0]?.status==='SUBMITTED');await wait(()=>fs.existsSync(output)&&fs.statSync(output).size>0);
- fs.renameSync(output,path.join(directory,'windows-spool-original.pdf'));
+ await keepOutput('windows-spool-original.pdf');
  const beforeCopy=financial(db),reportBeforeCopy=await api("return fox.reports.getSalesReport('ALL');"),original=repo.document(id);
  assert.equal(reportBeforeCopy.summary.salesCents,100);assert.equal((db.prepare("SELECT quantity FROM inventory_balances WHERE product_id='KAFE-1'").get() as {quantity:number}).quantity,9);
  const copy=await api(`const input={saleId:${JSON.stringify(id)},requestId:crypto.randomUUID()};return Promise.all([fox.receipts.printCopy(input),fox.receipts.printCopy(input)]);`);assert.ok(copy.every((r:{ok:boolean})=>r.ok));assert.equal(copy[0].data.id,copy[1].data.id);
  await wait(()=>repo.state(id).jobs[0]?.status==='SUBMITTED'&&repo.state(id).jobs[0]?.kind==='COPY');await wait(()=>fs.existsSync(output)&&fs.statSync(output).size>0);
- fs.renameSync(output,path.join(directory,'windows-spool-copy.pdf'));
+ await keepOutput('windows-spool-copy.pdf');
  assert.deepEqual(financial(db),beforeCopy);assert.deepEqual(await api("return fox.reports.getSalesReport('ALL');"),reportBeforeCopy);assert.deepEqual(repo.document(id),original);
  // Render the same immutable HTML with real Chromium for layout/security QA.
  const sample:ReceiptPayload={...original.payload,items:Array.from({length:25},(_,i)=>({name:`Çaj shumë i gjatë ë Ë ç Ç ${i} `+'Emër '.repeat(20)+'<img src=x onerror="window.injected=1">',quantity:2,unitPriceCents:12345,lineTotalCents:24690})),totalCents:617250};

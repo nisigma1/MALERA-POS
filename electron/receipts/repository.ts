@@ -91,7 +91,10 @@ export function createReceiptRepository(db: Database.Database) {
       if (!validId(input)||!db.prepare("SELECT 1 FROM orders WHERE id=? AND status='CLOSED'").get(input))throw Error('Invalid completed sale');
       return {saleId:input,jobs:jobs('WHERE j.sale_id=? ORDER BY j.rowid DESC',[input]),generationError:!!db.prepare('SELECT 1 FROM receipt_generation_errors WHERE sale_id=? AND NOT EXISTS (SELECT 1 FROM receipt_documents WHERE sale_id=?)').get(input,input)};
     },
-    recentJobs:()=>jobs('ORDER BY j.rowid DESC LIMIT 30'),
+    recentJobs:()=>jobs(`WHERE j.rowid IN (SELECT rowid FROM receipt_print_jobs ORDER BY rowid DESC LIMIT 30)
+      OR (j.status IN ('FAILED','UNKNOWN','PENDING','SUBMITTING') AND j.sale_id IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM receipt_print_jobs newer WHERE newer.sale_id=j.sale_id AND newer.rowid>j.rowid))
+      ORDER BY j.rowid DESC`),
     recover(): void {
       db.transaction(()=>{
         const now=new Date().toISOString();

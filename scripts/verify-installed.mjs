@@ -124,7 +124,7 @@ try {
     okay((await api(`return fox.receipts.saveSettings({deviceName:${JSON.stringify(target.Printer)},autoPrint:false,paperWidth:80,copies:1});`)).data.saved,'installed printer setting saved');
     const test=await api('return fox.receipts.testPrint();');okay(test.ok,'installed test print request');
     async function submitted(jobId){for(let i=0;i<600;i++){const jobs=await api('return fox.receipts.recentJobs();');const job=jobs.find(j=>j.id===jobId);if(job?.status==='SUBMITTED')return;assert.ok(!['FAILED','UNKNOWN'].includes(job?.status),JSON.stringify(job));await pause(50);}throw Error('Installed receipt submit timed out');}
-    async function keepOutput(name){for(let i=0;i<400;i++){if(fs.existsSync(target.Port)&&fs.statSync(target.Port).size>0){fs.renameSync(target.Port,path.join(directory,name+'.pdf'));return;}await pause(50);}throw Error('Installed Windows PDF output missing');}
+    async function keepOutput(name){for(let i=0;i<400;i++){if(fs.existsSync(target.Port)&&fs.statSync(target.Port).size>0){try{fs.renameSync(target.Port,path.join(directory,name+'.pdf'));return;}catch(error){if(!['EBUSY','EPERM'].includes(error.code))throw error;}}await pause(50);}throw Error('Installed Windows PDF output missing');}
     await submitted(test.data.id);await keepOutput('installed-test-receipt');okay(true,'installed real webContents.print accepted and Windows spooler produced test PDF');
     assert.deepEqual(snapshot().tables.orders,beforeUpgrade.tables.orders);assert.deepEqual(snapshot().tables.inventory_balances,beforeUpgrade.tables.inventory_balances);
     okay((await api(`return fox.receipts.saveSettings({deviceName:${JSON.stringify(target.Printer)},autoPrint:true,paperWidth:80,copies:1});`)).data.saved,'installed auto-print enabled after test');
@@ -136,7 +136,26 @@ try {
     const copy=await api(`const input={saleId:${JSON.stringify(sale.data.orderId)},requestId:crypto.randomUUID()};return Promise.all([fox.receipts.printCopy(input),fox.receipts.printCopy(input)]);`);
     okay(copy.every(r=>r.ok)&&copy[0].data.id===copy[1].data.id,'installed duplicate copy request idempotent');await submitted(copy[0].data.id);await keepOutput('installed-legacy-copy');
     const afterCopy=snapshot();for(const table of ['orders','order_items','order_payments','inventory_balances','inventory_movements','cafe_tables','products','expenses'])assert.deepEqual(afterCopy.tables[table],beforeCopy.tables[table]);assert.deepEqual(await api("return fox.reports.getSalesReport('ALL');"),reportCopy);okay(true,'installed legacy copy preserves finances and stock');
-    await evaluate("document.querySelector('[data-nav=settings]').click()");await pause(300);okay(await evaluate('Boolean(document.querySelector("[aria-label=\"Printeri i kuponit\"]"))'),'installed receipt settings screen');
+    const printerControl=path.join(directory,'qa-printer-control.ps1');
+    fs.writeFileSync(printerControl,`param([string]$Name,[string]$Port,[string]$Action)\n$ErrorActionPreference='Stop'\nif ($Name -notmatch '^FOX QA Receipt [a-f0-9]{32}$' -or $Port -notlike '*fox-qa-print-spool-*') { throw 'Not an owned QA printer' }\nif ($Action -eq 'Remove') { $p=Get-Printer -Name $Name;if ($p.PortName -ne $Port -or $p.DriverName -ne 'Microsoft Print To PDF') { throw 'QA printer mismatch' };Remove-Printer -Name $Name } elseif ($Action -eq 'Add') { Add-Printer -Name $Name -DriverName 'Microsoft Print To PDF' -PortName $Port } else { throw 'Invalid action' }`);
+    function controlPrinter(action){const r=spawnSync('powershell.exe',['-NoProfile','-File',printerControl,'-Name',target.Printer,'-Port',target.Port,'-Action',action],{windowsHide:true,encoding:'utf8',timeout:30000});assert.equal(r.status,0,r.stderr);}
+    controlPrinter('Remove');let printerRemoved=true;
+    try{
+      for(let i=0;i<100;i++){const discovered=await api('return fox.receipts.listPrinters();');assert.ok(discovered.ok);if(!discovered.data.some(p=>p.deviceName===target.Printer))break;await pause(50);}
+      const disconnectedOrder=await api(`return fox.orders.addProduct({tableId:'M7',productId:'KAFE-1'});`);assert.ok(disconnectedOrder.ok);
+      const disconnectedSale=await api(`return fox.orders.completeOrder({orderId:${JSON.stringify(disconnectedOrder.data.order.id)}});`);okay(disconnectedSale.ok,'installed sale succeeds with removed selected printer');
+      let failedJob;for(let i=0;i<400;i++){failedJob=(await api(`return fox.receipts.getState(${JSON.stringify(disconnectedSale.data.orderId)});`)).data.jobs[0];if(['FAILED','UNKNOWN'].includes(failedJob?.status))break;await pause(50);}
+      okay(failedJob.status==='FAILED'&&failedJob.errorCode==='PRINTER_NOT_FOUND','installed removed printer detected without default fallback');
+      const failedSnapshot=snapshot(),failedReport=await api("return fox.reports.getSalesReport('ALL');");
+      okay(failedSnapshot.tables.cafe_tables.find(t=>t.code==='M7').status==='FREE'&&failedSnapshot.tables.inventory_balances.find(b=>b.product_id==='KAFE-1').quantity===16,'installed failed receipt still frees table and deducts sale stock once');
+      for(let i=0;i<100;i++){if(await evaluate('Boolean(document.querySelector(".print-notice"))'))break;await pause(50);}okay(await evaluate('document.querySelector(".print-notice")?.textContent.includes("Shitja #000003 u përfundua")'),'installed failure UI distinguishes completed sale');
+      controlPrinter('Add');printerRemoved=false;
+      const retry=await api(`return fox.receipts.retry(${JSON.stringify(failedJob.id)});`);assert.ok(retry.ok);await submitted(retry.data.id);await keepOutput('installed-retried-receipt');
+      const retried=snapshot();for(const table of ['orders','order_items','order_payments','inventory_balances','inventory_movements','cafe_tables','products','expenses'])assert.deepEqual(retried.tables[table],failedSnapshot.tables[table]);assert.deepEqual(await api("return fox.reports.getSalesReport('ALL');"),failedReport);okay(true,'installed intentional retry after reconnection preserves financial state');
+    }finally{
+      if(printerRemoved)controlPrinter('Add');
+    }
+    await evaluate("document.querySelector('[data-nav=settings]').click()");await pause(300);okay(await evaluate(`Boolean(document.querySelector('[aria-label="Printeri i kuponit"]'))`),'installed receipt settings screen');
     for(let i=0;i<100;i++){if(await evaluate(`document.querySelector('[aria-label="Printeri i kuponit"]').value===${JSON.stringify(target.Printer)}`))break;await pause(50);}
     okay(await evaluate(`document.querySelector('[aria-label="Printeri i kuponit"]').value===${JSON.stringify(target.Printer)}`),'installed Settings shows exact persisted device');
     await evaluate(`document.querySelector('.receipt-auto input').click()`);
