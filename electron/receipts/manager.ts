@@ -1,6 +1,7 @@
 import { RECEIPT_PROFILE, type Printer, type ReceiptSettings, type ReceiptResult, type PrintJob } from '../../src/domain/receipts';
 import type { ReceiptRepository } from './repository';
 import { renderReceipt } from './render';
+import {logError} from '../main/logging';
 export class PrintError extends Error { constructor(readonly code: string, readonly uncertain = false) { super(code); } }
 export interface PrinterAdapter { list(): Promise<Printer[]>; submit(html: string, deviceName: string, signal: AbortSignal): Promise<void> }
 export class PrintManager {
@@ -10,7 +11,7 @@ export class PrintManager {
   constructor(private readonly repository: ReceiptRepository, private readonly adapter: PrinterAdapter, private readonly timeoutMs: number = RECEIPT_PROFILE.submissionTimeoutMs) {}
   start(): void {this.repository.recover();this.kick();}
   stop(): void {this.stopped=true;this.abort?.abort();}
-  kick(): void {if(!this.stopped&&!this.running){this.running=this.drain().catch(error=>console.error('FOX print queue failed',error)).finally(()=>{this.running=undefined;});}}
+  kick(): void {if(!this.stopped&&!this.running){this.running=this.drain().catch(error=>logError('PRINT_QUEUE_FAILURE',error)).finally(()=>{this.running=undefined;});}}
   async idle(): Promise<void> {await this.running;}
   private async drain(): Promise<void> {
     // Never enter Windows printing while an IPC checkout transaction is on the stack.
@@ -35,7 +36,7 @@ export class PrintManager {
       }catch(error){
         code=error instanceof PrintError ? error.code : submissionStarted?'PRINT_CALL_FAILED':'RENDER_FAILED';
         status=error instanceof PrintError ? error.uncertain?'UNKNOWN':'FAILED' : submissionStarted?'UNKNOWN':'FAILED';
-        console.error('FOX receipt submission',code);
+        logError('RECEIPT_SUBMISSION',new Error('FOX_'+code));
       }finally{if(timer)clearTimeout(timer);controller.abort();this.abort=undefined;}
       if(this.stopped)return; // Startup will mark an unfinished attempt UNKNOWN.
       this.repository.finish(job,status,code);
@@ -44,7 +45,7 @@ export class PrintManager {
 }
 const messages:Record<string,string>={NO_PRINTER_CONFIGURED:'Printeri i kuponit nuk është konfiguruar.',PRINTER_NOT_FOUND:'Printeri i zgjedhur nuk u gjet.'};
 export function createReceiptService(repository: ReceiptRepository, adapter: PrinterAdapter, manager: PrintManager) {
-  async function result<T>(operation:()=>T|Promise<T>):Promise<ReceiptResult<T>>{try{return{ok:true,data:await operation()};}catch(error){console.error('FOX receipt request',error);return{ok:false,message:error instanceof Error&&messages[error.message] ? messages[error.message]! : 'Veprimi i kuponit nuk u krye. Kontrollo printerin dhe provo përsëri.'};}}
+  async function result<T>(operation:()=>T|Promise<T>):Promise<ReceiptResult<T>>{try{return{ok:true,data:await operation()};}catch(error){logError('RECEIPT_REQUEST',error);return{ok:false,message:error instanceof Error&&messages[error.message] ? messages[error.message]! : 'Veprimi i kuponit nuk u krye. Kontrollo printerin dhe provo përsëri.'};}}
   return {
     listPrinters:()=>result(()=>adapter.list()),
     getSettings:()=>repository.settings(),

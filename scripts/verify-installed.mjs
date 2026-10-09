@@ -17,6 +17,10 @@ function installVersion(file) {
   const result=spawnSync(path.resolve(file),['/S',`/D=${install}`],{windowsHide:true,timeout:120000});
   assert.equal(result.status,0,`Installer exit ${result.status}: ${result.error?.message||result.stderr}`);
   assert.ok(fs.existsSync(exe),'Installed executable missing');
+  if(process.env.FOX_REQUIRE_SIGNED==='1'&&path.resolve(file)===path.resolve(installerB)) {
+    const verified=spawnSync('powershell.exe',['-NoProfile','-File','scripts/verify-signatures.ps1','-Root',install,'-RequireSigned'],{windowsHide:true,encoding:'utf8',timeout:120000});
+    assert.equal(verified.status,0,'Installed executable/helper/uninstaller signatures failed: '+verified.stderr);
+  }
 }
 let running,ws;
 async function launch() {
@@ -49,9 +53,9 @@ async function close(force=false) {
   ws?.close();
   if(running&&running.exitCode===null&&running.signalCode===null)throw Error('QA process did not close');
 }
-function snapshot() {
+function snapshot(databaseFile=path.join(directory,'fox.sqlite')) {
   const script=path.join(directory,'read-snapshot.cjs');
-  fs.writeFileSync(script,`const DB=require(${JSON.stringify(path.join(install,'resources/app.asar/node_modules/better-sqlite3'))});const db=new DB(${JSON.stringify(path.join(directory,'fox.sqlite'))},{readonly:true});const names=db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all();const result={integrity:db.pragma('integrity_check',{simple:true}),tables:Object.fromEntries(names.map(({name})=>[name,db.prepare('SELECT * FROM "'+name+'" ORDER BY rowid').all()]))};db.close();console.log(JSON.stringify(result));`);
+  fs.writeFileSync(script,`const DB=require(${JSON.stringify(path.join(install,'resources/app.asar/node_modules/better-sqlite3'))});const db=new DB(${JSON.stringify(databaseFile)},{readonly:true,fileMustExist:true});const names=db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all();const result={integrity:db.pragma('integrity_check',{simple:true}),tables:Object.fromEntries(names.map(({name})=>[name,db.prepare('SELECT * FROM "'+name+'" ORDER BY rowid').all()]))};db.close();console.log(JSON.stringify(result));`);
   const result=spawnSync(exe,[script],{env:{...process.env,ELECTRON_RUN_AS_NODE:'1'},windowsHide:true,encoding:'utf8',timeout:30000});
   assert.equal(result.status,0,result.stderr);const data=JSON.parse(result.stdout);assert.equal(data.integrity,'ok');return data;
 }
@@ -116,6 +120,12 @@ try {
   for(const key of ['summary','cashCents','cardCents','unknownPaymentCents','period'])assert.deepEqual(upgradedReport[key],report[key]);
   for(const oldSale of report.recentSales){const newSale=upgradedReport.recentSales.find(s=>s.id===oldSale.id);for(const [key,value] of Object.entries(oldSale))assert.deepEqual(newSale[key],value);}
   evidence.checks.push('real installer A to B preserves every old business row and report value; additive receipt migration permitted');
+  if(Math.max(...upgraded.tables.schema_migrations.map(row=>row.version))>Math.max(...beforeUpgrade.tables.schema_migrations.map(row=>row.version))){
+    const backups=path.join(directory,'backups');assert.ok(fs.existsSync(backups),'Required pre-migration backup directory');
+    const automatic=fs.readdirSync(backups).filter(name=>/^FOX-before-v\d+-.*\.sqlite$/.test(name));assert.ok(automatic.length);
+    assert.deepEqual(snapshot(path.join(backups,automatic.at(-1))).tables,beforeUpgrade.tables);
+    okay(true,'installed pre-migration backup exactly preserves old state');
+  }
   if(receiptTargetFile){
     const target=JSON.parse(fs.readFileSync(receiptTargetFile,'utf8'));assert.ok(target.Printer.startsWith('FOX QA Receipt '));
     okay((await api('return fox.receipts.getSettings();')).autoPrint===false,'upgraded receipt auto-print safely OFF');

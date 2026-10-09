@@ -1,7 +1,10 @@
 import type { CompleteOrderRequest, CheckoutResult, ReportPeriod, SalesReport, TableSummary, OrderWorkspace, AddOrderProduct, OrderItemCommand, CatalogProduct, ReportSummary, Settings } from '../domain/types';
 import type { MutationResult, ProductUpdate, SupplyRequest } from '../domain/configuration';
 import type { Printer, ReceiptSettings, ReceiptSettingsInput, ReceiptSettingsResult, ReceiptAction, ReceiptResult, PrintJob, ReceiptState } from '../domain/receipts';
+import type {DataDiagnostics,DataActionResult} from '../domain/protection';
+export const DATA_IPC={diagnostics:'fox:data:diagnostics',copy:'fox:data:copy-diagnostics',backup:'fox:data:backup',restore:'fox:data:restore',error:'fox:data:renderer-error'} as const;
 export interface FoxApi {
+  data: { diagnostics():Promise<DataDiagnostics>; copyDiagnostics():Promise<DataActionResult>; backup():Promise<DataActionResult>; restore():Promise<DataActionResult>; rendererError(input:'RENDERER_FAILURE'):Promise<DataActionResult> };
   tables: { list(): Promise<TableSummary[]> };
   orders: {
     completeOrder(input: CompleteOrderRequest): Promise<CheckoutResult>;

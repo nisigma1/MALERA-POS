@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { IPC, type FoxApi } from '../../src/types/api';
+import { IPC, DATA_IPC, type FoxApi } from '../../src/types/api';
 const api: FoxApi = {
+  data: { diagnostics:()=>ipcRenderer.invoke(DATA_IPC.diagnostics),copyDiagnostics:()=>ipcRenderer.invoke(DATA_IPC.copy),backup:()=>ipcRenderer.invoke(DATA_IPC.backup),restore:()=>ipcRenderer.invoke(DATA_IPC.restore),rendererError:input=>ipcRenderer.invoke(DATA_IPC.error,input) },
   tables: { list: () => ipcRenderer.invoke(IPC.tables) },
   orders: {
     completeOrder: input => ipcRenderer.invoke(IPC.completeOrder, input),

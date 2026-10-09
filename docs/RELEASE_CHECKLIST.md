@@ -1,5 +1,17 @@
 # FOX release checklist
 
+## Phase 5.1 acceptance
+- [ ] Verified SQLite backup, checksum and WAL snapshot.
+- [ ] Restore roundtrip, current-state safety backup and failure rollback.
+- [ ] Pre-migration backup, retention and failed migration recovery.
+- [ ] Database integrity and no silent empty-data fallback.
+- [ ] IPC/path security, production CSP/navigation and bounded logs.
+- [ ] Dependency audit reviewed; CycloneDX SBOM, forbidden/secret scans.
+- [ ] Manifest v2/version/commit/tag/final signed binary and SBOM hashes.
+- [ ] Trusted signature independently verified; no Windows security bypass.
+- [ ] Actual clean install, old/QA upgrade, uninstall/reinstall and reboot evidence.
+- [ ] Physical printer/second-laptop limits recorded; private draft only after acceptance.
+
 ## Pre-release
 - Review clean git status and intentional version/lockfile change.
 - npm ci; npm test; npm run typecheck; npm run build.

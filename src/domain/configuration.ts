@@ -9,10 +9,12 @@ export interface ProductUpdate {
 }
 export interface SupplyRequest { requestId: string; productId: string; quantity: number }
 export function validateProductUpdate(input: unknown): FieldErrors {
-  if (!input || typeof input !== 'object') return { form: 'Kërkesa nuk është e vlefshme.' };
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return { form: 'Kërkesa nuk është e vlefshme.' };
   const value = input as Record<string, unknown>;
+  // Existing catalog callers include read-only metadata; the backend never writes those fields.
+  if(Object.keys(value).some(key=>!['id','name','categoryId','purchaseCostCents','sellingPriceCents','trackInventory','lowStockThreshold','active','categoryName','stockQuantity','createdAt','updatedAt'].includes(key)))return {form:'Kërkesa nuk është e vlefshme.'};
   const errors: FieldErrors = {};
-  if (typeof value.id !== 'string' || !value.id.trim()) errors.id = 'Produkti nuk është i vlefshëm.';
+  if (typeof value.id !== 'string' || !value.id.trim() || value.id.length>200) errors.id = 'Produkti nuk është i vlefshëm.';
   if (typeof value.name !== 'string' || !value.name.trim() || value.name.trim().length > 200) errors.name = 'Shkruaj emrin e produktit (deri në 200 karaktere).';
   if (!CATEGORIES.some(c => c.id === value.categoryId)) errors.categoryId = 'Zgjidh një kategori të vlefshme.';
   for (const key of ['purchaseCostCents', 'sellingPriceCents']) {
@@ -27,11 +29,12 @@ export function validateProductUpdate(input: unknown): FieldErrors {
   return errors;
 }
 export function validateSupply(input: unknown): FieldErrors {
-  if (!input || typeof input !== 'object') return { form: 'Kërkesa nuk është e vlefshme.' };
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return { form: 'Kërkesa nuk është e vlefshme.' };
   const value = input as Record<string, unknown>;
+  if(Object.keys(value).some(key=>!['requestId','productId','quantity'].includes(key)))return {form:'Kërkesa nuk është e vlefshme.'};
   const errors: FieldErrors = {};
   if (typeof value.requestId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.requestId)) errors.form = 'Identifikuesi i furnizimit nuk është i vlefshëm.';
-  if (typeof value.productId !== 'string' || !value.productId) errors.productId = 'Zgjidh produktin.';
+  if (typeof value.productId !== 'string' || !value.productId || value.productId.length>200) errors.productId = 'Zgjidh produktin.';
   if (typeof value.quantity !== 'number' || !Number.isFinite(value.quantity) || value.quantity <= 0 || value.quantity > Number.MAX_SAFE_INTEGER) errors.quantity = 'Sasia duhet të jetë një numër më i madh se zero.';
   return errors;
 }

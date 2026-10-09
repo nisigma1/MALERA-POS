@@ -15,6 +15,19 @@ concurrency:
 jobs:
   release:
     runs-on: windows-latest
+    env:
+      FOX_SIGNING_PROVIDER: ${{ vars.FOX_SIGNING_PROVIDER }}
+      FOX_SIGNER_SUBJECT: ${{ vars.FOX_SIGNER_SUBJECT }}
+      FOX_SIGNING_TIMESTAMP: ${{ vars.FOX_SIGNING_TIMESTAMP }}
+      FOX_SIGNING_THUMBPRINT: ${{ vars.FOX_SIGNING_THUMBPRINT }}
+      CSC_LINK: ${{ secrets.CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+      FOX_AZURE_ENDPOINT: ${{ vars.FOX_AZURE_ENDPOINT }}
+      FOX_AZURE_ACCOUNT: ${{ vars.FOX_AZURE_ACCOUNT }}
+      FOX_AZURE_PROFILE: ${{ vars.FOX_AZURE_PROFILE }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
     permissions:
       contents: write
     steps:
@@ -32,7 +45,7 @@ jobs:
           REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
         run: |
           $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
-          if ($env:RELEASE_TAG -ne "v$version" -or $version -notmatch '^\d+\.\d+\.\d+$') { throw 'Version/tag mismatch' }
+          if ($env:RELEASE_TAG -ne "v$version" -or $version -notmatch '^\d+\.\d+\.\d+(?:-rc\.\d+)?$') { throw 'Version/tag mismatch' }
           if ($env:REPOSITORY_PRIVATE -ne 'true') { throw 'Repository must remain private' }
           if ((git describe --tags --exact-match) -ne $env:RELEASE_TAG) { throw 'Not the tagged commit' }
       - run: npm ci
@@ -40,8 +53,20 @@ jobs:
       - run: npm test
       - run: npm run typecheck
       - run: npm run build
+      - run: npm run release:scan
+      - run: npm run verify:protection
+      - run: node scripts/verify-receipt-crashes.mjs
+      - run: node scripts/verify-hardening-runtime.mjs
       - run: npm run package:win
       - run: ./scripts/verify-release.ps1
+      - name: Actual signed installer acceptance
+        env:
+          FOX_REQUIRE_SIGNED: '1'
+        shell: pwsh
+        run: |
+          $version=(Get-Content package.json -Raw | ConvertFrom-Json).version
+          node scripts/verify-installed.mjs "release/FOX-Setup-$version-x64.exe" "release/FOX-Setup-$version-x64.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Installed acceptance failed' }
       - uses: actions/upload-artifact@v4
         with:
           name: FOX-Windows-x64
@@ -49,6 +74,8 @@ jobs:
             release/FOX-Setup-*-x64.exe
             release/FOX-Setup-*-x64.exe.sha256
             release/release-manifest.json
+            release/FOX-*-sbom.json
+            release/signature-verification.json
           if-no-files-found: error
       - name: Create private draft release
         env:
@@ -59,5 +86,5 @@ jobs:
           gh release view $env:RELEASE_TAG *> $null
           if ($LASTEXITCODE -eq 0) { throw 'Release already exists; never replace immutable artifacts' }
           $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
-          gh release create $env:RELEASE_TAG --verify-tag --draft --title "FOX $env:RELEASE_TAG" --notes-file docs/RELEASE_NOTES.md "release/FOX-Setup-$version-x64.exe" "release/FOX-Setup-$version-x64.exe.sha256" release/release-manifest.json
+          gh release create $env:RELEASE_TAG --verify-tag --draft --title "FOX $env:RELEASE_TAG" --notes-file docs/RELEASE_NOTES.md "release/FOX-Setup-$version-x64.exe" "release/FOX-Setup-$version-x64.exe.sha256" release/release-manifest.json "release/FOX-$version-sbom.json" release/signature-verification.json
           if ($LASTEXITCODE -ne 0) { throw 'Draft release creation failed' }

@@ -3,6 +3,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: windows-qa-${{ github.sha }}
   cancel-in-progress: false
@@ -21,15 +22,51 @@ jobs:
           REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
         run: |
           $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
-          if ($version -notmatch '^\d+\.\d+\.\d+-qa\.\d+$') { throw 'Only an explicit QA version is permitted' }
+          if ($version -notmatch '^\d+\.\d+\.\d+-(?:qa|rc)\.\d+$') { throw 'Only a prerelease candidate is permitted; artifact remains explicitly QA/UNSIGNED' }
           if ($env:REPOSITORY_PRIVATE -ne 'true') { throw 'Repository must remain private' }
       - run: npm ci
       - run: npm test
       - run: npm run typecheck
       - run: npm run build
       - run: node scripts/verify-receipt-crashes.mjs
-      - run: npm run package:win
+      - run: npm run release:scan
+      - run: npm run verify:protection
+      - run: node scripts/verify-hardening-runtime.mjs
+      - run: npm run package:win -- --qa
       - run: ./scripts/verify-release.ps1
+      - name: Actual clean QA installer and reinstall acceptance
+        shell: pwsh
+        run: |
+          $version=(Get-Content package.json -Raw | ConvertFrom-Json).version
+          node scripts/verify-installed.mjs "release/FOX-Setup-$version-x64.exe" "release/FOX-Setup-$version-x64.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Installed QA acceptance failed' }
+      - name: Actual 0.4.2 and prior-QA upgrades
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $version=(Get-Content package.json -Raw | ConvertFrom-Json).version
+          gh release download v0.4.2 -p FOX-Setup-0.4.2-x64.exe -D work/old-release
+          if ($LASTEXITCODE -ne 0) { throw 'Prior release download failed' }
+          gh run download 37921221790 -n FOX-QA-Windows-x64 -D work/prior-qa
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned prior QA download failed' }
+          $prior=Get-Content work/prior-qa/release-manifest.json -Raw | ConvertFrom-Json
+          if ($prior.commit -ne '4e39afddff9c03847f4cfb2556e5b28a5e1efec9' -or (Get-FileHash work/prior-qa/FOX-Setup-0.5.0-qa.1-x64.exe).Hash.ToLowerInvariant() -ne $prior.sha256) { throw 'Prior QA provenance mismatch' }
+          node scripts/verify-installed.mjs work/old-release/FOX-Setup-0.4.2-x64.exe "release/FOX-Setup-$version-x64.exe"
+          if ($LASTEXITCODE -ne 0) { throw '0.4.2 upgrade failed' }
+          node scripts/verify-installed.mjs work/prior-qa/FOX-Setup-0.5.0-qa.1-x64.exe "release/FOX-Setup-$version-x64.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'QA upgrade failed' }
+      - name: Retain sanitized acceptance evidence
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path work/ci-evidence -Force | Out-Null
+          Get-ChildItem -LiteralPath $env:TEMP -Directory -Filter 'fox-qa-*' | ForEach-Object {
+            $qaDir=$_.FullName
+            Get-ChildItem -LiteralPath $qaDir -File | Where-Object Name -match '(?:result|recover-).*\.json$' | ForEach-Object {
+              Copy-Item -LiteralPath $_.FullName -Destination (Join-Path work/ci-evidence ($_.Directory.Name+'-'+$_.Name))
+            }
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: FOX-QA-Windows-x64
@@ -37,5 +74,8 @@ jobs:
             release/FOX-Setup-*-x64.exe
             release/FOX-Setup-*-x64.exe.sha256
             release/release-manifest.json
+            release/FOX-*-sbom.json
+            release/signature-verification.json
+            work/ci-evidence/*.json
           if-no-files-found: error
           retention-days: 14

@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3';
+import {logError} from '../main/logging';
 import { createHash, randomUUID } from 'node:crypto';
 import { NON_FISCAL_NOTICE, type ReceiptPayload, type ReceiptSettings, type PrintJob, type ReceiptState, type PrintKind } from '../../src/domain/receipts';
 
@@ -70,7 +71,7 @@ export function createReceiptRepository(db: Database.Database) {
     tested(deviceName: string): boolean { return !!db.prepare("SELECT 1 FROM receipt_print_jobs WHERE job_kind='TEST' AND printer_device_name=? AND status='SUBMITTED' LIMIT 1").get(deviceName); },
     onSaleCompleted(saleId: string): boolean {
       try { db.transaction(()=>{document(saleId,false);const config=settings();if(config.autoPrint&&config.deviceName)enqueue(saleId,'ORIGINAL_AUTO',randomUUID());})(); return true; }
-      catch(error){ console.error('FOX receipt generation failed',error);db.prepare("INSERT OR IGNORE INTO receipt_generation_errors VALUES (?,'RECEIPT_INTEGRITY_ERROR',?)").run(saleId,new Date().toISOString()); return false; }
+      catch(error){ logError('RECEIPT_GENERATION',error);db.prepare("INSERT OR IGNORE INTO receipt_generation_errors VALUES (?,'RECEIPT_INTEGRITY_ERROR',?)").run(saleId,new Date().toISOString()); return false; }
     },
     enqueueCopy(input: unknown): PrintJob {const value=validateReceiptAction(input);return db.transaction(()=>enqueue(value.saleId,'COPY',value.requestId)).immediate();},
     retry(input: unknown): PrintJob {

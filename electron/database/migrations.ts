@@ -151,13 +151,17 @@ CREATE TABLE receipt_generation_errors (sale_id TEXT PRIMARY KEY REFERENCES orde
 INSERT INTO settings(key,value) VALUES ('receipt_printer','null'),('receipt_auto_print','false');
 ` }];
 
-export function migrate(db: Database.Database): void {
+export function migrate(db: Database.Database, beforeMigration?:()=>void): void {
   db.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
     version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL
   ) STRICT`);
   const applied = db.prepare('SELECT version FROM schema_migrations').all() as { version: number }[];
   if (applied.some(row => !migrations.some(m => m.version === row.version))) {
     throw new Error('Database schema is newer than this application');
+  }
+  if(applied.length && migrations.some(m=>!applied.some(row=>row.version===m.version))) {
+    if(db.name!==':memory:'&&!beforeMigration)throw Error('FOX_MIGRATION_BACKUP_REQUIRED');
+    beforeMigration?.();
   }
   for (const migration of migrations) {
     db.transaction(() => {

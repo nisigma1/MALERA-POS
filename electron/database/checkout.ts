@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { CheckoutErrorCode, CheckoutResult } from '../../src/domain/types';
 import type { createOrderService } from './orders';
 import { createReceiptRepository } from '../receipts/repository';
+import {logError} from '../main/logging';
 
 class CheckoutError extends Error { constructor(readonly code: CheckoutErrorCode, message: string) { super(message); } }
 const fail = (code: CheckoutErrorCode, message: string): never => { throw new CheckoutError(code, message); };
@@ -63,7 +64,7 @@ export function createCheckoutService(db: Database.Database, orders: ReturnType<
         }).immediate() };
       } catch (error) {
         if (error instanceof CheckoutError) return { ok: false, code: error.code, message: error.message };
-        console.error('FOX checkout rolled back', error);
+        logError('CHECKOUT_ROLLBACK',error);
         return { ok: false, code: 'CHECKOUT_FAILED', message: 'Pagesa nuk u ruajt. Porosia mbetet aktive. Provo përsëri.' };
       }
     },

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog } from 'electron';
+import { app, BrowserWindow, dialog, Menu } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import type Database from 'better-sqlite3';
@@ -12,6 +12,11 @@ import { verificationDirectory } from '../database/safety';
 import { createReceiptRepository } from '../receipts/repository';
 import { PrintManager, createReceiptService } from '../receipts/manager';
 import { WindowsPrinterAdapter } from '../receipts/windowsAdapter';
+import {initializeLogging,logError} from './logging';
+import {createDataProtection,type DataProtectionService} from './dataProtection';
+import {recoverInterruptedRestore,restoreUnreadableDatabase} from '../database/restore';
+import {durableWrite,validateBackup} from '../database/backups';
+import {allowedResource} from './security';
 declare const FOX_RELEASE: boolean;
 
 app.setName('FOX Kafeteri');
@@ -20,17 +25,25 @@ if (qaDirectory) app.setPath('userData', qaDirectory);
 let database: Database.Database | undefined;
 let printManager: PrintManager | undefined;
 let mainWindow: BrowserWindow | undefined;
+let protection:DataProtectionService|undefined;
+let waitingToQuit=false;
 async function start() {
   const userData = app.getPath('userData');
   fs.mkdirSync(userData, { recursive: true });
-  database = openDatabase(path.join(userData, 'fox.sqlite'));
+  initializeLogging(userData);
+  recoverInterruptedRestore(userData);
+  const identityFile=path.join(userData,'fox-data-identity.json');
+  if(fs.existsSync(identityFile)&&!fs.existsSync(path.join(userData,'fox.sqlite')))throw Error('FOX_DB_MISSING_EXISTING');
+  database = openDatabase(path.join(userData, 'fox.sqlite'),app.getVersion());
+  if(!fs.existsSync(identityFile))durableWrite(identityFile,JSON.stringify({format:1,product:'FOX Kafeteri',createdAt:new Date().toISOString()}));
+  Menu.setApplicationMenu(null);
   const devUrl = !app.isPackaged && /^http:\/\/127\.0\.0\.1:\d+$/.test(process.env.FOX_DEV_URL ?? '')
     ? process.env.FOX_DEV_URL : undefined;
   const window = new BrowserWindow({
     width: 1366, height: 768, minWidth: 1000, minHeight: 650,
     title: 'FOX Kafeteri', show: !process.env.FOX_VERIFY_DIR,
     backgroundColor: '#f4f3ef', autoHideMenuBar: true,
-    webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, offscreen: Boolean(process.env.FOX_VERIFY_DIR), backgroundThrottling: !process.env.FOX_VERIFY_DIR },
+    webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, devTools: !app.isPackaged, offscreen: Boolean(process.env.FOX_VERIFY_DIR), backgroundThrottling: !process.env.FOX_VERIFY_DIR },
   });
   mainWindow=window;
   window.on('closed',()=>app.quit());
@@ -40,27 +53,26 @@ async function start() {
   window.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
   window.webContents.session.setPermissionCheckHandler(() => false);
   window.webContents.session.webRequest.onBeforeRequest((details, callback) => {
-    const url = new URL(details.url);
-    const localFile = url.protocol === 'file:';
-    const localDev = devUrl && ['http:', 'ws:'].includes(url.protocol) && url.host === new URL(devUrl).host;
-    callback({ cancel: !localFile && !localDev });
+    callback({cancel:!allowedResource(details.url,path.resolve(__dirname,'../dist'),devUrl)});
   });
   const repositories = createRepositories(database);
   const orders = createOrderService(database, repositories);
   const receiptRepository=createReceiptRepository(database),printerAdapter=new WindowsPrinterAdapter(window);
   printManager=new PrintManager(receiptRepository,printerAdapter);
-  registerIpc(window, repositories, createConfigurationService(database, repositories), orders, createCheckoutService(database, orders),createReceiptService(receiptRepository,printerAdapter,printManager),printManager);
+  protection=createDataProtection(window,database,()=>printManager?.stop());
+  registerIpc(window, repositories, createConfigurationService(database, repositories), orders, createCheckoutService(database, orders),createReceiptService(receiptRepository,printerAdapter,printManager),printManager,protection);
   printManager.start();
   const rendererErrors: string[] = [];
-  window.webContents.on('console-message', details => { if (details.level === 'error') { rendererErrors.push(details.message); if (process.env.FOX_VERIFY_DIR) console.error('FOX verification renderer:', details.message); } });
-  window.webContents.on('preload-error', (_event, _preloadPath, error) => rendererErrors.push(error.message));
-  window.webContents.on('render-process-gone', (_event, details) => rendererErrors.push(`Renderer stopped: ${details.reason}`));
+  window.webContents.on('console-message', details => { if (details.level === 'error') { if(rendererErrors.length<50)rendererErrors.push(details.message);logError('RENDERER_CONSOLE_ERROR'); if (process.env.FOX_VERIFY_DIR) console.error('FOX verification renderer:', details.message); } });
+  window.webContents.on('preload-error', (_event, _preloadPath, error) => {rendererErrors.push(error.message);logError('PRELOAD_ERROR',error);});
+  window.webContents.on('render-process-gone', (_event, details) => {rendererErrors.push(`Renderer stopped: ${details.reason}`);logError('RENDERER_GONE');if(!process.env.FOX_VERIFY_DIR)dialog.showErrorBox('FOX','Ekrani u ndërpre. Të dhënat e ruajtura janë ruajtur. Rihap FOX.');});
   if (devUrl) await window.loadURL(devUrl);
   else await window.loadFile(path.join(__dirname, '../dist/index.html'));
   if (!process.env.FOX_VERIFY_DIR) window.maximize();
   // Interactive QA keeps the same isolated, hidden window open for native input.
   if (!FOX_RELEASE && process.env.FOX_VERIFY_DIR && !process.env.FOX_VERIFY_MANUAL) {
-    if (process.env.FOX_VERIFY_RECEIPTS) await (await import('./verify-receipts')).verifyReceipts(window,process.env.FOX_VERIFY_DIR,database,printManager,rendererErrors);
+    if(process.env.FOX_VERIFY_HARDENING)await(await import('./verify-hardening')).verifyHardening(window,process.env.FOX_VERIFY_DIR,database,printManager,rendererErrors);
+    else if (process.env.FOX_VERIFY_RECEIPTS) await (await import('./verify-receipts')).verifyReceipts(window,process.env.FOX_VERIFY_DIR,database,printManager,rendererErrors);
     else if (process.env.FOX_VERIFY_CHECKOUT) await (await import('./verify-checkout')).verifyCheckout(window,process.env.FOX_VERIFY_DIR,database,rendererErrors,Boolean(process.env.FOX_VERIFY_CHECKOUT_RESTART));
     else if (process.env.FOX_VERIFY_ORDER_RESTART) await (await import('./verify-orders')).verifyOrderRestart(window,process.env.FOX_VERIFY_DIR,database,rendererErrors);
     else await (await import('./verify')).verifyRuntime(window, process.env.FOX_VERIFY_DIR, repositories, database, rendererErrors);
@@ -68,10 +80,19 @@ async function start() {
   }
 }
 if (!app.requestSingleInstanceLock()) app.quit();
-else app.whenReady().then(start).catch(error => {
-  console.error('FOX startup failed', error);
-  if (!process.env.FOX_VERIFY_DIR) dialog.showErrorBox('FOX — Gabim', 'Aplikacioni nuk mund të niset. Të dhënat lokale nuk janë fshirë. Shikoni regjistrimin e gabimit.');
-  database?.close();
+else app.whenReady().then(start).catch(async error => {
+  if(process.env.FOX_VERIFY_DIR)console.error('FOX isolated startup verification failed',error);
+  logError('STARTUP_FAILED',error);
+  if(database?.open)database.close();
+  if (!process.env.FOX_VERIFY_DIR) {
+    const choice=await dialog.showMessageBox({type:'error',title:'FOX — Të dhënat',message:'FOX nuk mund ta hapë databazën ekzistuese. Të dhënat nuk janë fshirë.',detail:'Mund të rikthesh një backup të verifikuar ose ta mbyllësh aplikacionin. Diagnostika është ruajtur lokalisht.',buttons:['Mbyll','Zgjidh backup për rikthim'],defaultId:0,cancelId:0,noLink:true});
+    if(choice.response===1)try{
+      const selected=await dialog.showOpenDialog({title:'Zgjidh backup',filters:[{name:'FOX backup',extensions:['sqlite']}],properties:['openFile']});
+      const file=selected.filePaths[0];
+      if(file){await validateBackup(file);const confirmation=await dialog.showMessageBox({type:'warning',message:'Rikthe backup-in? Gjendja e palexueshme do të ruhet veçmas.',buttons:['Anulo','Rikthe'],defaultId:0,cancelId:0,noLink:true});
+        if(confirmation.response===1){await restoreUnreadableDatabase(file,app.getPath('userData'));app.relaunch();}}
+    }catch(recoveryError){logError('RECOVERY_FAILED',recoveryError);dialog.showErrorBox('FOX','Backup-i nuk u rikthye. Të dhënat ekzistuese janë ruajtur.');}
+  }
   app.exit(1);
 });
 app.on('second-instance', () => {
@@ -79,5 +100,14 @@ app.on('second-instance', () => {
   if (window?.isMinimized()) window.restore();
   window?.focus();
 });
-app.on('before-quit', () => { printManager?.stop(); database?.close(); });
+app.on('before-quit', event => {
+  printManager?.stop();
+  if(protection?.isBusy()){
+    event.preventDefault();if(waitingToQuit)return;waitingToQuit=true;
+    void protection.whenIdle().then(()=>{waitingToQuit=false;app.quit();}).catch(error=>{logError('CONTROLLED_SHUTDOWN_TIMEOUT',error);app.exit(1);});return;
+  }
+  if(database?.open)database.close();
+});
 app.on('window-all-closed', () => app.quit());
+process.on('uncaughtException',error=>{logError('MAIN_FATAL_EXCEPTION',error);printManager?.stop();if(database?.open)database.close();app.exit(1);});
+process.on('unhandledRejection',error=>{logError('MAIN_FATAL_REJECTION',error);printManager?.stop();if(database?.open)database.close();app.exit(1);});

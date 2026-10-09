@@ -7,6 +7,7 @@ const require = createRequire(import.meta.url);
 const asar = require('@electron/asar');
 const pkg = JSON.parse(fs.readFileSync('package.json','utf8'));
 const version = process.argv[2] || pkg.version;
+if(version!==pkg.version)throw Error('Source/package version mismatch');
 if (!/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?$/.test(version)) throw Error('Invalid version');
 const root = path.resolve(process.argv[3] || 'release');
 const artifact = `FOX-Setup-${version}-x64.exe`;
@@ -45,7 +46,16 @@ if(native.readUInt16LE(native.readUInt32LE(0x3c)+4)!==0x8664) throw Error('SQLit
 const sha256=crypto.createHash('sha256').update(exe).digest('hex');
 let commit; try {commit=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();} catch {throw Error('A source commit is required');}
 const checksum=`${sha256}  ${artifact}\n`;
-const manifest={product:'FOX Kafeteri',appId:'com.foxkafeteri.pos',version,platform:'win32',arch:'x64',artifact,sha256,commit,builtAt:new Date().toISOString(),signing:'UNSIGNED',databaseBundled:false};
+const stamp=JSON.parse(fs.readFileSync(path.join(root,'win-unpacked/resources/fox-release.json'),'utf8'));
+if(stamp.version!==version||!['QA','RC','PRODUCTION'].includes(stamp.channel))throw Error('Invalid release channel stamp');
+const signatures=JSON.parse(fs.readFileSync(path.join(root,'signature-verification.json'),'utf8').replace(/^\uFEFF/,''));
+if(stamp.channel!=='QA'&&signatures.some(s=>s.status!=='Valid'||!s.timestamp))throw Error('Trusted signatures required');
+const signing=stamp.channel==='QA'?'UNSIGNED':'SIGNED';
+const sbom=`FOX-${version}-sbom.json`,sbomContent=fs.readFileSync(path.join(root,sbom));
+if(JSON.parse(sbomContent).bomFormat!=='CycloneDX'||secrets.test(sbomContent.toString()))throw Error('Invalid SBOM');
+let tag=null;try{tag=execFileSync('git',['describe','--tags','--exact-match'],{encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim();}catch{}
+if(stamp.channel!=='QA'&&tag!==`v${version}`)throw Error('Official tag mismatch');
+const manifest={manifestVersion:2,product:'FOX Kafeteri',appId:'com.foxkafeteri.pos',version,channel:stamp.channel,platform:'win32',arch:'x64',artifact,sha256,commit,tag,ciRun:process.env.GITHUB_RUN_ID??null,builtAt:new Date().toISOString(),schemaVersion:4,signing,signer:signing==='SIGNED'?signatures.find(s=>s.file===artifact)?.signer:null,sbom,sbomSha256:crypto.createHash('sha256').update(sbomContent).digest('hex'),databaseBundled:false};
 fs.writeFileSync(installer+'.sha256',checksum);
 fs.writeFileSync(path.join(root,'release-manifest.json'),JSON.stringify(manifest,null,2)+'\n');
 console.log(JSON.stringify({passed:true,artifact,sha256,commit,asarEntries:files.length}));
