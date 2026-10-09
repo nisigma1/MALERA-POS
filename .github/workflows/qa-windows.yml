@@ -32,6 +32,7 @@ jobs:
       - run: npm run release:scan
       - run: npm run verify:protection
       - run: node scripts/verify-hardening-runtime.mjs
+      - run: node scripts/verify-startup-failures.mjs
       - run: npm run package:win -- --qa
       - run: ./scripts/verify-release.ps1
       - name: Actual clean QA installer and reinstall acceptance

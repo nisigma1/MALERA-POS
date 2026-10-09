@@ -26,6 +26,10 @@ let running,ws;
 async function launch() {
   const port=await new Promise(resolve=>{const s=net.createServer();s.listen(0,'127.0.0.1',()=>{const p=s.address().port;s.close(()=>resolve(p));});});
   const env={...process.env};for(const key of Object.keys(env))if(key.startsWith('FOX_VERIFY_')||['ELECTRON_RUN_AS_NODE','FOX_DEV_URL'].includes(key))delete env[key];
+  const pathKey=Object.keys(env).find(key=>key.toLowerCase()==='path')??'Path';
+  const windows=process.env.SystemRoot??'C:\\Windows';
+  env[pathKey]=[windows,path.join(windows,'System32'),path.join(windows,'System32','WindowsPowerShell','v1.0')].join(';');
+  evidence.noDeveloperToolsOnApplicationPath=true;
   Object.assign(env,{FOX_VERIFY_DIR:directory,FOX_VERIFY_MANUAL:'1'});
   running=spawn(exe,[`--remote-debugging-port=${port}`,'--force-device-scale-factor=1'],{env,windowsHide:true,stdio:['ignore','pipe','pipe']});
   let log='';running.stderr.on('data',b=>{log+=b;});

@@ -1,5 +1,8 @@
 param([Parameter(Mandatory=$true)][string]$Root,[switch]$RequireSigned,[string]$ExpectedSigner=$env:FOX_SIGNER_SUBJECT)
 $ErrorActionPreference='Stop'
+# A PowerShell 7 CI parent can pass its module search path to Windows PowerShell.
+# Import this built-in security module from the running shell's own installation.
+Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Security/Microsoft.PowerShell.Security.psd1') -ErrorAction Stop
 $releasePath=(Resolve-Path -LiteralPath $Root).Path
 $executables=Get-ChildItem -LiteralPath $releasePath -Recurse -File | Where-Object Extension -in '.exe','.dll','.node'
 if (-not $executables) { throw 'No release executables' }
