@@ -90,7 +90,7 @@ else app.whenReady().then(start).catch(async error => {
       const selected=await dialog.showOpenDialog({title:'Zgjidh backup',filters:[{name:'FOX backup',extensions:['sqlite']}],properties:['openFile']});
       const file=selected.filePaths[0];
       if(file){await validateBackup(file);const confirmation=await dialog.showMessageBox({type:'warning',message:'Rikthe backup-in? Gjendja e palexueshme do të ruhet veçmas.',buttons:['Anulo','Rikthe'],defaultId:0,cancelId:0,noLink:true});
-        if(confirmation.response===1){await restoreUnreadableDatabase(file,app.getPath('userData'));app.relaunch();}}
+        if(confirmation.response===1){await restoreUnreadableDatabase(file,app.getPath('userData'),app.getVersion());app.relaunch();}}
     }catch(recoveryError){logError('RECOVERY_FAILED',recoveryError);dialog.showErrorBox('FOX','Backup-i nuk u rikthye. Të dhënat ekzistuese janë ruajtur.');}
   }
   app.exit(1);

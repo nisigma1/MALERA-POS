@@ -28,7 +28,7 @@ export function recoverInterruptedRestore(directory: string): void {
   } else if (!fs.existsSync(p.current)) throw Error('FOX_RESTORE_MISSING_ORIGINAL');
   removeFile(p.stage); removeFile(p.journal + '.next'); removeFile(p.journal);
 }
-export async function prepareRestore(backup: string, directory: string): Promise<string> {
+export async function prepareRestore(backup: string, directory: string, applicationVersion?: string): Promise<string> {
   await validateBackup(backup);
   const p = paths(directory);
   if ([p.stage, p.old, p.journal].some(file => fs.existsSync(file))) throw Error('FOX_RESTORE_IN_PROGRESS');
@@ -36,7 +36,7 @@ export async function prepareRestore(backup: string, directory: string): Promise
   try { await source.backup(p.stage); } finally { source.close(); }
   try {
     // Revalidate staged bytes/schema and perform only the existing forward migrations.
-    const candidate = openDatabase(p.stage);
+    const candidate = openDatabase(p.stage,applicationVersion);
     try { inspectDatabase(candidate, true); candidate.pragma('wal_checkpoint(TRUNCATE)'); } finally { candidate.close(); }
     return p.stage;
   } catch (error) { removeFile(p.stage); throw error; }
@@ -45,7 +45,7 @@ export async function replaceDatabase(db: Database.Database, backup: string, dir
   if ((db.prepare("SELECT COUNT(*) AS n FROM orders WHERE status='OPEN'").get() as {n:number}).n) throw Error('FOX_RESTORE_OPEN_ORDERS');
   if ((db.prepare("SELECT COUNT(*) AS n FROM receipt_print_jobs WHERE status IN ('PENDING','SUBMITTING')").get() as {n:number}).n) throw Error('FOX_RESTORE_PRINT_ACTIVE');
   const p = paths(directory);
-  await prepareRestore(backup, directory);
+  await prepareRestore(backup, directory,version);
   let closed = false;
   try {
     const backupDirectory = path.join(directory, 'backups'); fs.mkdirSync(backupDirectory, { recursive: true });
@@ -72,9 +72,9 @@ export async function replaceDatabase(db: Database.Database, backup: string, dir
     throw error;
   }
 }
-export async function restoreUnreadableDatabase(backup: string, directory: string): Promise<void> {
+export async function restoreUnreadableDatabase(backup: string, directory: string, applicationVersion?: string): Promise<void> {
   // Used only with the operational connection closed and explicit native confirmation.
-  await prepareRestore(backup, directory);
+  await prepareRestore(backup, directory,applicationVersion);
   const p = paths(directory), preservation = path.join(directory, backupName('unreadable-preserved'));
   try {
     durableWrite(p.journal, JSON.stringify({format:1,state:'REPLACING'}));
