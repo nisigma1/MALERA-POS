@@ -14,6 +14,7 @@ export function logError(event: string, error?: unknown): void {
     const candidate = error instanceof Error ? error.message : '';
     // Only application-owned diagnostic codes: never arbitrary messages, arguments, SQL or secrets.
     const code = /^FOX_[A-Z0-9_]{1,80}$/.test(candidate) ? candidate : 'UNEXPECTED_ERROR';
-    fs.appendFileSync(filename, JSON.stringify({time:new Date().toISOString(),severity:'ERROR',event:event.replace(/[^A-Z0-9_]/g,'').slice(0,80),code,errorType:error instanceof Error?error.name:'Unknown'})+'\n');
+    const errorType=error instanceof Error&&['Error','TypeError','RangeError','SyntaxError','SqliteError'].includes(error.name)?error.name:'Unknown';
+    fs.appendFileSync(filename, JSON.stringify({time:new Date().toISOString(),severity:'ERROR',event:event.replace(/[^A-Z0-9_]/g,'').slice(0,80),code,errorType})+'\n');
   } catch { /* A logging disk failure cannot initiate destructive recovery or mask the original failure. */ }
 }

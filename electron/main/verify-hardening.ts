@@ -24,6 +24,7 @@ export async function verifyHardening(window:BrowserWindow,directory:string,db:D
  for(const [width,height] of [[1366,768],[1440,900],[1920,1080]]){
   window.setContentSize(width!,height!);await wait(100);
   await js('document.querySelector(".data-protection").scrollIntoView({block:"end"})');
+  await wait(150);
   assert.equal(await js('document.documentElement.scrollWidth<=window.innerWidth'),true);
   assert.equal(await js('Array.from(document.querySelectorAll(".data-protection button")).every(b=>b.getBoundingClientRect().width>=80)'),true);
   fs.writeFileSync(path.join(directory,`data-settings-${width}.png`),(await window.webContents.capturePage()).toPNG());

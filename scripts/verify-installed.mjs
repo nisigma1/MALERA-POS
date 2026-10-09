@@ -24,6 +24,7 @@ function installVersion(file) {
 }
 let running,ws;
 async function launch() {
+  const launchStarted=Date.now();
   const port=await new Promise(resolve=>{const s=net.createServer();s.listen(0,'127.0.0.1',()=>{const p=s.address().port;s.close(()=>resolve(p));});});
   const env={...process.env};for(const key of Object.keys(env))if(key.startsWith('FOX_VERIFY_')||['ELECTRON_RUN_AS_NODE','FOX_DEV_URL'].includes(key))delete env[key];
   const pathKey=Object.keys(env).find(key=>key.toLowerCase()==='path')??'Path';
@@ -44,6 +45,7 @@ async function launch() {
   for(let i=0;i<100;i++){if(await evaluate('Boolean(window.fox && document.querySelectorAll("[data-table-code]").length===27)'))break;await pause(100);}
   assert.equal(await evaluate('document.querySelectorAll("[data-table-code]").length'),27);
   await command('Network.enable');await command('Network.emulateNetworkConditions',{offline:true,latency:0,downloadThroughput:0,uploadThroughput:0});
+  (evidence.startupMs??=[]).push(Date.now()-launchStarted);
   return {evaluate,command,env,pid:running.pid};
 }
 async function close(force=false) {
@@ -186,6 +188,30 @@ try {
     const beforeRestart=snapshot();await close();session=await launch();evaluate=session.evaluate;command=session.command;assert.deepEqual(snapshot(),beforeRestart);okay((await api('return fox.receipts.getSettings();')).autoPrint===true,'installed printer config and receipt history persist through restart');
     evidence.receiptPipeline={windowsSpooler:true,physicalThermalPrinter:false,offlineRenderer:true};
   }
+  // Exercise the final installed executable repeatedly, offline and without dev tools on PATH.
+  okay((await api(`return fox.inventory.addSupply({requestId:crypto.randomUUID(),productId:'KAFE-1',quantity:200});`)).ok,'installed soak supply');
+  const soakInitial=await api(`return fox.reports.getSalesReport('ALL');`);
+  const soakStock=await api(`return (await fox.products.list()).find(p=>p.id==='KAFE-1').stockQuantity;`);
+  await command('HeapProfiler.collectGarbage');const soakBefore=await command('Memory.getDOMCounters'),soakStart=Date.now();
+  for(let cycle=0;cycle<150;cycle++){
+    await evaluate(`document.querySelector('[data-nav=tables]').click()`);await pause(20);
+    await evaluate(`document.querySelector('[data-table-code=M5]').click()`);
+    const added=await api(`return fox.orders.addProduct({tableId:'M5',productId:'KAFE-1'});`);assert.ok(added.ok);
+    const itemId=added.data.order.items[0].id;
+    assert.ok((await api(`return fox.orders.incrementItem({tableId:'M5',itemId:${JSON.stringify(itemId)}});`)).ok);
+    assert.ok((await api(`return fox.orders.decrementItem({tableId:'M5',itemId:${JSON.stringify(itemId)}});`)).ok);
+    assert.ok((await api(`return fox.orders.completeOrder({orderId:${JSON.stringify(added.data.order.id)}});`)).ok);
+    await evaluate(`document.querySelector('[data-nav=${cycle%3===0?'settings':cycle%3===1?'reports':'tables'}]').click()`);
+    const current=await api(`return fox.reports.getSalesReport('ALL');`);
+    assert.equal(current.summary.salesCents,soakInitial.summary.salesCents+(cycle+1)*100);
+    assert.equal(current.summary.completedOrders,soakInitial.summary.completedOrders+cycle+1);
+    assert.equal((await api(`return fox.data.diagnostics();`)).databaseStatus,'OK');
+    await pause(500);
+  }
+  assert.equal((await api(`return (await fox.products.list()).find(p=>p.id==='KAFE-1').stockQuantity;`)),soakStock-150);
+  await command('HeapProfiler.collectGarbage');const soakAfter=await command('Memory.getDOMCounters');
+  assert.equal(soakAfter.documents,soakBefore.documents);assert.ok(soakAfter.nodes<soakBefore.nodes+3000);assert.ok(soakAfter.jsEventListeners<soakBefore.jsEventListeners+500);
+  evidence.soak={passed:true,cycles:150,durationMs:Date.now()-soakStart,before:soakBefore,after:soakAfter,offline:true,financialTotalsCorrect:true,stockCorrect:true};
   const beforeReinstall=snapshot();
   await close();const uninstaller=fs.readdirSync(install).find(n=>/^Uninstall.*\.exe$/i.test(n));assert.ok(uninstaller);
   const uninstalled=spawnSync(path.join(install,uninstaller),['/S'],{windowsHide:true,timeout:120000});assert.equal(uninstalled.status,0);
