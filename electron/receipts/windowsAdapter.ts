@@ -26,7 +26,7 @@ export class WindowsPrinterAdapter implements PrinterAdapter {
     try{
       await window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
       if(signal.aborted)throw new PrintError('PRINT_TIMEOUT');
-      const height=await window.webContents.executeJavaScript('document.fonts.ready.then(()=>Math.ceil(document.documentElement.scrollHeight))') as number;
+      const height=await window.webContents.executeJavaScript("document.fonts.ready.then(()=>Math.ceil(document.querySelector('main').getBoundingClientRect().height+2*parseFloat(getComputedStyle(document.body).paddingTop)))") as number;
       if(!Number.isFinite(height)||height<1||height>100000)throw new PrintError('RENDER_FAILED');
       if(signal.aborted)throw new PrintError('PRINT_TIMEOUT');
       await new Promise<void>((resolve,reject)=>{
