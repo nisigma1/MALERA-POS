@@ -16,6 +16,9 @@ export async function verifyHardening(window:BrowserWindow,directory:string,db:D
  }
  const api=(code:string)=>js(`(async()=>{const fox=window.fox;${code}})()`);
  for(let i=0;i<100;i++){if(await js('Boolean(document.querySelector("[data-table-code=M5]"))'))break;await wait(50);}
+ await js('location.reload()');await wait(200);
+ for(let i=0;i<100;i++){if(await js('Boolean(document.querySelector("[data-table-code=M5]"))'))break;await wait(50);}
+ assert.equal(await js('performance.getEntriesByType("navigation")[0].type'),'reload');
  const configured=await api(`return fox.products.update({id:'KAFE-1',name:'QA Espresso',categoryId:'KAFE',sellingPriceCents:100,purchaseCostCents:50,trackInventory:true,lowStockThreshold:null,active:true});`) as {ok:boolean};assert.ok(configured.ok);
  assert.ok((await api(`return fox.inventory.addSupply({requestId:crypto.randomUUID(),productId:'KAFE-1',quantity:100});`) as {ok:boolean}).ok);
  async function sell(table:string){const added=await api(`return fox.orders.addProduct({tableId:${JSON.stringify(table)},productId:'KAFE-1'});`) as {ok:boolean;data:{order:{id:string}}};assert.ok(added.ok);assert.ok((await api(`return fox.orders.completeOrder({orderId:${JSON.stringify(added.data.order.id)}});`) as {ok:boolean}).ok);}

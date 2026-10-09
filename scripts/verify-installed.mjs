@@ -190,6 +190,13 @@ try {
     const beforeRestart=snapshot();await close();session=await launch();evaluate=session.evaluate;command=session.command;assert.deepEqual(snapshot(),beforeRestart);okay((await api('return fox.receipts.getSettings();')).autoPrint===true,'installed printer config and receipt history persist through restart');
     evidence.receiptPipeline={windowsSpooler:true,physicalThermalPrinter:false,offlineRenderer:true};
   }
+  const beforeReload=snapshot(),trustedUrl=await evaluate('location.href');
+  await evaluate('location.reload()');await pause(300);
+  for(let i=0;i<100;i++){if(await evaluate('Boolean(window.fox && document.querySelectorAll("[data-table-code]").length===27)'))break;await pause(50);}
+  okay(await evaluate('performance.getEntriesByType("navigation")[0].type')==='reload','installed own-page retry reload works');
+  await evaluate(`location.href='https://example.invalid/'`);await pause(200);
+  assert.equal(await evaluate('location.href'),trustedUrl);assert.deepEqual(snapshot(),beforeReload);
+  okay(true,'installed external navigation blocked and reload preserves all data');
   // Exercise the final installed executable repeatedly, offline and without dev tools on PATH.
   okay((await api(`return fox.inventory.addSupply({requestId:crypto.randomUUID(),productId:'KAFE-1',quantity:200});`)).ok,'installed soak supply');
   const soakInitial=await api(`return fox.reports.getSalesReport('ALL');`);
