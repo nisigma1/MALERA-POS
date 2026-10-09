@@ -68,9 +68,9 @@ export function createReceiptRepository(db: Database.Database) {
       }).immediate();
     },
     tested(deviceName: string): boolean { return !!db.prepare("SELECT 1 FROM receipt_print_jobs WHERE job_kind='TEST' AND printer_device_name=? AND status='SUBMITTED' LIMIT 1").get(deviceName); },
-    onSaleCompleted(saleId: string): void {
-      try { db.transaction(()=>{document(saleId,false);const config=settings();if(config.autoPrint&&config.deviceName)enqueue(saleId,'ORIGINAL_AUTO',randomUUID());})(); }
-      catch(error){ console.error('FOX receipt generation failed',error);db.prepare("INSERT OR IGNORE INTO receipt_generation_errors VALUES (?,'RECEIPT_INTEGRITY_ERROR',?)").run(saleId,new Date().toISOString()); }
+    onSaleCompleted(saleId: string): boolean {
+      try { db.transaction(()=>{document(saleId,false);const config=settings();if(config.autoPrint&&config.deviceName)enqueue(saleId,'ORIGINAL_AUTO',randomUUID());})(); return true; }
+      catch(error){ console.error('FOX receipt generation failed',error);db.prepare("INSERT OR IGNORE INTO receipt_generation_errors VALUES (?,'RECEIPT_INTEGRITY_ERROR',?)").run(saleId,new Date().toISOString()); return false; }
     },
     enqueueCopy(input: unknown): PrintJob {const value=validateReceiptAction(input);return db.transaction(()=>enqueue(value.saleId,'COPY',value.requestId)).immediate();},
     retry(input: unknown): PrintJob {

@@ -166,4 +166,3 @@ describe('reports and money', () => {
     expect(createRepositories(db).getSummary()).toMatchObject({ salesCents: 200, costCents: null, grossProfitCents: null, netProfitCents: null });
   });
 });
-

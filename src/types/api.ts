@@ -27,4 +27,3 @@ export interface FoxApi {
   reports: { getSalesReport(period: ReportPeriod): Promise<SalesReport>; getSummary(): Promise<ReportSummary> };
 }
 export const IPC = { receiptPrinters: 'fox:receipts:printers', receiptSettings: 'fox:receipts:settings', receiptSaveSettings: 'fox:receipts:save-settings', receiptTest: 'fox:receipts:test', receiptCopy: 'fox:receipts:copy', receiptRetry: 'fox:receipts:retry', receiptState: 'fox:receipts:state', receiptJobs: 'fox:receipts:jobs', completeOrder: 'fox:orders:complete', salesReport: 'fox:reports:sales', tables: 'fox:tables:list', products: 'fox:products:list', settings: 'fox:settings:get', reports: 'fox:reports:summary', updateProduct: 'fox:products:update', addSupply: 'fox:inventory:add-supply', getOrder: 'fox:orders:get-for-table', addProduct: 'fox:orders:add-product', incrementItem: 'fox:orders:increment-item', decrementItem: 'fox:orders:decrement-item', removeItem: 'fox:orders:remove-item' } as const;
-

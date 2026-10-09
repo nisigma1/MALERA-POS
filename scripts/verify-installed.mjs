@@ -71,6 +71,7 @@ try {
   const fresh=snapshot();fs.writeFileSync(path.join(directory,'fresh.json'),JSON.stringify(fresh,null,2));
   okay(fresh.tables.cafe_tables.length===27&&fresh.tables.products.length===21,'fresh canonical references');
   okay(fresh.tables.orders.length===0&&fresh.tables.inventory_movements.length===0,'fresh zero transactions');
+  if(fresh.tables.receipt_documents){okay(fresh.tables.receipt_documents.length===0&&fresh.tables.receipt_print_jobs.length===0,'fresh zero receipts/print jobs');okay(fresh.tables.settings.find(s=>s.key==='receipt_auto_print').value==='false'&&fresh.tables.settings.find(s=>s.key==='receipt_printer').value==='null','fresh no printer and auto-print OFF');}
   okay(fresh.tables.products.every(p=>p.selling_price_cents===null&&p.purchase_cost_cents===null&&p.track_inventory===null)&&fresh.tables.inventory_balances.every(p=>p.quantity===null),'fresh no invented configuration');
   for(const code of fresh.tables.cafe_tables.map(t=>t.code)) {
     await evaluate(`document.querySelector('[data-table-code="${code}"]').click()`);
@@ -152,4 +153,3 @@ try {
   evidence.passed=true;
 } catch(error) {evidence.passed=false;evidence.error=error.stack;await close(true).catch(()=>{});throw error;}
 finally {fs.writeFileSync(path.join(directory,'installed-result.json'),JSON.stringify(evidence,null,2));console.log(`Installed verification evidence: ${directory}`);}
-

@@ -58,8 +58,8 @@ export function createCheckoutService(db: Database.Database, orders: ReturnType<
           const update = db.prepare("UPDATE orders SET status='CLOSED',closed_at=?,updated_at=?,sale_number=? WHERE id=? AND status='OPEN'").run(now,now,sequence.number,row.id);
           if (update.changes !== 1) return fail('ALREADY_COMPLETED', 'Kjo porosi është paguar tashmë.');
           db.prepare("UPDATE cafe_tables SET status='FREE',updated_at=? WHERE id=?").run(now,row.table_id);
-          receipts.onSaleCompleted(row.id);
-          return { orderId: row.id, saleNumber: sequence.number, paymentMethod, totalCents, completedAt: now, workspace: orders.getForTable(row.table_id) };
+          const receiptWarning = !receipts.onSaleCompleted(row.id);
+          return { orderId: row.id, saleNumber: sequence.number, paymentMethod, totalCents, completedAt: now, ...(receiptWarning ? {receiptWarning:true} : {}), workspace: orders.getForTable(row.table_id) };
         }).immediate() };
       } catch (error) {
         if (error instanceof CheckoutError) return { ok: false, code: error.code, message: error.message };

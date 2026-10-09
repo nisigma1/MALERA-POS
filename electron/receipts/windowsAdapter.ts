@@ -6,8 +6,10 @@ import { RECEIPT_PROFILE } from '../../src/domain/receipts';
 export class WindowsPrinterAdapter implements PrinterAdapter {
   constructor(private readonly discoveryWindow: BrowserWindow) {}
   async list() {
-    try{return(await this.discoveryWindow.webContents.getPrintersAsync()).map(p=>({deviceName:p.name,displayName:p.displayName||p.name,description:p.description}));}
+    let timer:ReturnType<typeof setTimeout>|undefined;
+    try{return(await Promise.race([this.discoveryWindow.webContents.getPrintersAsync(),new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new PrintError('PRINTER_DISCOVERY_FAILED')),10000);})])).map(p=>({deviceName:p.name,displayName:p.displayName||p.name,description:p.description}));}
     catch{throw new PrintError('PRINTER_DISCOVERY_FAILED');}
+    finally{if(timer)clearTimeout(timer);}
   }
   async submit(html: string, deviceName: string, signal: AbortSignal): Promise<void> {
     if(!deviceName.trim())throw new PrintError('INVALID_PRINTER');

@@ -96,7 +96,7 @@ export function Tables() {
       }
       epoch.current++; setView(result.data.workspace);
       setData(tables => tables?.map(t => t.id === result.data.workspace.table.id ? result.data.workspace.table : t));
-      setMessage(''); cancelCheckout(); catalog.retry(); setSuccess('Shitja u regjistrua.');
+      setMessage(''); cancelCheckout(); catalog.retry(); setSuccess(result.data.receiptWarning ? 'Shitja u regjistrua. Kuponi nuk mund të krijohej. Hap shitjen te Raportet për ta provuar përsëri.' : 'Shitja u regjistrua.');
       return null;
     } catch {
       // Outcome may have committed before a transport failure. Read authoritative state before another action.

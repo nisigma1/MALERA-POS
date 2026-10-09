@@ -33,4 +33,3 @@ export function Reports() {
     <div className="report-notes"><div><h3>Fitimi bruto</h3><p>Shitjet − Kosto historike e mallit të shitur</p></div><div><h3>Fitimi neto</h3><p>Fitimi bruto − Shpenzimet e regjistruara për periudhën. Shpenzimet e paregjistruara nuk përfshihen.</p></div></div>
   </div>;
 }
-
