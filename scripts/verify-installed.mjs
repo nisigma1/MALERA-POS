@@ -6,7 +6,7 @@ import net from 'node:net';
 import assert from 'node:assert/strict';
 import {spawn,spawnSync} from 'node:child_process';
 import {createQaDirectory} from './qa-directory.mjs';
-const [installerA,installerB]=process.argv.slice(2);
+const [installerA,installerB,receiptTargetFile]=process.argv.slice(2);
 if(!installerA||!installerB) throw Error('Usage: verify-installed.mjs <installer A> <installer B>');
 const directory=createQaDirectory('installed');
 const install=path.join(directory,'application');
@@ -105,15 +105,51 @@ try {
   okay(linked.status===0&&running.exitCode===null,'actual shortcut second launch leaves one operational instance');
   const beforeUpgrade=snapshot();fs.writeFileSync(path.join(directory,'before-upgrade.json'),JSON.stringify(beforeUpgrade,null,2));await close();
   installVersion(installerB);session=await launch();evaluate=session.evaluate;command=session.command;
-  assert.deepEqual(snapshot(),beforeUpgrade);assert.deepEqual(await api(`return fox.reports.getSalesReport('ALL');`),report);evidence.checks.push('real installer A to B preserves all database rows and reports');
+  const upgraded=snapshot();
+  for(const [table,rows] of Object.entries(beforeUpgrade.tables)) {
+    if(table==='schema_migrations') {for(const row of rows)assert.ok(upgraded.tables[table].some(r=>JSON.stringify(r)===JSON.stringify(row)));}
+    else if(table==='settings') {for(const row of rows)assert.deepEqual(upgraded.tables[table].find(r=>r.key===row.key),row);}
+    else assert.deepEqual(upgraded.tables[table],rows,`Upgrade preserves ${table}`);
+  }
+  const upgradedReport=await api(`return fox.reports.getSalesReport('ALL');`);
+  for(const key of ['summary','cashCents','cardCents','unknownPaymentCents','period'])assert.deepEqual(upgradedReport[key],report[key]);
+  for(const oldSale of report.recentSales){const newSale=upgradedReport.recentSales.find(s=>s.id===oldSale.id);for(const [key,value] of Object.entries(oldSale))assert.deepEqual(newSale[key],value);}
+  evidence.checks.push('real installer A to B preserves every old business row and report value; additive receipt migration permitted');
+  if(receiptTargetFile){
+    const target=JSON.parse(fs.readFileSync(receiptTargetFile,'utf8'));assert.ok(target.Printer.startsWith('FOX QA Receipt '));
+    okay((await api('return fox.receipts.getSettings();')).autoPrint===false,'upgraded receipt auto-print safely OFF');
+    okay(upgraded.tables.receipt_documents.length===0&&upgraded.tables.receipt_print_jobs.length===0,'upgrade has no invented historical receipts/jobs');
+    const printers=await api('return fox.receipts.listPrinters();');okay(printers.ok&&printers.data.some(p=>p.deviceName===target.Printer),'installed Windows printer discovery');
+    okay((await api(`return fox.receipts.saveSettings({deviceName:${JSON.stringify(target.Printer)},autoPrint:false,paperWidth:80,copies:1});`)).data.saved,'installed printer setting saved');
+    const test=await api('return fox.receipts.testPrint();');okay(test.ok,'installed test print request');
+    async function submitted(jobId){for(let i=0;i<600;i++){const jobs=await api('return fox.receipts.recentJobs();');const job=jobs.find(j=>j.id===jobId);if(job?.status==='SUBMITTED')return;assert.ok(!['FAILED','UNKNOWN'].includes(job?.status),JSON.stringify(job));await pause(50);}throw Error('Installed receipt submit timed out');}
+    async function keepOutput(name){for(let i=0;i<400;i++){if(fs.existsSync(target.Port)&&fs.statSync(target.Port).size>0){fs.renameSync(target.Port,path.join(directory,name+'.pdf'));return;}await pause(50);}throw Error('Installed Windows PDF output missing');}
+    await submitted(test.data.id);await keepOutput('installed-test-receipt');okay(true,'installed real webContents.print accepted and Windows spooler produced test PDF');
+    assert.deepEqual(snapshot().tables.orders,beforeUpgrade.tables.orders);assert.deepEqual(snapshot().tables.inventory_balances,beforeUpgrade.tables.inventory_balances);
+    okay((await api(`return fox.receipts.saveSettings({deviceName:${JSON.stringify(target.Printer)},autoPrint:true,paperWidth:80,copies:1});`)).data.saved,'installed auto-print enabled after test');
+    const openOrder=await api(`return fox.orders.getForTable('M6');`);okay(openOrder.order&&openOrder.order.totalCents===100,'pre-upgrade OPEN order survives receipt migration');
+    const completed=await api(`return fox.orders.completeOrder({orderId:${JSON.stringify(openOrder.order.id)},expectedRevision:${JSON.stringify(openOrder.order.revision)}});`);okay(completed.ok,'post-upgrade existing order CASH checkout');
+    const receiptState=await api(`return fox.receipts.getState(${JSON.stringify(openOrder.order.id)});`);assert.ok(receiptState.ok&&receiptState.data.jobs.length===1);await submitted(receiptState.data.jobs[0].id);await keepOutput('installed-auto-receipt');
+    okay((await api(`return (await fox.products.list()).find(p=>p.id==='KAFE-1').stockQuantity;`))===17,'installed auto-print inventory deducted exactly once');
+    const beforeCopy=snapshot(),reportCopy=await api("return fox.reports.getSalesReport('ALL');");
+    const copy=await api(`const input={saleId:${JSON.stringify(sale.data.orderId)},requestId:crypto.randomUUID()};return Promise.all([fox.receipts.printCopy(input),fox.receipts.printCopy(input)]);`);
+    okay(copy.every(r=>r.ok)&&copy[0].data.id===copy[1].data.id,'installed duplicate copy request idempotent');await submitted(copy[0].data.id);await keepOutput('installed-legacy-copy');
+    const afterCopy=snapshot();for(const table of ['orders','order_items','order_payments','inventory_balances','inventory_movements','cafe_tables','products','expenses'])assert.deepEqual(afterCopy.tables[table],beforeCopy.tables[table]);assert.deepEqual(await api("return fox.reports.getSalesReport('ALL');"),reportCopy);okay(true,'installed legacy copy preserves finances and stock');
+    await evaluate("document.querySelector('[data-nav=settings]').click()");await pause(300);okay(await evaluate('Boolean(document.querySelector("[aria-label=\"Printeri i kuponit\"]"))'),'installed receipt settings screen');
+    fs.writeFileSync(path.join(directory,'installed-receipt-settings.png'),Buffer.from((await command('Page.captureScreenshot',{format:'png'})).data,'base64'));
+    const beforeRestart=snapshot();await close();session=await launch();evaluate=session.evaluate;command=session.command;assert.deepEqual(snapshot(),beforeRestart);okay((await api('return fox.receipts.getSettings();')).autoPrint===true,'installed printer config and receipt history persist through restart');
+    evidence.receiptPipeline={windowsSpooler:true,physicalThermalPrinter:false,offlineRenderer:true};
+  }
+  const beforeReinstall=snapshot();
   await close();const uninstaller=fs.readdirSync(install).find(n=>/^Uninstall.*\.exe$/i.test(n));assert.ok(uninstaller);
   const uninstalled=spawnSync(path.join(install,uninstaller),['/S'],{windowsHide:true,timeout:120000});assert.equal(uninstalled.status,0);
   okay(fs.existsSync(path.join(directory,'fox.sqlite')),'uninstall preserves userData');
   for(let i=0;i<100&&fs.existsSync(exe);i++)await pause(100);
   okay(!fs.existsSync(exe),'uninstall removes application executable');shortcuts(false);
-  installVersion(installerB);session=await launch();assert.deepEqual(snapshot(),beforeUpgrade);evidence.checks.push('actual reinstall preserves all business rows');await close();
+  installVersion(installerB);session=await launch();assert.deepEqual(snapshot(),beforeReinstall);evidence.checks.push('actual reinstall preserves all business rows and receipt history');await close();
   // Remove QA installation and its shortcuts/registration, retaining test evidence.
   const cleanup=spawnSync(path.join(install,uninstaller),['/S'],{windowsHide:true,timeout:120000});assert.equal(cleanup.status,0);
   evidence.passed=true;
 } catch(error) {evidence.passed=false;evidence.error=error.stack;await close(true).catch(()=>{});throw error;}
 finally {fs.writeFileSync(path.join(directory,'installed-result.json'),JSON.stringify(evidence,null,2));console.log(`Installed verification evidence: ${directory}`);}
+

@@ -116,6 +116,39 @@ CREATE TRIGGER sale_number_on_insert BEFORE INSERT ON orders
 WHEN (NEW.status='CLOSED' AND NEW.sale_number IS NULL)
   OR (NEW.status!='CLOSED' AND NEW.sale_number IS NOT NULL)
 BEGIN SELECT RAISE(ABORT, 'Sale number requires completion'); END;
+` }, { version: 4, sql: `
+CREATE TABLE receipt_documents (
+ id TEXT PRIMARY KEY, sale_id TEXT NOT NULL UNIQUE REFERENCES orders(id), schema_version INTEGER NOT NULL CHECK(schema_version=1),
+ receipt_kind TEXT NOT NULL CHECK(receipt_kind='NON_FISCAL'), payload_json TEXT NOT NULL, payload_hash TEXT NOT NULL,
+ generated_from_legacy INTEGER NOT NULL CHECK(generated_from_legacy IN (0,1)), created_at TEXT NOT NULL
+) STRICT;
+CREATE TRIGGER receipt_document_closed BEFORE INSERT ON receipt_documents
+WHEN COALESCE((SELECT status FROM orders WHERE id=NEW.sale_id),'')!='CLOSED'
+BEGIN SELECT RAISE(ABORT,'Receipt requires a closed sale'); END;
+CREATE TRIGGER receipt_document_no_update BEFORE UPDATE ON receipt_documents BEGIN SELECT RAISE(ABORT,'Receipt immutable'); END;
+CREATE TRIGGER receipt_document_no_delete BEFORE DELETE ON receipt_documents BEGIN SELECT RAISE(ABORT,'Receipt immutable'); END;
+CREATE TABLE receipt_print_jobs (
+ id TEXT PRIMARY KEY, receipt_document_id TEXT REFERENCES receipt_documents(id), sale_id TEXT REFERENCES orders(id),
+ job_kind TEXT NOT NULL CHECK(job_kind IN ('ORIGINAL_AUTO','ORIGINAL_RETRY','COPY','TEST')), reason TEXT NOT NULL,
+ printer_device_name TEXT NOT NULL CHECK(length(printer_device_name)>0), printer_display_name TEXT NOT NULL,
+ status TEXT NOT NULL CHECK(status IN ('PENDING','SUBMITTING','SUBMITTED','FAILED','UNKNOWN','CANCELLED')),
+ test_payload_json TEXT, created_at TEXT NOT NULL, queued_at TEXT NOT NULL, started_at TEXT, submitted_at TEXT, finished_at TEXT,
+ last_error_code TEXT, attempt_count INTEGER NOT NULL DEFAULT 0 CHECK(attempt_count>=0),
+ CHECK((job_kind='TEST' AND sale_id IS NULL AND receipt_document_id IS NULL AND test_payload_json IS NOT NULL)
+ OR (job_kind!='TEST' AND sale_id IS NOT NULL AND receipt_document_id IS NOT NULL AND test_payload_json IS NULL))
+) STRICT;
+CREATE UNIQUE INDEX receipt_original_auto_once ON receipt_print_jobs(sale_id) WHERE job_kind IN ('ORIGINAL_AUTO','ORIGINAL_RETRY');
+CREATE UNIQUE INDEX receipt_active_sale_job ON receipt_print_jobs(sale_id) WHERE status IN ('PENDING','SUBMITTING');
+CREATE INDEX receipt_pending_queue ON receipt_print_jobs(status,queued_at);
+CREATE TABLE receipt_print_attempts (
+ id TEXT PRIMARY KEY, job_id TEXT NOT NULL REFERENCES receipt_print_jobs(id), attempt_number INTEGER NOT NULL,
+ started_at TEXT NOT NULL, finished_at TEXT, outcome TEXT NOT NULL CHECK(outcome IN ('SUBMITTING','SUBMITTED','FAILED','UNKNOWN')),
+ error_code TEXT, UNIQUE(job_id,attempt_number)
+) STRICT;
+CREATE TRIGGER receipt_attempt_no_delete BEFORE DELETE ON receipt_print_attempts BEGIN SELECT RAISE(ABORT,'Print audit retained'); END;
+CREATE TRIGGER receipt_attempt_finished BEFORE UPDATE ON receipt_print_attempts WHEN OLD.outcome!='SUBMITTING' BEGIN SELECT RAISE(ABORT,'Print audit immutable'); END;
+CREATE TABLE receipt_generation_errors (sale_id TEXT PRIMARY KEY REFERENCES orders(id), code TEXT NOT NULL, created_at TEXT NOT NULL) STRICT;
+INSERT INTO settings(key,value) VALUES ('receipt_printer','null'),('receipt_auto_print','false');
 ` }];
 
 export function migrate(db: Database.Database): void {

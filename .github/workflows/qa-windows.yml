@@ -1,0 +1,41 @@
+name: Windows QA installer
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: windows-qa-${{ github.sha }}
+  cancel-in-progress: false
+jobs:
+  package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Validate private QA candidate
+        shell: pwsh
+        env:
+          REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ($version -notmatch '^\d+\.\d+\.\d+-qa\.\d+$') { throw 'Only an explicit QA version is permitted' }
+          if ($env:REPOSITORY_PRIVATE -ne 'true') { throw 'Repository must remain private' }
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run build
+      - run: node scripts/verify-receipt-crashes.mjs
+      - run: npm run package:win
+      - run: ./scripts/verify-release.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FOX-QA-Windows-x64
+          path: |
+            release/FOX-Setup-*-x64.exe
+            release/FOX-Setup-*-x64.exe.sha256
+            release/release-manifest.json
+          if-no-files-found: error
+          retention-days: 14

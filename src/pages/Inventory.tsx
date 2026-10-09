@@ -5,7 +5,7 @@ import { formatMoney } from '../domain/money';
 import { CATEGORIES } from '../domain/definitions';
 import { inventorySummary, stockState, unitProfit } from '../domain/configuration';
 import type { CatalogProduct, CategoryCode } from '../domain/types';
-import { Button, EmptyState, Icon, PageHeader, StatusBadge, StockBadge } from '../components/ui';
+import { Button, EmptyState, Icon, PageHeader, StockBadge } from '../components/ui';
 import { ProductEditor } from '../components/ProductEditor';
 import { SupplyPanel } from '../components/SupplyPanel';
 const load = () => window.fox.products.list();
@@ -41,15 +41,15 @@ export function Inventory() {
       <div className="table-caption"><span>{filtered.length} produkte{category || search ? ` nga ${data.length}` : ''}</span><span className="feedback" role="status">{feedback && <><Icon name="check"/>{feedback}</>}</span><span>«—» = Pa vendosur</span></div>
     {filtered.length ? <div className="catalog-scroll"><table className="catalog"><thead><tr>
       <th>Produkti</th><th>Kategoria</th><th className="numeric">Stoku</th>
-      <th className="numeric">Çmimi i blerjes</th><th className="numeric">Çmimi i shitjes</th><th className="numeric">Fitimi/copë</th><th>Statusi</th><th className="actions-heading">Veprime</th>
+      <th className="numeric">Çmimi i blerjes</th><th className="numeric">Çmimi i shitjes</th><th className="numeric">Fitimi/copë</th><th className="product-status">Statusi</th><th className="actions-heading">Veprime</th>
     </tr></thead><tbody>{filtered.map(product => {
       const state = stockState(product);
       return <tr key={product.id} className={product.active ? '' : 'inactive-row'} onClick={() => setEditor(product)}>
-      <td className="product-name">{product.name}</td><td>{product.categoryName}</td><td className="stock-cell numeric">{product.trackInventory === true && product.stockQuantity !== null && <strong>{product.stockQuantity}</strong>}<StockBadge state={state}/></td>
+      <td className="product-name">{product.name}</td><td>{product.categoryName}</td><td className="stock-cell numeric">{product.trackInventory === true && product.stockQuantity !== null && <strong>{product.stockQuantity}</strong>}{state !== 'KNOWN' && <StockBadge state={state}/>}</td>
       <td className="numeric">{product.purchaseCostCents === null ? '—' : formatMoney(product.purchaseCostCents)}</td>
       <td className="numeric">{product.sellingPriceCents === null ? '—' : formatMoney(product.sellingPriceCents)}</td>
       <td className="numeric">{unitProfit(product) === null ? '—' : formatMoney(unitProfit(product))}</td>
-      <td><StatusBadge tone={product.active ? 'success' : 'neutral'}>{product.active ? 'Aktiv' : 'Joaktiv'}</StatusBadge></td>
+      <td className="product-status">{product.active ? 'Aktiv' : 'Joaktiv'}</td>
       <td className="row-actions"><Button variant="ghost" aria-label={`Edito ${product.name}`} onClick={e => { e.stopPropagation(); setEditor(product); }}><Icon name="edit"/>Edito</Button></td>
     </tr>; })}</tbody></table></div> : <EmptyState title="Nuk u gjet asnjë produkt" helper="Provo një emër tjetër ose ndrysho filtrin e kategorisë." icon="search"/>}
     </div>

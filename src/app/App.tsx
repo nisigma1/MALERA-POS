@@ -5,6 +5,7 @@ import { Reports } from '../pages/Reports';
 import { Settings } from '../pages/Settings';
 import { formatLocalDateTime } from '../domain/display';
 import { Icon } from '../components/ui';
+import { PrintNotices } from '../components/PrintNotices';
 const sections = [
   { id: 'tables', label: 'Tavolinat', component: Tables },
   { id: 'inventory', label: 'Inventari', component: Inventory },
@@ -22,6 +23,6 @@ export function App() {
       <nav aria-label="Navigimi kryesor">{sections.map(item=><button key={item.id} data-nav={item.id} aria-current={section.id===item.id?'page':undefined} onClick={()=>setSection(item)}><Icon name={item.id}/>{item.label}</button>)}</nav>
       <div className="local-label"><span className="local-dot"/>Lokale<span className="local-helper">Të dhënat në këtë pajisje</span></div>
     </aside>
-    <div className="workspace"><div className="topbar"><time dateTime={now.toISOString()}>{date}<strong>{time}</strong></time></div><main className="content"><Page/></main></div>
+    <div className="workspace"><div className="topbar"><time dateTime={now.toISOString()}>{date}<strong>{time}</strong></time></div><PrintNotices/><main className="content"><Page/></main></div>
   </div>;
 }

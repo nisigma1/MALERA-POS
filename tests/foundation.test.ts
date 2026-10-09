@@ -77,7 +77,7 @@ describe('authoritative seeds', () => {
     expect(repo.listTables()).toHaveLength(27);
     expect(db.prepare('SELECT * FROM categories').all()).toHaveLength(5);
     expect(repo.listProducts()).toHaveLength(21);
-    expect(db.prepare('SELECT * FROM schema_migrations').all()).toHaveLength(3);
+    expect(db.prepare('SELECT * FROM schema_migrations').all()).toHaveLength(4);
     expect(repo.listProducts()[0]).toMatchObject({ name: 'Configured name', sellingPriceCents: 150, stockQuantity: 0 });
     expect(repo.getSettings().businessName).toBe('Configured business');
     expect(db.prepare("SELECT * FROM orders WHERE id='persistent'").get()).toMatchObject({ status: 'OPEN' });
@@ -166,3 +166,4 @@ describe('reports and money', () => {
     expect(createRepositories(db).getSummary()).toMatchObject({ salesCents: 200, costCents: null, grossProfitCents: null, netProfitCents: null });
   });
 });
+

@@ -9,12 +9,17 @@ import { createCheckoutService } from '../database/checkout';
 import { createOrderService } from '../database/orders';
 import { registerIpc } from '../ipc/register';
 import { verificationDirectory } from '../database/safety';
+import { createReceiptRepository } from '../receipts/repository';
+import { PrintManager, createReceiptService } from '../receipts/manager';
+import { WindowsPrinterAdapter } from '../receipts/windowsAdapter';
 declare const FOX_RELEASE: boolean;
 
 app.setName('FOX Kafeteri');
 const qaDirectory = verificationDirectory(app.getPath('userData'), process.env);
 if (qaDirectory) app.setPath('userData', qaDirectory);
 let database: Database.Database | undefined;
+let printManager: PrintManager | undefined;
+let mainWindow: BrowserWindow | undefined;
 async function start() {
   const userData = app.getPath('userData');
   fs.mkdirSync(userData, { recursive: true });
@@ -27,6 +32,8 @@ async function start() {
     backgroundColor: '#f4f3ef', autoHideMenuBar: true,
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, offscreen: Boolean(process.env.FOX_VERIFY_DIR), backgroundThrottling: !process.env.FOX_VERIFY_DIR },
   });
+  mainWindow=window;
+  window.on('closed',()=>app.quit());
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', event => event.preventDefault());
   window.webContents.on('will-attach-webview', event => event.preventDefault());
@@ -40,7 +47,10 @@ async function start() {
   });
   const repositories = createRepositories(database);
   const orders = createOrderService(database, repositories);
-  registerIpc(window, repositories, createConfigurationService(database, repositories), orders, createCheckoutService(database, orders));
+  const receiptRepository=createReceiptRepository(database),printerAdapter=new WindowsPrinterAdapter(window);
+  printManager=new PrintManager(receiptRepository,printerAdapter);
+  registerIpc(window, repositories, createConfigurationService(database, repositories), orders, createCheckoutService(database, orders),createReceiptService(receiptRepository,printerAdapter,printManager),printManager);
+  printManager.start();
   const rendererErrors: string[] = [];
   window.webContents.on('console-message', details => { if (details.level === 'error') { rendererErrors.push(details.message); if (process.env.FOX_VERIFY_DIR) console.error('FOX verification renderer:', details.message); } });
   window.webContents.on('preload-error', (_event, _preloadPath, error) => rendererErrors.push(error.message));
@@ -50,7 +60,8 @@ async function start() {
   if (!process.env.FOX_VERIFY_DIR) window.maximize();
   // Interactive QA keeps the same isolated, hidden window open for native input.
   if (!FOX_RELEASE && process.env.FOX_VERIFY_DIR && !process.env.FOX_VERIFY_MANUAL) {
-    if (process.env.FOX_VERIFY_CHECKOUT) await (await import('./verify-checkout')).verifyCheckout(window,process.env.FOX_VERIFY_DIR,database,rendererErrors,Boolean(process.env.FOX_VERIFY_CHECKOUT_RESTART));
+    if (process.env.FOX_VERIFY_RECEIPTS) await (await import('./verify-receipts')).verifyReceipts(window,process.env.FOX_VERIFY_DIR,database,printManager,rendererErrors);
+    else if (process.env.FOX_VERIFY_CHECKOUT) await (await import('./verify-checkout')).verifyCheckout(window,process.env.FOX_VERIFY_DIR,database,rendererErrors,Boolean(process.env.FOX_VERIFY_CHECKOUT_RESTART));
     else if (process.env.FOX_VERIFY_ORDER_RESTART) await (await import('./verify-orders')).verifyOrderRestart(window,process.env.FOX_VERIFY_DIR,database,rendererErrors);
     else await (await import('./verify')).verifyRuntime(window, process.env.FOX_VERIFY_DIR, repositories, database, rendererErrors);
     app.quit();
@@ -64,9 +75,9 @@ else app.whenReady().then(start).catch(error => {
   app.exit(1);
 });
 app.on('second-instance', () => {
-  const window = BrowserWindow.getAllWindows()[0];
+  const window = mainWindow;
   if (window?.isMinimized()) window.restore();
   window?.focus();
 });
-app.on('before-quit', () => { database?.close(); });
+app.on('before-quit', () => { printManager?.stop(); database?.close(); });
 app.on('window-all-closed', () => app.quit());
