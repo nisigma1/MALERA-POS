@@ -544,5 +544,5 @@ body:has([data-page="tables"]) .topbar { position: absolute; top: 0; right: 0; w
   body:has([data-page="tables"]) { --pos-workspace-width: 270px; }
   .position.floor-table[data-status="ACTIVE"][data-table-code^="SH"] { width: 41px; }
 }
-.position.floor-table[data-status="ACTIVE"][data-table-code="M13"] { height: 54px; min-height: 54px; }
+.position.floor-table[data-status="ACTIVE"][data-table-code="M13"] { height: 58px; min-height: 58px; }
 .position.floor-table[data-table-code="M13"] .position-total { font-size: 9.5px; line-height: 12px; column-gap: 2px; }
