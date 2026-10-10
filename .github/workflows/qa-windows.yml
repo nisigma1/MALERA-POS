@@ -28,6 +28,11 @@ jobs:
       - run: npm test
       - run: npm run typecheck
       - run: npm run build
+      - run: npm run verify:production-db
+      - run: npm run verify:product-day
+      - run: node scripts/verify-product-ui.mjs
+      - run: npm run verify:runtime
+      - run: npm run verify:checkout
       - run: node scripts/verify-receipt-crashes.mjs
       - run: npm run release:scan
       - run: npm run verify:protection
@@ -60,6 +65,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw '0.4.2 upgrade failed' }
           node scripts/verify-installed.mjs work/prior-qa/FOX-Setup-0.5.0-qa.1-x64.exe "release/FOX-Setup-$version-x64.exe"
           if ($LASTEXITCODE -ne 0) { throw 'QA upgrade failed' }
+          gh run download 38005453394 -n FOX-QA-Windows-x64 -D work/phase51-release
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned Phase 5.1 download failed' }
+          $phase51=Get-Content work/phase51-release/release/release-manifest.json -Raw | ConvertFrom-Json
+          $phase51Hash=(Get-FileHash work/phase51-release/release/FOX-Setup-0.5.0-rc.1-x64.exe).Hash.ToLowerInvariant()
+          if ($phase51.commit -ne '112daa1ec8a43d7f7ae9b04672f09c90024ee5e6' -or $phase51Hash -ne '8b004e23763fee61271e07d0e132648de64fb89480c09600759e028fe457f670' -or $phase51Hash -ne $phase51.sha256) { throw 'Phase 5.1 provenance mismatch' }
+          node scripts/verify-installed.mjs work/phase51-release/release/FOX-Setup-0.5.0-rc.1-x64.exe "release/FOX-Setup-$version-x64.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Phase 5.1 upgrade failed' }
+
       - name: Retain sanitized acceptance evidence
         if: always()
         shell: pwsh

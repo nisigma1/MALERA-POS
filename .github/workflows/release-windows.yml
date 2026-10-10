@@ -54,6 +54,11 @@ jobs:
       - run: npm test
       - run: npm run typecheck
       - run: npm run build
+      - run: npm run verify:production-db
+      - run: npm run verify:product-day
+      - run: node scripts/verify-product-ui.mjs
+      - run: npm run verify:runtime
+      - run: npm run verify:checkout
       - run: npm run release:scan
       - run: npm run verify:protection
       - run: node scripts/verify-receipt-crashes.mjs

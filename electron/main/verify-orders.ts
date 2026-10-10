@@ -82,45 +82,45 @@ export async function verifyActiveOrders(window:BrowserWindow,directory:string,d
     await qa.assert(`document.querySelector('[data-order-total]').textContent==='—' && document.querySelector('.order-footer').dataset.orderState==='empty' && !document.querySelector('.order-footer').textContent.includes('Porosia ruhet automatikisht.')`,'Untouched table falsely shows a zero/saved order');
     await qa.assert(`document.querySelector('[data-order-product="KAFE-5"]').disabled && document.querySelector('[data-order-product="KAFE-5"]').textContent.includes('Pa çmim')`,'NULL selling price is not blocked');
     await qa.assert(`!document.querySelector('[data-order-product="KAFE-2"]')`,'Inactive product appears in POS');
-    await qa.assert(`document.querySelector('[data-order-product="KAFE-3"]').textContent.includes('€0.00') && !document.querySelector('[data-order-product="KAFE-3"]').disabled`,'Zero price is not sellable');
+    await qa.assert(`document.querySelector('[data-order-product="KAFE-3"]').textContent.includes('0.00 €') && !document.querySelector('[data-order-product="KAFE-3"]').disabled`,'Zero price is not sellable');
     await qa.assert(`document.querySelectorAll('[data-order-category]').length===5 && document.querySelector('[data-order-category="ALKOOL"]').textContent==='Alkool'`,'Canonical categories changed');
     await qa.measure(width,height); await qa.snapshot(`order-empty-${width}.png`);
   }
   if(JSON.stringify(db.prepare('SELECT COUNT(*) n FROM orders').get())!==JSON.stringify(count))throw new Error('Selection created an empty order');
   window.setContentSize(1366,768);
   await qa.click('[data-order-product="KAFE-1"]'); await qa.saved();
-  await qa.assert(`document.querySelector('[data-order-total]').textContent==='€1.20' && document.querySelector('[data-table-code="M5"]').textContent.includes('Porosi aktive')`,'First add did not activate the table');
+  await qa.assert(`document.querySelector('[data-order-total]').textContent==='1.20 €' && document.querySelector('[data-table-code="M5"]').textContent.includes('Porosi aktive')`,'First add did not activate the table');
   await qa.evaluate(`(() => {const e=document.querySelector('[data-order-product="KAFE-1"]');e.click();e.click();})()`); await qa.saved();
   await qa.assert(`document.querySelector('[data-order-quantity]').textContent==='2' && document.querySelectorAll('[data-order-item]').length===1`,'Rapid repeated click duplicated an add');
   await qa.click('[aria-label="Ul sasinë e Espresso"]'); await qa.saved();
   await qa.assert(`document.querySelector('[data-order-quantity]').textContent==='1' && document.querySelector('[aria-label="Ul sasinë e Espresso"]').disabled`,'Minus at one deletes a line');
   await qa.evaluate(`(() => {const e=document.querySelector('[aria-label="Rrit sasinë e Espresso"]');e.click();e.click();})()`); await qa.saved();
   await qa.click('[data-order-category="UJE"]'); await qa.click('[data-order-product="UJE-1"]'); await qa.saved();
-  await qa.assert(`document.querySelector('[data-order-total]').textContent==='€3.40'`,'Exact order total incorrect');
+  await qa.assert(`document.querySelector('[data-order-total]').textContent==='3.40 €'`,'Exact order total incorrect');
   await qa.click('[aria-label="Hiq Ujë natyral"]'); await qa.saved();
-  await qa.assert(`document.querySelector('[data-order-total]').textContent==='€2.40'`,'Line removal total incorrect');
+  await qa.assert(`document.querySelector('[data-order-total]').textContent==='2.40 €'`,'Line removal total incorrect');
   await qa.click('[data-order-product="UJE-1"]'); await qa.saved();
   await qa.select('M6'); await qa.click('[data-order-product="KAFE-3"]'); await qa.saved();
-  await qa.assert(`document.querySelector('[data-table-code="M6"]').textContent.includes('€0.00')`,'Real zero-total order not displayed');
+  await qa.assert(`document.querySelector('[data-table-code="M6"]').textContent.includes('0.00 €')`,'Real zero-total order not displayed');
   await qa.click('[aria-label="Hiq Double Espresso"]'); await qa.saved();
   await qa.assert(`Boolean(document.querySelector('.order-empty')) && !document.querySelector('[data-table-code="M6"]').textContent.includes('€')`,'Last removal did not free the table');
   const cancelled=db.prepare("SELECT COUNT(*) n FROM orders WHERE table_id='M6' AND status='CANCELLED'").get() as {n:number};
   if(cancelled.n!==1)throw new Error('Cancelled draft not preserved');
-  await qa.select('M5'); await qa.assert(`document.querySelector('[data-order-total]').textContent==='€3.40'`,'Table switching lost order');
+  await qa.select('M5'); await qa.assert(`document.querySelector('[data-order-total]').textContent==='3.40 €'`,'Table switching lost order');
   // A real configuration save via the existing Inventari form must leave old lines untouched.
   await qa.click('[data-nav="inventory"]'); await qa.click('[aria-label="Edito Espresso"]');
   await qa.evaluate(`(() => {const e=document.querySelector('#sellingPriceCents');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'1.35');e.dispatchEvent(new Event('input',{bubbles:true}));})()`);
   await qa.evaluate(`document.querySelector('#product-form').requestSubmit()`);
   await qa.wait(`!document.querySelector('dialog[open]')`);
   await qa.click('[data-nav="tables"]'); await qa.select('M5');
-  await qa.assert(`document.querySelector('[data-order-product="KAFE-1"]').textContent.includes('€1.35') && document.querySelector('[data-order-total]').textContent==='€3.40'`,'Catalog price update rewrote the old order');
+  await qa.assert(`document.querySelector('[data-order-product="KAFE-1"]').textContent.includes('1.35 €') && document.querySelector('[data-order-total]').textContent==='3.40 €'`,'Catalog price update rewrote the old order');
   await qa.click('[data-order-product="KAFE-1"]'); await qa.saved();
-  await qa.assert(`document.querySelectorAll('[data-order-item]').length===3 && document.querySelector('[data-order-total]').textContent==='€4.75'`,'Changed price did not create a new snapshot');
+  await qa.assert(`document.querySelectorAll('[data-order-item]').length===3 && document.querySelector('[data-order-total]').textContent==='4.75 €'`,'Changed price did not create a new snapshot');
   // A command continues to commit when its workspace is unmounted immediately.
   await qa.evaluate(`document.querySelector('[aria-label="Rrit sasinë e Espresso"]').click();document.querySelector('[data-nav="settings"]').click()`);
   await qa.wait(`Boolean(document.querySelector('[data-page="settings"]'))`);
   await qa.click('[data-nav="tables"]'); await qa.select('M5');
-  await qa.assert(`document.querySelector('[data-order-total]').textContent==='€5.95'`,'Navigation during save lost a committed quantity change');
+  await qa.assert(`document.querySelector('[data-order-total]').textContent==='5.95 €'`,'Navigation during save lost a committed quantity change');
   const metrics: unknown[]=[];
   for(const [width,height] of sizes) { window.setContentSize(width,height); await qa.measure(width,height).then(value=>metrics.push(value)); await qa.snapshot(`order-active-${width}.png`); }
   // Deferred statuses are readable and blocked; no invented transitions.
@@ -160,7 +160,7 @@ export async function verifyActiveOrders(window:BrowserWindow,directory:string,d
   for(const codes of [['M5','M6','M5'],['T3','SH2','M5']]) {
     await qa.evaluate(`(${JSON.stringify(codes)}).forEach(code=>document.querySelector('[data-table-code="'+code+'"]').click())`);
     await qa.saved();
-    await qa.assert(`document.querySelector('#order-heading').textContent==='Tavolina M5' && document.querySelector('[data-order-total]').textContent==='€5.95' && document.querySelectorAll('.position[aria-pressed="true"]').length===1 && document.querySelector('.position[aria-pressed="true"]').dataset.tableCode==='M5'`,'Rapid table switch mixed workspace state');
+    await qa.assert(`document.querySelector('#order-heading').textContent==='Tavolina M5' && document.querySelector('[data-order-total]').textContent==='5.95 €' && document.querySelectorAll('.position[aria-pressed="true"]').length===1 && document.querySelector('.position[aria-pressed="true"]').dataset.tableCode==='M5'`,'Rapid table switch mixed workspace state');
   }
   await qa.evaluate(`document.querySelector('.order-body').scrollTop=document.querySelector('.order-body').scrollHeight`);
   await qa.select('M6');
@@ -188,7 +188,7 @@ export async function verifyOrderRestart(window:BrowserWindow,directory:string,d
   if(JSON.stringify(persistedOrders(db))!==JSON.stringify(expected.persisted))throw new Error('Electron restart changed persisted name, price or nullable cost snapshots');
   if(JSON.stringify(stockSnapshot(db))!==JSON.stringify(expected.stock))throw new Error('Electron restart changed stock or reports');
   const metrics=[];
-  for(const [width,height] of sizes) { window.setContentSize(width,height); await qa.select('M5'); await qa.assert(`document.querySelector('[data-order-total]').textContent==='€5.95' && document.querySelector('[data-order-quantity]').textContent==='3'`,'Restart UI does not match persisted order'); metrics.push(await qa.measure(width,height)); await qa.snapshot(`order-restarted-${width}.png`); }
+  for(const [width,height] of sizes) { window.setContentSize(width,height); await qa.select('M5'); await qa.assert(`document.querySelector('[data-order-total]').textContent==='5.95 €' && document.querySelector('[data-order-quantity]').textContent==='3'`,'Restart UI does not match persisted order'); metrics.push(await qa.measure(width,height)); await qa.snapshot(`order-restarted-${width}.png`); }
   if(errors.length)throw new Error(`Restart renderer errors: ${errors.join('; ')}`);
   fs.writeFileSync(path.join(directory,'phase3-restart.json'),JSON.stringify({actualProcessRestart:true,canonicalWorkspaceEqual:true,rawOrdersAndAllSnapshotsEqual:true,stockAndReportsEqual:true,metrics,rendererErrors:errors},null,2));
   console.log('FOX Phase 3 real Electron process restart verified: identical M5 order, snapshots, quantities, total and ACTIVE status.');

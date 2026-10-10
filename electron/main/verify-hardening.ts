@@ -37,9 +37,11 @@ export async function verifyHardening(window:BrowserWindow,directory:string,db:D
  await js('Array.from(document.querySelectorAll(".data-protection button")).find(b=>b.textContent==="Krijo backup").click()');
  for(let i=0;i<200;i++){if(await js('document.querySelector(".data-protection").textContent.includes("Backup u krijua dhe u verifikua")'))break;await wait(50);}
  assert.equal(fs.existsSync(backup+'.json'),true);assert.equal(await js('document.querySelector(".data-protection").textContent.includes("Backup u krijua dhe u verifikua")'),true);
+ window.setContentSize(1366,768);await js('document.querySelector(".data-protection").scrollIntoView({block:"end"})');await wait(150);
+ fs.writeFileSync(path.join(directory,'backup-confirmation-1366.png'),(await window.webContents.capturePage()).toPNG());
  fs.writeFileSync(expectedFile,JSON.stringify(snapshot()));await sell('M6');
  dialog.showOpenDialog=async()=>({canceled:false,filePaths:[backup]});
- dialog.showMessageBox=async(...args:unknown[])=>{const options=args.at(-1) as MessageBoxOptions;assert.equal(options.defaultId,0);assert.equal(options.cancelId,0);assert.equal(options.buttons?.[0],'Anulo');return {response:1,checkboxChecked:false};};
+ dialog.showMessageBox=async(...args:unknown[])=>{const options=args.at(-1) as MessageBoxOptions;assert.equal(options.defaultId,0);assert.equal(options.cancelId,0);assert.equal(options.buttons?.[0],'Anulo');assert.ok(options.message?.includes('zëvendësojë'));assert.ok(options.detail?.includes('backup sigurie'));fs.writeFileSync(path.join(directory,'restore-confirmation-options.json'),JSON.stringify(options,null,2));return {response:1,checkboxChecked:false};};
  await js('Array.from(document.querySelectorAll(".data-protection button")).find(b=>b.textContent==="Rikthe nga backup").click()');
  for(let i=0;i<200&&db.open;i++)await wait(50);
  assert.equal(db.open,false);assert.equal(errors.length,0);

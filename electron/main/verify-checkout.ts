@@ -80,11 +80,11 @@ export async function verifyCheckout(window: BrowserWindow, directory: string, d
   await selected('M5'); await click('[data-order-product="KAFE-1"]'); await saved();
   await click('[aria-label="Rrit sasinë e Espresso"]'); await saved();
   await click('[data-open-checkout]'); await wait(`Boolean(document.querySelector('.checkout-dialog[open]'))`);
-  await assert(`document.querySelectorAll('[data-checkout-item]').length===1 && (() => { const cells=document.querySelector('[data-checkout-item]').cells; return cells[0].querySelector('strong').textContent==='Espresso' && cells[0].querySelector('small').textContent==='€1.00 / njësi' && cells[1].textContent==='2' && cells[2].textContent==='€2.00'; })()`,'Checkout summary does not match saved order snapshots');
+  await assert(`document.querySelectorAll('[data-checkout-item]').length===1 && (() => { const cells=document.querySelector('[data-checkout-item]').cells; return cells[0].querySelector('strong').textContent==='Espresso' && cells[0].querySelector('small').textContent==='1.00 € / njësi' && cells[1].textContent==='2' && cells[2].textContent==='2.00 €'; })()`,'Checkout summary does not match saved order snapshots');
   await assert(`!document.querySelector('[data-confirm-payment]').disabled && document.querySelectorAll('[data-payment]').length===0 && document.querySelector('.checkout-method').textContent.includes('Para të gatshme')`,'Removed payment selector is still present');
   window.webContents.sendInputEvent({type:'keyDown',keyCode:'Escape'}); window.webContents.sendInputEvent({type:'keyUp',keyCode:'Escape'});
   await wait(`!document.querySelector('.checkout-dialog')`);
-  await assert(`document.querySelector('#order-heading').textContent==='Tavolina M5' && document.querySelector('[data-order-total]').textContent==='€2.00'`,'Escape mutated order or closed table');
+  await assert(`document.querySelector('#order-heading').textContent==='Tavolina M5' && document.querySelector('[data-order-total]').textContent==='2.00 €'`,'Escape mutated order or closed table');
   await click('[data-open-checkout]'); await wait(`Boolean(document.querySelector('.checkout-dialog[open]'))`);
   const metrics: unknown[]=[];
   for(const [width,height] of [[1366,768],[1440,900],[1920,1080],[3840,2160]]) {
@@ -133,14 +133,14 @@ export async function verifyCheckout(window: BrowserWindow, directory: string, d
   if(db.prepare("SELECT * FROM inventory_movements WHERE type='SALE'").all().length!==2)throw new Error('SALE movement/untracked inventory failed');
   const reportMetrics: unknown[]=[];
   await click('[data-nav="reports"]'); await wait(`document.querySelectorAll('[data-sale-id]').length===3`);
-  await assert(`document.querySelector('[data-cash-total]').textContent==='€4.50' && !document.querySelector('[data-card-total]') && document.querySelector('.notice').textContent.includes('Kosto e paplotë')`,'Report presentation failed');
+  await assert(`document.querySelector('[data-cash-total]').textContent==='4.50 €' && !document.querySelector('[data-card-total]') && document.querySelector('.notice').textContent.includes('Kosto e paplotë')`,'Report presentation failed');
   await assert(`[...document.querySelectorAll('[data-sale-id]')].every(row=>/^#[0-9]{6}$/.test(row.cells[0].textContent) && /^[0-9]{2}\\.[0-9]{2}\\.[0-9]{4} [0-9]{2}:[0-9]{2}$/.test(row.cells[1].textContent))`,'Human sale number/local date failed');
   for(const sale of finalReport.recentSales) {
     await click(`[data-sale-id="${sale.id}"] button`);
     await wait(`document.querySelectorAll('[data-sale-item]').length===${sale.items.length}`);
     await assert(`(() => {const actual=[...document.querySelectorAll('[data-sale-item]')].map(row=>({name:row.cells[0].textContent,quantity:Number(row.cells[1].textContent)}));return JSON.stringify(actual)===JSON.stringify(${JSON.stringify(sale.items.map(item=>({name:item.name,quantity:item.quantity})))});})()`,'Historical sale detail names/quantities failed');
   }
-  await assert(`document.querySelector('[data-cost-coverage]').textContent.includes('1 njësi në 1 rreshta') && document.querySelector('[data-cost-coverage]').textContent.includes('€1.50')`,'Missing historical cost coverage failed');
+  await assert(`document.querySelector('[data-cost-coverage]').textContent.includes('1 njësi në 1 rreshta') && document.querySelector('[data-cost-coverage]').textContent.includes('1.50 €')`,'Missing historical cost coverage failed');
   for(const [width,height] of [[1366,768],[1440,900],[1920,1080]]) { await resize(width!,height!); const metric=await evaluate(`({width:innerWidth,height:innerHeight,overflow:document.documentElement.scrollWidth>innerWidth,sales:document.querySelectorAll('[data-sale-id]').length})`); if(metric.overflow||metric.sales!==3)throw new Error('Report overflow'); reportMetrics.push(metric);await capture(`checkout-reports-${width}`); }
   // Native select changes the server filter, without renderer-side aggregation.
   await click('select[aria-label="Periudha e raportit"]'); window.webContents.sendInputEvent({type:'keyDown',keyCode:'Home'});window.webContents.sendInputEvent({type:'keyUp',keyCode:'Home'});window.webContents.sendInputEvent({type:'keyDown',keyCode:'Enter'});window.webContents.sendInputEvent({type:'keyUp',keyCode:'Enter'}); await pause(250);
@@ -189,7 +189,7 @@ export async function verifyCheckout(window: BrowserWindow, directory: string, d
   const auditedReport=readSalesReport(db,'ALL');
   if(auditedReport.summary.salesCents!==1000||auditedReport.cashCents!==700||auditedReport.cardCents!==150||auditedReport.unknownPaymentCents!==150||auditedReport.summary.completedOrders!==7)throw new Error('Legacy reconciliation failed');
   await click('[data-nav="reports"]');await wait(`document.querySelectorAll('[data-sale-id]').length===7`);
-  await assert(`document.querySelector('[data-cash-total]').textContent==='€7.00' && !document.querySelector('[data-card-total]') && document.body.textContent.includes('Kartelë historike: €1.50') && document.body.textContent.includes('Pa metodë të regjistruar: €1.50')`,'Legacy reporting relabeled or omitted money');
+  await assert(`document.querySelector('[data-cash-total]').textContent==='7.00 €' && !document.querySelector('[data-card-total]') && document.body.textContent.includes('Kartelë historike: 1.50 €') && document.body.textContent.includes('Pa metodë të regjistruar: 1.50 €')`,'Legacy reporting relabeled or omitted money');
   for(const [width,height] of [[1366,768],[1440,900],[1920,1080]]){await resize(width!,height!);await assert(`document.documentElement.scrollWidth<=innerWidth && [...document.querySelectorAll('[data-sale-id]')].every(row=>/^#[0-9]{6}$/.test(row.cells[0].textContent) && !row.textContent.includes(row.dataset.saleId))`,'Legacy report overflow/raw UUID');await capture(`phase41-legacy-${width}`);}
   fs.writeFileSync(expectedFile,JSON.stringify({database:snapshot(db),report:auditedReport},null,2));
   if(errors.length)throw new Error('Checkout renderer errors: '+errors.join(';'));

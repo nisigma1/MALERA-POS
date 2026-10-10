@@ -47,7 +47,7 @@ export function Inventory() {
       return <tr key={product.id} className={product.active ? '' : 'inactive-row'} onClick={() => setEditor(product)}>
       <td className="product-name">{product.name}</td><td>{product.categoryName}</td><td className="stock-cell numeric">{product.trackInventory === true && product.stockQuantity !== null && <strong>{product.stockQuantity}</strong>}{state !== 'KNOWN' && <StockBadge state={state}/>}</td>
       <td className="numeric">{product.purchaseCostCents === null ? '—' : formatMoney(product.purchaseCostCents)}</td>
-      <td className="numeric">{product.sellingPriceCents === null ? '—' : formatMoney(product.sellingPriceCents)}</td>
+      <td className="numeric">{product.sellingPriceCents === null ? 'Pa çmim' : formatMoney(product.sellingPriceCents)}</td>
       <td className="numeric">{unitProfit(product) === null ? '—' : formatMoney(unitProfit(product))}</td>
       <td className="product-status">{product.active ? 'Aktiv' : 'Joaktiv'}</td>
       <td className="row-actions"><Button variant="ghost" aria-label={`Edito ${product.name}`} onClick={e => { e.stopPropagation(); setEditor(product); }}><Icon name="edit"/>Edito</Button></td>

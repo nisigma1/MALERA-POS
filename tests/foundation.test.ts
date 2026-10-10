@@ -141,7 +141,7 @@ describe('schema integrity', () => {
   });
 });
 describe('reports and money', () => {
-  it.each([[0, '€0.00'], [100, '€1.00'], [580, '€5.80'], [-30, '-€0.30']] as const)('formats %i cents', (cents, expected) => {
+  it.each([[0, '0.00 €'], [100, '1.00 €'], [580, '5.80 €'], [-30, '-0.30 €']] as const)('formats %i cents', (cents, expected) => {
     expect(formatMoney(cents)).toBe(expected);
   });
   it('does not represent unknown money as zero and rejects fractions', () => {

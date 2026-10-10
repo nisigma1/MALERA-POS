@@ -6,6 +6,7 @@ import {backupName, createBackup, validateBackup, assertDestination, durableWrit
 import {inspectDatabase} from '../database/health';
 import {replaceDatabase} from '../database/restore';
 import {logError} from './logging';
+import {formatLocalDateTime} from '../../src/domain/display';
 import type {DataActionResult, DataDiagnostics} from '../../src/domain/protection';
 
 export function createDataProtection(window:BrowserWindow, db:Database.Database, stop:()=>void) {
@@ -47,7 +48,7 @@ export function createDataProtection(window:BrowserWindow, db:Database.Database,
       if(selected.canceled||!selected.filePaths[0])return {ok:false,cancelled:true,message:''};
       const file=selected.filePaths[0],manifest=await validateBackup(file);
       if((db.prepare("SELECT COUNT(*) AS n FROM orders WHERE status='OPEN'").get() as {n:number}).n)return {ok:false,message:'Përfundo porositë e hapura para rikthimit.'};
-      const confirmation=await dialog.showMessageBox(window,{type:'warning',title:'Rikthe nga backup',message:'Rikthimi do ta zëvendësojë gjendjen aktuale.',detail:`Backup: ${new Date(manifest.createdAt).toLocaleString('sq-AL')}\nFOX do të krijojë një backup sigurie para rikthimit. Aplikacioni do të riniset.`,buttons:['Anulo','Rikthe backup-in'],defaultId:0,cancelId:0,noLink:true});
+      const confirmation=await dialog.showMessageBox(window,{type:'warning',title:'Rikthe nga backup',message:'Rikthimi do ta zëvendësojë gjendjen aktuale.',detail:`Backup: ${formatLocalDateTime(manifest.createdAt)}\nFOX do të krijojë një backup sigurie para rikthimit. Aplikacioni do të riniset.`,buttons:['Anulo','Rikthe backup-in'],defaultId:0,cancelId:0,noLink:true});
       if(confirmation.response!==1)return {ok:false,cancelled:true,message:''};
       maintenance=true;
       try {await replaceDatabase(db,file,directory,app.getVersion(),stop);app.relaunch();setImmediate(()=>app.exit(0));return {ok:true,message:'Backup-i u rikthye dhe u verifikua. FOX po riniset.'};}

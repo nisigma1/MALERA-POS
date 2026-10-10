@@ -162,7 +162,7 @@ export async function verifyRuntime(window: BrowserWindow, directory: string, re
   await setInput('purchaseCostCents', '0.50');
   await setInput('trackInventory', 'yes', true);
   await setInput('lowStockThreshold', '2');
-  if (await window.webContents.executeJavaScript(`document.querySelector('.calculated-value output').textContent`) !== '€0.70') throw new Error('Calculated editor profit failed');
+  if (await window.webContents.executeJavaScript(`document.querySelector('.calculated-value output').textContent`) !== '0.70 €') throw new Error('Calculated editor profit failed');
   await window.webContents.executeJavaScript(`document.querySelector('#product-form').requestSubmit()`);
   await waitFor('.feedback .icon');
   if (await window.webContents.executeJavaScript(`Boolean(document.querySelector('dialog[open]'))`)) throw new Error('Product editor did not close after save');
@@ -243,7 +243,7 @@ export async function verifyRuntime(window: BrowserWindow, directory: string, re
     await window.webContents.executeJavaScript(`document.querySelector('[data-nav="inventory"]').click()`);
     await waitFor('[data-page="inventory"]');
     const zero = await window.webContents.executeJavaScript(`(() => { const row=document.querySelector('.catalog tbody tr'); return {stock:row.querySelector('.stock-cell strong').textContent,state:row.querySelector('.stock-cell .badge').textContent,prices:[...row.querySelectorAll('.numeric')].slice(1).map(e=>e.textContent)}; })()`);
-    if (zero.stock!=='0'||zero.state!=='Pa stok'||zero.prices.slice(0,3).some((s:string)=>s!=='€0.00')) throw new Error('Known zero UI regression failed');
+    if (zero.stock!=='0'||zero.state!=='Pa stok'||zero.prices.slice(0,3).some((s:string)=>s!=='0.00 €')) throw new Error('Known zero UI regression failed');
     await snapshot(`inventory-states-${width}.png`);
     await inspectQuality('inventory-states',width);
     await window.webContents.executeJavaScript(`document.querySelector('[data-nav="tables"]').click()`);

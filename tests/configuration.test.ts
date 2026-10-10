@@ -27,7 +27,7 @@ describe('deterministic euro inputs', () => {
     expect(parseEuro('')).toBeNull(); expect(parseEuro('  ')).toBeNull();
     expect(parseEuro('1.20')).toBe(120); expect(parseEuro('1,20')).toBe(120);
     expect(parseEuro('0.29')).toBe(29); expect(parseEuro('0')).toBe(0);
-    expect(formatMoney(120)).toBe('€1.20');
+    expect(formatMoney(120)).toBe('1.20 €');
   });
   it.each(['-1', '1.234', 'NaN', 'Infinity', '1e2', '1..2', '1,2.3', '900719925474099.99'])('rejects invalid price %s', value => { expect(() => parseEuro(value)).toThrow(); });
 });
