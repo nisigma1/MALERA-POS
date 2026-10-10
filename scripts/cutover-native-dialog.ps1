@@ -14,8 +14,15 @@ function Find-Window([string]$Title){
 }
 $title=if($Action -eq 'backup'){'Krijo backup'}else{'Zgjidh backup për rikthim'}
 $dialog=Find-Window $title
-$edit=$dialog.FindFirst($scope::Descendants,[System.Windows.Automation.PropertyCondition]::new($uia::AutomationIdProperty,'1001'))
-if(-not $edit){throw 'Owned file-name control not found'}
+$filename=$dialog.FindFirst($scope::Descendants,[System.Windows.Automation.PropertyCondition]::new($uia::AutomationIdProperty,'1001'))
+if(-not $filename){throw 'Owned file-name control not found'}
+# Windows exposes the filename as a ComboBox wrapping an Edit. The container
+# has no ValuePattern; set the editable descendant, never an unrelated search field.
+$edit=$filename
+if($filename.Current.ControlType -ne [System.Windows.Automation.ControlType]::Edit){
+ $edit=$filename.FindFirst($scope::Descendants,[System.Windows.Automation.PropertyCondition]::new($uia::ControlTypeProperty,[System.Windows.Automation.ControlType]::Edit))
+}
+if(-not $edit){throw 'Owned editable file-name control not found'}
 ([System.Windows.Automation.ValuePattern]$edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)).SetValue($File)
 $button=$dialog.FindFirst($scope::Descendants,[System.Windows.Automation.PropertyCondition]::new($uia::AutomationIdProperty,'1'))
 if(-not $button){throw 'Owned file selection button not found'}
