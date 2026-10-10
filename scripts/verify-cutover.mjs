@@ -67,6 +67,6 @@ try{
  await ui.select('M5');await ui.add('KAFE-1');await ui.pay();evidence.continuation=await reconcile();check(evidence.continuation.sales===26&&evidence.continuation.revenueCents===5750,'Operation/sequence continues after restore');await restart(observe());
  evidence.backupRestoreExact=true;evidence.ownerConfigurationPersisted=true;evidence.passed=true;await close();fs.writeFileSync(path.join(directory,'cutover-result.json'),JSON.stringify(evidence,null,2));console.log(JSON.stringify({passed:true,directory,recoveryDirectory,...evidence}));
 }catch(error){
- try{console.error('Isolated cutover failure observation',JSON.stringify(await ui.js('({status:document.querySelector(".data-protection")?.textContent,diagnostics:await window.fox.data.diagnostics()})')));}catch{}
+ try{console.error('Isolated cutover failure observation',JSON.stringify(await ui.js('(async()=>({status:document.querySelector(".data-protection")?.textContent,diagnostics:await window.fox.data.diagnostics()}))()')));}catch{}
  if(processId&&alive())spawnSync('taskkill',['/PID',String(processId),'/T','/F'],{windowsHide:true});ws?.close();throw error;
 }
