@@ -60,6 +60,25 @@ $dialog=Find-Window $title
 # the same ID also occurs in the address bar, so scope to the filename host.
 $hostControl=$dialog.FindFirst($scope::Descendants,[System.Windows.Automation.PropertyCondition]::new($uia::AutomationIdProperty,'FileNameControlHost'))
 $edit=if($hostControl){$hostControl.FindFirst($scope::Descendants,[System.Windows.Automation.PropertyCondition]::new($uia::AutomationIdProperty,'1001'))}
+if(-not $edit -and $Action -eq 'restore'){
+ # Observed Open hierarchy: ComboBoxEx32(1148) > ComboBox(1148) > Edit(1148).
+ # Save has a different filename host. Never match the address/search Edit.
+ $matches=[System.Collections.Generic.List[System.IntPtr]]::new()
+ $callback=[FoxOwnedDialogControl+EnumProc]{param($h,$l)
+  $className=[System.Text.StringBuilder]::new(128)
+  [FoxOwnedDialogControl]::GetClassName($h,$className,128) | Out-Null
+  if($className.ToString() -eq 'Edit' -and [FoxOwnedDialogControl]::GetDlgCtrlID($h) -eq 1148){$matches.Add($h)}
+  return $true
+ }
+ [FoxOwnedDialogControl]::EnumChildWindows([IntPtr]$dialog.Current.NativeWindowHandle,$callback,[IntPtr]::Zero) | Out-Null
+ if($matches.Count -ne 1){throw 'Expected exactly one owned Open filename Edit'}
+ $edit=$uia::FromHandle($matches[0])
+ $parent=$uia::FromHandle([FoxOwnedDialogControl]::GetParent($matches[0]))
+ $parentHandle=Owned-Handle $parent 'ComboBox'
+ $host=$uia::FromHandle([FoxOwnedDialogControl]::GetParent($parentHandle))
+ $hostHandle=Owned-Handle $host 'ComboBoxEx32'
+ if([FoxOwnedDialogControl]::GetDlgCtrlID($parentHandle) -ne 1148 -or [FoxOwnedDialogControl]::GetDlgCtrlID($hostHandle) -ne 1148 -or [FoxOwnedDialogControl]::GetParent($hostHandle) -ne [IntPtr]$dialog.Current.NativeWindowHandle){throw 'Owned Open filename hierarchy mismatch'}
+}
 if(-not $edit){
  $dialog.FindAll($scope::Descendants,[System.Windows.Automation.Condition]::TrueCondition) | ForEach-Object {
   Write-Output ("Owned QA control: {0} | {1} | {2}" -f $_.Current.ControlType.ProgrammaticName,$_.Current.AutomationId,$_.Current.Name)
