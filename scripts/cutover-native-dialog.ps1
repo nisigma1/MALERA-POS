@@ -15,7 +15,7 @@ public static class FoxOwnedDialogControl {
  [DllImport("user32.dll")] public static extern bool IsWindowEnabled(IntPtr h);
  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr SendMessage(IntPtr h, uint message, IntPtr w, string value);
  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr SendMessage(IntPtr h, uint message, IntPtr w, StringBuilder value);
- [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr h, uint message, IntPtr w, IntPtr l);
+ [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr SendMessage(IntPtr h, uint message, IntPtr w, IntPtr l);
 }
 '@
 $uia=[System.Windows.Automation.AutomationElement]
@@ -69,8 +69,12 @@ if($edit.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern,
  ([System.Windows.Automation.ValuePattern]$pattern).SetValue($File)
 }else{
  $editHandle=Owned-Handle $edit 'Edit'
- $setResult=[FoxOwnedDialogControl]::SendMessage($editHandle,0x000C,[IntPtr]::Zero,$File)
- if($setResult -eq [IntPtr]::Zero){throw 'Native filename input rejected text'}
+ # WM_SETTEXT updates visible text but the shell dialog can retain its cached
+ # filename. Real Edit character input updates that model, like operator typing.
+ [FoxOwnedDialogControl]::SendMessage($editHandle,0x00B1,[IntPtr]::Zero,[IntPtr](-1)) | Out-Null
+ foreach($character in $File.ToCharArray()){
+  [FoxOwnedDialogControl]::SendMessage($editHandle,0x0102,[IntPtr]([int]$character),[IntPtr]1) | Out-Null
+ }
  $written=[System.Text.StringBuilder]::new(32768)
  # GetWindowText deliberately cannot read another process's Edit contents.
  [FoxOwnedDialogControl]::SendMessage($editHandle,0x000D,[IntPtr]32768,$written) | Out-Null
