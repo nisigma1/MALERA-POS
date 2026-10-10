@@ -9,9 +9,10 @@ using System.Runtime.InteropServices;
 public static class FoxOwnedDialogControl {
  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetClassName(IntPtr h, StringBuilder text, int size);
  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
- [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr h, uint flags);
+ [DllImport("user32.dll")] public static extern IntPtr GetParent(IntPtr h);
  [DllImport("user32.dll")] public static extern int GetDlgCtrlID(IntPtr h);
  [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr h);
+ [DllImport("user32.dll")] public static extern bool IsWindowEnabled(IntPtr h);
  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder text, int size);
  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr SendMessage(IntPtr h, uint message, IntPtr w, string value);
  [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr h, uint message, IntPtr w, IntPtr l);
@@ -36,7 +37,8 @@ function Invoke-OwnedButton($Control){
   # BM_CLICK depends on foreground activation, which offscreen QA does not have.
   # Notify the actual owned dialog of its actual Button's BN_CLICKED instead.
   $buttonHandle=Owned-Handle $Control 'Button'
-  $dialogHandle=[FoxOwnedDialogControl]::GetAncestor($buttonHandle,2)
+  if(-not [FoxOwnedDialogControl]::IsWindowEnabled($buttonHandle)){throw 'Owned native button is disabled'}
+  $dialogHandle=[FoxOwnedDialogControl]::GetParent($buttonHandle)
   $dialogOwner=[uint32]0;[FoxOwnedDialogControl]::GetWindowThreadProcessId($dialogHandle,[ref]$dialogOwner) | Out-Null
   if($dialogOwner -ne $FoxProcessId){throw 'Native button dialog ownership failed'}
   [FoxOwnedDialogControl]::SendMessage($dialogHandle,0x0111,[IntPtr][FoxOwnedDialogControl]::GetDlgCtrlID($buttonHandle),$buttonHandle) | Out-Null
