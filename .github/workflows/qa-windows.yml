@@ -43,6 +43,28 @@ jobs:
       - run: node scripts/verify-startup-failures.mjs --stress
       - run: npm run package:win -- --qa
       - run: ./scripts/verify-release.ps1
+      - name: Packaged visual acceptance and frozen visual baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh run download 38067281942 -n FOX-QA-Windows-x64 -D work/phase7-visual-baseline
+          if ($LASTEXITCODE -ne 0) { throw 'Frozen visual baseline download failed' }
+          $baseline=Get-Content work/phase7-visual-baseline/release/release-manifest.json -Raw | ConvertFrom-Json
+          $oldInstaller='work/phase7-visual-baseline/release/FOX-Setup-0.6.0-rc.2-x64.exe'
+          if ($baseline.commit -ne '418a9b2f50508d025168e3bda19e4f79aa03b904' -or (Get-FileHash $oldInstaller).Hash.ToLowerInvariant() -ne '40fb84f76e26b6fe14493092cb80d8c06184758eedb9c53e07414f3c51737975') { throw 'Visual baseline provenance mismatch' }
+          node scripts/verify-visual.mjs before $oldInstaller
+          if ($LASTEXITCODE -ne 0) { throw 'Visual baseline capture failed' }
+          $version=(Get-Content package.json -Raw | ConvertFrom-Json).version
+          node scripts/verify-visual.mjs after "release/FOX-Setup-$version-x64.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged visual acceptance failed' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: FOX-Visual-Acceptance
+          path: ../../outputs/fox-phase8-screenshots/
+          if-no-files-found: warn
+          retention-days: 14
       - name: Installed owner UI cutover and native backup/recovery
         shell: pwsh
         run: |
@@ -88,6 +110,8 @@ jobs:
           if ($phase6.commit -ne 'd9135e5d9831c08c496c618ebd9bb90a08e38c8d' -or $phase6Hash -ne 'f21e65437d6f29b34980119270552d384687694d88b6f971a18a57fbe6eff30a' -or $phase6Hash -ne $phase6.sha256) { throw 'Frozen baseline provenance mismatch' }
           node scripts/verify-installed.mjs work/phase6-release/release/FOX-Setup-0.6.0-rc.1-x64.exe "release/FOX-Setup-$version-x64.exe"
           if ($LASTEXITCODE -ne 0) { throw 'Frozen baseline upgrade failed' }
+          node scripts/verify-installed.mjs work/phase7-visual-baseline/release/FOX-Setup-0.6.0-rc.2-x64.exe "release/FOX-Setup-$version-x64.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Phase 7 baseline upgrade failed' }
 
       - name: Retain sanitized acceptance evidence
         if: always()
