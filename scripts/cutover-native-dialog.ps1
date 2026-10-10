@@ -75,8 +75,8 @@ if(-not $edit -and $Action -eq 'restore'){
  $edit=$uia::FromHandle($matches[0])
  $parent=$uia::FromHandle([FoxOwnedDialogControl]::GetParent($matches[0]))
  $parentHandle=Owned-Handle $parent 'ComboBox'
- $host=$uia::FromHandle([FoxOwnedDialogControl]::GetParent($parentHandle))
- $hostHandle=Owned-Handle $host 'ComboBoxEx32'
+ $filenameHost=$uia::FromHandle([FoxOwnedDialogControl]::GetParent($parentHandle))
+ $hostHandle=Owned-Handle $filenameHost 'ComboBoxEx32'
  if([FoxOwnedDialogControl]::GetDlgCtrlID($parentHandle) -ne 1148 -or [FoxOwnedDialogControl]::GetDlgCtrlID($hostHandle) -ne 1148 -or [FoxOwnedDialogControl]::GetParent($hostHandle) -ne [IntPtr]$dialog.Current.NativeWindowHandle){throw 'Owned Open filename hierarchy mismatch'}
 }
 if(-not $edit){
