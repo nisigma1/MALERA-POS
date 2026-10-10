@@ -24,6 +24,8 @@ jobs:
           REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
         run: |
           $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $visualOutput = [IO.Path]::GetFullPath((Join-Path $env:GITHUB_WORKSPACE '../../outputs/fox-phase8-screenshots'))
+          "FOX_VISUAL_OUTPUT=$visualOutput" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
           if ($version -notmatch '^\d+\.\d+\.\d+-(?:qa|rc)\.\d+$') { throw 'Only a prerelease candidate is permitted; artifact remains explicitly QA/UNSIGNED' }
           if ($env:REPOSITORY_PRIVATE -ne 'true') { throw 'Repository must remain private' }
       - run: npm ci
@@ -64,7 +66,7 @@ jobs:
         if: always()
         with:
           name: FOX-Visual-Acceptance
-          path: ${{ github.workspace }}/../../outputs/fox-phase8-screenshots/
+          path: ${{ env.FOX_VISUAL_OUTPUT }}
           if-no-files-found: warn
           retention-days: 14
       - name: Installed owner UI cutover and native backup/recovery
