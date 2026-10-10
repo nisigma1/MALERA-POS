@@ -7,6 +7,8 @@ using System;
 using System.Text;
 using System.Runtime.InteropServices;
 public static class FoxOwnedDialogControl {
+ public delegate bool EnumProc(IntPtr h, IntPtr l);
+ [DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr h, EnumProc callback, IntPtr l);
  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetClassName(IntPtr h, StringBuilder text, int size);
  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
  [DllImport("user32.dll")] public static extern IntPtr GetParent(IntPtr h);
@@ -62,6 +64,15 @@ if(-not $edit){
  $dialog.FindAll($scope::Descendants,[System.Windows.Automation.Condition]::TrueCondition) | ForEach-Object {
   Write-Output ("Owned QA control: {0} | {1} | {2}" -f $_.Current.ControlType.ProgrammaticName,$_.Current.AutomationId,$_.Current.Name)
  }
+ $nativeControls=[System.Collections.Generic.List[string]]::new()
+ $callback=[FoxOwnedDialogControl+EnumProc]{param($h,$l)
+  $className=[System.Text.StringBuilder]::new(128)
+  [FoxOwnedDialogControl]::GetClassName($h,$className,128) | Out-Null
+  $nativeControls.Add(('Native owned control: {0} | id={1} | hwnd={2} | parent={3}' -f $className,[FoxOwnedDialogControl]::GetDlgCtrlID($h),$h,[FoxOwnedDialogControl]::GetParent($h)))
+  return $true
+ }
+ [FoxOwnedDialogControl]::EnumChildWindows([IntPtr]$dialog.Current.NativeWindowHandle,$callback,[IntPtr]::Zero) | Out-Null
+ $nativeControls | Write-Output
  throw 'Owned filename control not found inside FileNameControlHost'
 }
 $pattern=$null
