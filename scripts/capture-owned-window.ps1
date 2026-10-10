@@ -1,7 +1,8 @@
-param([int]$FoxProcessId,[string]$Title,[string]$File)
+param([int]$FoxProcessId,[string]$Title,[string]$File,[switch]$Desktop)
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName System.Drawing
+Add-Type -AssemblyName System.Windows.Forms
 Add-Type @'
 using System;
 using System.Runtime.InteropServices;
@@ -11,6 +12,8 @@ public static class FoxWindowCapture {
  [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h,IntPtr dc,uint flags);
  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h,out uint pid);
  [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr h);
+ [DllImport("user32.dll",CharSet=CharSet.Unicode)] public static extern IntPtr FindWindow(string className,string name);
+ [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
  [DllImport("user32.dll")] public static extern bool SystemParametersInfo(uint action,uint param,out Rect rect,uint flags);
 }
 '@
@@ -27,4 +30,12 @@ $graphics=[Drawing.Graphics]::FromImage($bitmap);$dc=$graphics.GetHdc()
 try {if(-not [FoxWindowCapture]::PrintWindow($handle,$dc,[uint32]2)){throw 'Owned window capture failed'}} finally {$graphics.ReleaseHdc($dc);$graphics.Dispose()}
 try {$bitmap.Save($File,[Drawing.Imaging.ImageFormat]::Png)} finally {$bitmap.Dispose()}
 $workArea=[FoxWindowCapture+Rect]::new();[FoxWindowCapture]::SystemParametersInfo([uint32]48,[uint32]0,[ref]$workArea,[uint32]0) | Out-Null
-@{title=$Title;ownedProcess=$FoxProcessId;dpi=[FoxWindowCapture]::GetDpiForWindow($handle);window=$rect;workArea=$workArea;capture='Owned HWND PrintWindow; no desktop/global input'} | ConvertTo-Json -Depth 3 | Out-File ($File+'.json') -Encoding utf8
+$taskbar=[FoxWindowCapture]::FindWindow('Shell_TrayWnd',$null)
+if($Desktop){
+ if($env:GITHUB_ACTIONS -ne 'true'){throw 'Desktop capture is restricted to the disposable hosted Windows runner'}
+ if(-not [FoxWindowCapture]::IsWindowVisible($taskbar)){throw 'Normal Windows taskbar not visible'}
+ $screen=[Windows.Forms.SystemInformation]::VirtualScreen
+ $desktopImage=[Drawing.Bitmap]::new($screen.Width,$screen.Height);$desktopGraphics=[Drawing.Graphics]::FromImage($desktopImage)
+ try {$desktopGraphics.CopyFromScreen($screen.Left,$screen.Top,0,0,$screen.Size);$desktopImage.Save(($File+'.desktop.png'),[Drawing.Imaging.ImageFormat]::Png)} finally {$desktopGraphics.Dispose();$desktopImage.Dispose()}
+}
+@{title=$Title;ownedProcess=$FoxProcessId;dpi=[FoxWindowCapture]::GetDpiForWindow($handle);window=$rect;workArea=$workArea;taskbarVisible=[FoxWindowCapture]::IsWindowVisible($taskbar);capture='Owned HWND PrintWindow; desktop capture only on disposable CI'} | ConvertTo-Json -Depth 3 | Out-File ($File+'.json') -Encoding utf8

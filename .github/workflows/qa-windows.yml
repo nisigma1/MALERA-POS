@@ -58,6 +58,8 @@ jobs:
           $version=(Get-Content package.json -Raw | ConvertFrom-Json).version
           node scripts/verify-visual.mjs after "release/FOX-Setup-$version-x64.exe"
           if ($LASTEXITCODE -ne 0) { throw 'Packaged visual acceptance failed' }
+          node scripts/verify-workarea.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Actual visible window/taskbar acceptance failed' }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
