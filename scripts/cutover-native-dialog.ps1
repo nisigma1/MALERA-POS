@@ -14,15 +14,17 @@ function Find-Window([string]$Title){
 }
 $title=if($Action -eq 'backup'){'Krijo backup'}else{'Zgjidh backup për rikthim'}
 $dialog=Find-Window $title
-$filename=$dialog.FindFirst($scope::Descendants,[System.Windows.Automation.PropertyCondition]::new($uia::AutomationIdProperty,'1001'))
-if(-not $filename){throw 'Owned file-name control not found'}
-# Windows exposes the filename as a ComboBox wrapping an Edit. The container
-# has no ValuePattern; set the editable descendant, never an unrelated search field.
-$edit=$filename
-if($filename.Current.ControlType -ne [System.Windows.Automation.ControlType]::Edit){
- $edit=$filename.FindFirst($scope::Descendants,[System.Windows.Automation.PropertyCondition]::new($uia::ControlTypeProperty,[System.Windows.Automation.ControlType]::Edit))
+# Common-dialog control IDs are reused by containers and file-type controls.
+# Require the actual filename Edit, scoped to this owned dialog, and uniqueness.
+$edits=$dialog.FindAll($scope::Descendants,[System.Windows.Automation.PropertyCondition]::new($uia::ControlTypeProperty,[System.Windows.Automation.ControlType]::Edit))
+$filenameEdits=@($edits | Where-Object { $_.Current.AutomationId -eq '1148' -or $_.Current.Name -eq 'File name:' })
+if($filenameEdits.Count -ne 1){
+ $dialog.FindAll($scope::Descendants,[System.Windows.Automation.Condition]::TrueCondition) | ForEach-Object {
+  Write-Output ("Owned QA control: {0} | {1} | {2}" -f $_.Current.ControlType.ProgrammaticName,$_.Current.AutomationId,$_.Current.Name)
+ }
+ throw "Expected one owned filename Edit; found $($filenameEdits.Count)"
 }
-if(-not $edit){throw 'Owned editable file-name control not found'}
+$edit=$filenameEdits[0]
 ([System.Windows.Automation.ValuePattern]$edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)).SetValue($File)
 $button=$dialog.FindFirst($scope::Descendants,[System.Windows.Automation.PropertyCondition]::new($uia::AutomationIdProperty,'1'))
 if(-not $button){throw 'Owned file selection button not found'}
