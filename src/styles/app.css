@@ -546,3 +546,6 @@ body:has([data-page="tables"]) .topbar { position: absolute; top: 0; right: 0; w
 }
 .position.floor-table[data-status="ACTIVE"][data-table-code="M13"] { height: 58px; min-height: 58px; }
 .position.floor-table[data-table-code="M13"] .position-total { font-size: 9.5px; line-height: 12px; column-gap: 2px; }
+@media (max-height: 650px) {
+  [data-page="inventory"] .inventory-surface { min-height: 260px; flex-shrink: 0; }
+}

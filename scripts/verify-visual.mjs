@@ -53,7 +53,10 @@ try{
   await click('[data-open-checkout]');await ui.until('Boolean(document.querySelector(".checkout-dialog[open]"))');await record('checkout-20-items-'+key);await escape();await ui.until('!document.querySelector("dialog[open]")');
   await ui.select('M7');await record('tavolinat-active-'+key);await click('[data-open-checkout]');await ui.until('Boolean(document.querySelector(".checkout-dialog[open]"))');await record('checkout-one-item-'+key);await escape();await ui.until('!document.querySelector("dialog[open]")');
   await ui.select('M13');await record('tavolinat-free-'+key);await click('button[aria-label="Mbyll panelin e tavolinës"]');await record('tavolinat-unselected-'+key);
-  await ui.nav('inventory');await record('inventory-'+key);await ui.openEditor('KAFE-1');await record('product-edit-'+key);await escape();await ui.until('!document.querySelector("dialog[open]")');
+  await ui.nav('inventory');await record('inventory-'+key);
+  await js('document.querySelector(".inventory-surface").scrollIntoView({block:"end"});document.querySelector(".catalog-scroll").scrollTop=0');await record('inventory-list-'+key);
+  if(phase==='after')assert.equal(await js('(()=>{const row=document.querySelector(".catalog tbody tr"),r=row.getBoundingClientRect(),c=document.querySelector(".catalog-scroll").getBoundingClientRect();return r.bottom>c.top&&r.top<c.bottom&&Math.min(r.bottom,c.bottom,innerHeight)-Math.max(r.top,c.top)>20;})()'),true,'Inventory must expose a usable product row at '+key);
+  await ui.openEditor('KAFE-1');await record('product-edit-'+key);await escape();await ui.until('!document.querySelector("dialog[open]")');
   await ui.nav('reports');await record('reports-'+key);await js('document.querySelector("[data-sale-id] button").click()');await js('document.querySelector(".sale-detail-row").scrollIntoView({block:"center"})');await record('sale-detail-'+key);
   await ui.nav('settings');await record('settings-'+key);await js('document.querySelector(".data-protection").scrollIntoView({block:"end"})');await record('settings-bottom-'+key);
  }
