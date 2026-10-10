@@ -64,7 +64,7 @@ jobs:
         if: always()
         with:
           name: FOX-Visual-Acceptance
-          path: ../../outputs/fox-phase8-screenshots/
+          path: ${{ github.workspace }}/../../outputs/fox-phase8-screenshots/
           if-no-files-found: warn
           retention-days: 14
       - name: Installed owner UI cutover and native backup/recovery

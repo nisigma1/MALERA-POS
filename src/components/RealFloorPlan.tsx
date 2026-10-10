@@ -49,7 +49,7 @@ export function RealFloorPlan({tables,selected,onSelect}: {tables:TableSummary[]
       const slot=FLOOR_PLAN_BY_CODE[table.code]; if(!slot)return null;
       return <button key={table.id} type="button" className="position floor-table" data-table-code={table.code} data-status={table.status} data-shape={slot.shape} data-rotation={slot.rotation} aria-pressed={table.id===selected} aria-label={`${table.code}, ${TABLE_STATUS_LABELS[table.status]}${table.activeOrderTotalCents===null?'':`, ${formatMoney(table.activeOrderTotalCents)}`}`} style={{left:`${(slot.x-FLOOR_VIEWBOX.x)/FLOOR_VIEWBOX.width*100}%`,top:`${(slot.y-FLOOR_VIEWBOX.y)/FLOOR_VIEWBOX.height*100}%`,transform:`translate(-50%,-50%) rotate(${slot.rotation}deg)`}} onClick={event=>onSelect(table.id,event.currentTarget)}>
         <span className="floor-table-label" style={{transform:`rotate(${-slot.rotation}deg)`}}><strong>{table.code}</strong><StatusBadge tone={table.status==='ACTIVE'?'info':table.status==='FREE'?'success':'neutral'}>{TABLE_STATUS_LABELS[table.status]}</StatusBadge>
-        {table.activeOrderTotalCents!==null&&<span className="position-total"><span>{formatMoney(table.activeOrderTotalCents).replace(' €','')}</span><span>€</span></span>}{!table.enabled&&<span className="sr-only">Joaktive</span>}</span>
+        {table.activeOrderTotalCents!==null&&<span className="position-total"><span>{formatMoney(table.activeOrderTotalCents).replace(' €','')}</span>{' '}<span>€</span></span>}{!table.enabled&&<span className="sr-only">Joaktive</span>}</span>
       </button>;
     })}
   </div></section>;

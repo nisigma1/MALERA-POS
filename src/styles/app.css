@@ -511,7 +511,6 @@ body:has([data-page="tables"]) .topbar { position: absolute; top: 0; right: 0; w
   [data-page="tables"] .current-order h3 { font-size: 14px; padding-bottom: 4px; }
   [data-page="tables"] .order-footer { padding: 6px 10px; }
   [data-page="tables"] .order-footer [data-order-total] { font-size: 22px; }
-}@media (max-height: 550px) {
   [data-page="tables"] .product-browser { max-height: none; flex: 0 0 102px; }
   .checkout-dialog { padding: 16px; }
   .checkout-dialog header { padding-bottom: 0; }
@@ -536,4 +535,10 @@ body:has([data-page="tables"]) .topbar { position: absolute; top: 0; right: 0; w
   .position.floor-table[data-table-code="M1"] .position-total, .position.floor-table[data-table-code="M2"] .position-total { font-size: 10px; }
   .position.floor-table[data-status="ACTIVE"][data-table-code^="SH"] { height: 52px; }
   .position.floor-table[data-table-code^="SH"] .position-total { flex-wrap: wrap; }
+}@media (max-width: 900px) {
+  :root { --sidebar-width: 88px; }
+  .sidebar { padding-inline: 2px; }
+  .sidebar nav button { padding-inline: 4px; gap: 4px; font-size: 11px; }
+  body:has([data-page="tables"]) { --pos-workspace-width: 270px; }
+  .position.floor-table[data-status="ACTIVE"][data-table-code^="SH"] { width: 41px; }
 }
