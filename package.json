@@ -1,6 +1,6 @@
 {
   "name": "fox-pos",
-  "version": "0.6.0-rc.1",
+  "version": "0.6.0-rc.2",
   "private": true,
   "type": "module",
   "description": "FOX Kafeteri local desktop foundation",
@@ -26,7 +26,8 @@
     "release:scan": "node scripts/supply-chain.mjs scan",
     "verify:protection": "node scripts/verify-protection.mjs",
     "verify:production-db": "node scripts/verify-product.mjs --production-only",
-    "verify:product-day": "node scripts/verify-product.mjs"
+    "verify:product-day": "node scripts/verify-product.mjs",
+    "verify:cutover": "node scripts/verify-cutover.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",

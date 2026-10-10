@@ -46,6 +46,7 @@ async function start() {
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, devTools: !app.isPackaged, offscreen: Boolean(process.env.FOX_VERIFY_DIR), backgroundThrottling: !process.env.FOX_VERIFY_DIR },
   });
   mainWindow=window;
+  if(!FOX_RELEASE&&qaDirectory&&process.env.FOX_VERIFY_CUTOVER_DIALOGS) (await import('./cutover-dialogs')).cutoverDialogs(qaDirectory);
   window.on('closed',()=>app.quit());
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', (event,url) => {if(url!==window.webContents.getURL())event.preventDefault();});

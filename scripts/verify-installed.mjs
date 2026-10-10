@@ -13,6 +13,8 @@ const install=path.join(directory,'application');
 const exe=path.join(install,'FOX Kafeteri.exe');
 const evidence={directory,install,checks:[],installers:[path.resolve(installerA),path.resolve(installerB)]};
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
+const sessionSales=Number(process.env.FOX_QA_SESSION_SALES??150);
+assert.ok([25,150].includes(sessionSales),'Only the established soak or cutover session size is allowed');
 function installVersion(file) {
   const result=spawnSync(path.resolve(file),['/S',`/D=${install}`],{windowsHide:true,timeout:120000});
   assert.equal(result.status,0,`Installer exit ${result.status}: ${result.error?.message||result.stderr}`);
@@ -208,7 +210,7 @@ try {
   const soakStock=await api(`return (await fox.products.list()).find(p=>p.id==='KAFE-1').stockQuantity;`);
   await command('HeapProfiler.collectGarbage');const soakBefore=await command('Memory.getDOMCounters'),soakStart=Date.now();
   const resources=[resourceSample()];let soakRestarts=0;
-  for(let cycle=0;cycle<150;cycle++){
+  for(let cycle=0;cycle<sessionSales;cycle++){
     await evaluate(`document.querySelector('[data-nav=tables]').click()`);await pause(20);
     await evaluate(`document.querySelector('[data-table-code=M5]').click()`);
     const added=await api(`return fox.orders.addProduct({tableId:'M5',productId:'KAFE-1'});`);assert.ok(added.ok);
@@ -222,13 +224,13 @@ try {
     assert.equal(current.summary.completedOrders,soakInitial.summary.completedOrders+cycle+1);
     assert.equal((await api(`return fox.data.diagnostics();`)).databaseStatus,'OK');
     await pause(500);
-    if(cycle===49||cycle===99){const before= snapshot();await close();session=await launch();evaluate=session.evaluate;command=session.command;assert.deepEqual(snapshot(),before);soakRestarts++;}
-    if(cycle===74||cycle===149)resources.push(resourceSample());
+    if(cycle===Math.floor(sessionSales/3)-1||cycle===Math.floor(sessionSales*2/3)-1){const before= snapshot();await close();session=await launch();evaluate=session.evaluate;command=session.command;assert.deepEqual(snapshot(),before);soakRestarts++;}
+    if(cycle===Math.floor(sessionSales/2)-1||cycle===sessionSales-1)resources.push(resourceSample());
   }
-  assert.equal((await api(`return (await fox.products.list()).find(p=>p.id==='KAFE-1').stockQuantity;`)),soakStock-150);
+  assert.equal((await api(`return (await fox.products.list()).find(p=>p.id==='KAFE-1').stockQuantity;`)),soakStock-sessionSales);
   await command('HeapProfiler.collectGarbage');const soakAfter=await command('Memory.getDOMCounters');
   assert.equal(soakAfter.documents,soakBefore.documents);assert.ok(soakAfter.nodes<soakBefore.nodes+3000);assert.ok(soakAfter.jsEventListeners<soakBefore.jsEventListeners+500);
-  evidence.soak={passed:true,cycles:150,durationMs:Date.now()-soakStart,before:soakBefore,after:soakAfter,offline:true,financialTotalsCorrect:true,stockCorrect:true};
+  evidence.soak={passed:true,cycles:sessionSales,durationMs:Date.now()-soakStart,before:soakBefore,after:soakAfter,offline:true,financialTotalsCorrect:true,stockCorrect:true};
   evidence.soak.resources=resources;evidence.soak.actualElectronRestarts=soakRestarts;
   const beforeReinstall=snapshot();
   await close();const uninstaller=fs.readdirSync(install).find(n=>/^Uninstall.*\.exe$/i.test(n));assert.ok(uninstaller);

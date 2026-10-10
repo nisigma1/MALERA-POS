@@ -10,6 +10,7 @@ export function DataProtectionPanel(){
   useEffect(()=>{void refresh();},[]);
   async function action(operation:()=>Promise<DataActionResult>,restarting=false){if(lock.current)return;lock.current=true;setBusy(true);setMessage('');try{const result=await operation();setMessage(result.message);if(!(restarting&&result.ok))await refresh();}catch{setMessage('Veprimi nuk u përfundua. Të dhënat ekzistuese janë ruajtur.');}finally{lock.current=false;setBusy(false);}}
   return <><section className="settings-panel readiness-panel"><h2>Gati për shitje</h2>{readiness?<>
+    <p role="status"><strong>{readiness.configured?'Gati për fillimin e punës':'Nuk është gati për fillimin e punës'}</strong></p>
     <p>{readiness.configured?'Çmimet dhe ndjekja e stokut janë konfiguruar.':'Plotëso këto të dhëna te Inventari për produktet aktive:'}</p>
     <dl className="readiness-counts"><div><dt>Produkte pa çmim</dt><dd>{readiness.missingPrices}</dd></div><div><dt>Stok pa konfiguruar</dt><dd>{readiness.missingStockConfiguration}</dd></div></dl>
     {readiness.outOfStock>0&&<p className="notice">Pa stok: {readiness.outOfStock} produkte. Furnizoji për t'i shitur.</p>}

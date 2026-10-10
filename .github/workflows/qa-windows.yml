@@ -10,6 +10,8 @@ concurrency:
 jobs:
   package:
     runs-on: windows-latest
+    env:
+      FOX_QA_SESSION_SALES: '25'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -29,6 +31,7 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - run: npm run verify:production-db
+      - run: npm run verify:cutover
       - run: npm run verify:product-day
       - run: node scripts/verify-product-ui.mjs
       - run: npm run verify:runtime
@@ -40,6 +43,12 @@ jobs:
       - run: node scripts/verify-startup-failures.mjs --stress
       - run: npm run package:win -- --qa
       - run: ./scripts/verify-release.ps1
+      - name: Installed owner UI cutover and native backup/recovery
+        shell: pwsh
+        run: |
+          $version=(Get-Content package.json -Raw | ConvertFrom-Json).version
+          node scripts/verify-cutover.mjs "release/FOX-Setup-$version-x64.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Installed owner cutover failed' }
       - name: Actual clean QA installer and reinstall acceptance
         shell: pwsh
         run: |

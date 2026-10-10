@@ -1,0 +1,22 @@
+// Developer-only UI driver. Business mutations use existing React forms/buttons only.
+import assert from 'node:assert/strict';
+import type {CatalogProduct} from '../../src/domain/types';
+export function cutoverUi(evaluate:(expression:string)=>Promise<unknown>){
+ const js=async<T=unknown>(expression:string)=>await evaluate(expression) as T;
+ const until=async(expression:string)=>{for(let i=0;i<240;i++){if(await js(expression))return;await new Promise(r=>setTimeout(r,25));}throw Error('UI timeout: '+expression);};
+ const click=async(selector:string)=>{await until(`Boolean(document.querySelector(${JSON.stringify(selector)}))`);await js(`(()=>{const b=document.querySelector(${JSON.stringify(selector)});b.focus();b.click();})()`);};
+ const nav=async(page:string)=>{await click(`[data-nav=${page}]`);await until(`Boolean(document.querySelector('[data-page=${page}]'))`);};
+ const products=()=>js<CatalogProduct[]>('window.fox.products.list()');
+ const field=async(id:string,value:string)=>{await js(`(()=>{const e=document.getElementById(${JSON.stringify(id)});const proto=e.tagName==='SELECT'?HTMLSelectElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event(e.tagName==='SELECT'?'change':'input',{bubbles:true}));})()`);};
+ async function openEditor(id:string){await nav('inventory');const index=(await products()).findIndex(p=>p.id===id);assert.ok(index>=0);await js(`document.querySelectorAll('.row-actions button')[${index}].click()`);await until('Boolean(document.querySelector("#product-form"))');}
+ async function edit(id:string,values:Record<string,string>){await openEditor(id);for(const [key,value] of Object.entries(values))await field(key,value);await click('button[form=product-form]');await until('!document.querySelector("dialog[open]")');}
+ async function supply(id:string,quantity:string){await nav('inventory');await js('[...document.querySelectorAll("button")].find(b=>b.textContent.includes("Shto furnizim")).click()');await until('Boolean(document.querySelector("#supply-form"))');await field('productId',id);await field('quantity',quantity);await click('button[form=supply-form]');await until('!document.querySelector("dialog[open]")');}
+ async function readiness(expected:boolean){await nav('settings');await until('Boolean(document.querySelector(".readiness-panel strong"))');assert.equal(await js('document.querySelector(".readiness-panel strong").textContent'),expected?'Gati për fillimin e punës':'Nuk është gati për fillimin e punës');return js<string>('document.querySelector(".readiness-panel").textContent');}
+ async function select(code:string){await nav('tables');await click(`[data-table-code=${code}]`);await until(`document.querySelector('#order-heading')?.textContent===${JSON.stringify('Tavolina '+code)}`);}
+ async function add(id:string){await click(`[data-order-category=${id.split('-')[0]}]`);await until(`Boolean(document.querySelector('[data-order-product=${id}]:not(:disabled)'))`);const old=await js<string>('document.querySelector(".current-order").textContent');await click(`[data-order-product=${id}]`);await until(`document.querySelector('.current-order').textContent!==${JSON.stringify(old)} && !document.querySelector('[data-order-product=${id}]:disabled')`);}
+ async function quantity(up:boolean){const selector=up?'button[aria-label^=Rrit]':'button[aria-label^=Ul]';const old=await js<string>('document.querySelector("[data-order-quantity]").textContent');await click(selector);await until(`document.querySelector('[data-order-quantity]').textContent!==${JSON.stringify(old)}`);}
+ async function pay(){await click('[data-open-checkout]');await until('Boolean(document.querySelector(".checkout-dialog[open]"))');assert.equal(await js('document.activeElement.hasAttribute("data-cancel-payment")'),true);await js('(()=>{const b=document.querySelector("[data-confirm-payment]");b.click();b.click();})()');await until('!document.querySelector("dialog[open]") && !document.querySelector("[data-order-item]")');}
+ async function backupButton(){await nav('settings');await js('[...document.querySelectorAll(".data-protection button")].find(b=>b.textContent==="Krijo backup").click()');}
+ async function restoreButton(){await nav('settings');await js('[...document.querySelectorAll(".data-protection button")].find(b=>b.textContent==="Rikthe nga backup").click()');}
+ return {js,until,nav,products,field,openEditor,edit,supply,readiness,select,add,quantity,pay,backupButton,restoreButton};
+}

@@ -55,6 +55,7 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - run: npm run verify:production-db
+      - run: npm run verify:cutover
       - run: npm run verify:product-day
       - run: node scripts/verify-product-ui.mjs
       - run: npm run verify:runtime
