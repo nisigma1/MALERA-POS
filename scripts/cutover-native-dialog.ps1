@@ -76,8 +76,8 @@ if($edit.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern,
 }
 $button=$dialog.FindFirst($scope::Descendants,[System.Windows.Automation.PropertyCondition]::new($uia::AutomationIdProperty,'1'))
 if(-not $button){throw 'Owned file selection button not found'}
-Invoke-OwnedButton $button
 $selectionHandle=[IntPtr]$dialog.Current.NativeWindowHandle
+Invoke-OwnedButton $button
 for($attempt=0;$attempt -lt 100 -and [FoxOwnedDialogControl]::IsWindow($selectionHandle);$attempt++){Start-Sleep -Milliseconds 100}
 if([FoxOwnedDialogControl]::IsWindow($selectionHandle)){throw 'Owned file dialog did not complete native selection'}
 if($Action -eq 'restore' -and -not $NoConfirmation){
