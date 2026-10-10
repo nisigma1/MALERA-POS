@@ -6,6 +6,8 @@ import electron from 'electron';
 import assert from 'node:assert/strict';
 import {createQaDirectory} from './qa-directory.mjs';
 const evidence=[];
+// Independent trials: every trial must pass; never retry a failed assertion.
+for(let trial=0;trial<(process.argv.includes('--stress')?10:1);trial++){
 for(const kind of ['empty','corrupt','foreign','missing-existing','inaccessible-directory']){
  const directory=createQaDirectory('startup-failure-'+kind),file=path.join(directory,'fox.sqlite');
  if(kind==='empty')fs.writeFileSync(file,'');
@@ -19,6 +21,7 @@ for(const kind of ['empty','corrupt','foreign','missing-existing','inaccessible-
  const env={...process.env};for(const key of Object.keys(env))if(key.startsWith('FOX_VERIFY_')||key==='ELECTRON_RUN_AS_NODE'||key==='FOX_DEV_URL')delete env[key];Object.assign(env,{FOX_VERIFY_DIR:directory,FOX_VERIFY_MANUAL:'1'});
  const result=spawnSync(electron,['.'],{env,windowsHide:true,encoding:'utf8',timeout:30000});assert.equal(result.status,1,`Startup must fail closed for ${kind}`);
  if(before!==null)assert.equal(crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'),before);else if(kind==='missing-existing')assert.equal(fs.existsSync(file),false);
- const item={kind,passed:true,noSilentReset:true,directory};evidence.push(item);fs.writeFileSync(path.join(directory,'startup-result.json'),JSON.stringify(item));
+ const item={kind,trial,passed:true,noSilentReset:true,directory};evidence.push(item);fs.writeFileSync(path.join(directory,'startup-result.json'),JSON.stringify(item));
+}
 }
 console.log(JSON.stringify(evidence,null,2));

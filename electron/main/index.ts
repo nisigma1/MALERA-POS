@@ -93,7 +93,9 @@ else app.whenReady().then(start).catch(async error => {
         if(confirmation.response===1){await restoreUnreadableDatabase(file,app.getPath('userData'),app.getVersion());app.relaunch();}}
     }catch(recoveryError){logError('RECOVERY_FAILED',recoveryError);dialog.showErrorBox('FOX','Backup-i nuk u rikthye. Të dhënat ekzistuese janë ruajtur.');}
   }
-  app.exit(1);
+  // Let Electron's ready callback finish before terminating a failed early startup.
+  // Immediate native exit here produced a Windows access violation in acceptance.
+  setImmediate(()=>app.exit(1));
 });
 app.on('second-instance', () => {
   const window = mainWindow;

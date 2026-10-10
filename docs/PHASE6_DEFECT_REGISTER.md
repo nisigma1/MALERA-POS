@@ -25,4 +25,8 @@ Implemented surgical corrections for F6-01–09. No financial or stock mismatch 
 
 Audit tooling corrections: CDP DOM `click()` does not focus an opener as a real pointer does; explicit focus is used for the focus-return assertion. Catalogue updates through QA-only direct API calls require screen navigation to re-read data, matching the actual operator edit flow. These were harness corrections, not weakened product assertions.
 
+| ID | Area | Severity | Actual / evidence | Correction | Risk |
+|---|---|---|---|---|---|
+| F6-10 | Failed early startup | P1 | Windows run 38039512903, missing initialized DB: expected controlled exit 1, actual native Windows access violation 3221225477 (0xC0000005). Earlier product/UI/recovery gates passed. | Defer startup failure exit to next event-loop turn so Electron's ready callback can finish. No data-path or recovery changes. | Repeat native fail-closed matrix; exact exit 1 and unchanged/missing DB assertions remain mandatory. The early native-exit lifetime is the suspected cause, not a proven upstream diagnosis. |
+
 Baseline command note: npm ci initially hit the running application's native-module lock; normal window close then npm ci succeeded. A release-verifier invocation mistakenly supplied a directory as its version argument; source tests/typecheck/build passed. Prior staged release is verified through the exact original successful CI artifact/manifest, not falsely marked by that invocation.
