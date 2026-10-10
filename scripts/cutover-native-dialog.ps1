@@ -9,6 +9,10 @@ using System.Runtime.InteropServices;
 public static class FoxOwnedDialogControl {
  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetClassName(IntPtr h, StringBuilder text, int size);
  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+ [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr h, uint flags);
+ [DllImport("user32.dll")] public static extern int GetDlgCtrlID(IntPtr h);
+ [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr h);
+ [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder text, int size);
  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr SendMessage(IntPtr h, uint message, IntPtr w, string value);
  [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr h, uint message, IntPtr w, IntPtr l);
 }
@@ -29,8 +33,13 @@ function Invoke-OwnedButton($Control){
   ([System.Windows.Automation.InvokePattern]$pattern).Invoke()
  }else{
   # Hosted Windows can expose classic controls as Pane without UIA patterns.
-  # BM_CLICK still activates the actual native Button, after PID/class checks.
-  [FoxOwnedDialogControl]::SendMessage((Owned-Handle $Control 'Button'),0x00F5,[IntPtr]::Zero,[IntPtr]::Zero) | Out-Null
+  # BM_CLICK depends on foreground activation, which offscreen QA does not have.
+  # Notify the actual owned dialog of its actual Button's BN_CLICKED instead.
+  $buttonHandle=Owned-Handle $Control 'Button'
+  $dialogHandle=[FoxOwnedDialogControl]::GetAncestor($buttonHandle,2)
+  $dialogOwner=[uint32]0;[FoxOwnedDialogControl]::GetWindowThreadProcessId($dialogHandle,[ref]$dialogOwner) | Out-Null
+  if($dialogOwner -ne $FoxProcessId){throw 'Native button dialog ownership failed'}
+  [FoxOwnedDialogControl]::SendMessage($dialogHandle,0x0111,[IntPtr][FoxOwnedDialogControl]::GetDlgCtrlID($buttonHandle),$buttonHandle) | Out-Null
  }
 }
 function Find-Window([string]$Title){
@@ -57,11 +66,18 @@ $pattern=$null
 if($edit.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern,[ref]$pattern)){
  ([System.Windows.Automation.ValuePattern]$pattern).SetValue($File)
 }else{
- [FoxOwnedDialogControl]::SendMessage((Owned-Handle $edit 'Edit'),0x000C,[IntPtr]::Zero,$File) | Out-Null
+ $editHandle=Owned-Handle $edit 'Edit'
+ [FoxOwnedDialogControl]::SendMessage($editHandle,0x000C,[IntPtr]::Zero,$File) | Out-Null
+ $written=[System.Text.StringBuilder]::new(32768)
+ [FoxOwnedDialogControl]::GetWindowText($editHandle,$written,32768) | Out-Null
+ if($written.ToString() -ne $File){throw 'Native filename input did not retain requested path'}
 }
 $button=$dialog.FindFirst($scope::Descendants,[System.Windows.Automation.PropertyCondition]::new($uia::AutomationIdProperty,'1'))
 if(-not $button){throw 'Owned file selection button not found'}
 Invoke-OwnedButton $button
+$selectionHandle=[IntPtr]$dialog.Current.NativeWindowHandle
+for($attempt=0;$attempt -lt 100 -and [FoxOwnedDialogControl]::IsWindow($selectionHandle);$attempt++){Start-Sleep -Milliseconds 100}
+if([FoxOwnedDialogControl]::IsWindow($selectionHandle)){throw 'Owned file dialog did not complete native selection'}
 if($Action -eq 'restore' -and -not $NoConfirmation){
  $confirmation=Find-Window 'Rikthe nga backup'
  $confirm=$confirmation.FindFirst($scope::Descendants,[System.Windows.Automation.PropertyCondition]::new($uia::NameProperty,'Rikthe backup-in'))
