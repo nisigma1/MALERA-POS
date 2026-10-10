@@ -69,7 +69,7 @@ const okay=(value,message)=>{assert.ok(value,message);evidence.checks.push(messa
 function resourceSample(){
   // Observe only this isolated application tree; never collect command lines or owner data.
   const script=`$qaRootPid=${running.pid};$qaProcesses=Get-CimInstance Win32_Process;$qaIds=@($qaRootPid);do{$qaNew=@($qaProcesses|Where-Object {$_.ParentProcessId -in $qaIds -and $_.ProcessId -notin $qaIds}|Select-Object -ExpandProperty ProcessId);$qaIds+= $qaNew}while($qaNew.Count -gt 0);$qaStats=@(Get-Process -Id $qaIds -ErrorAction Stop);@{processes=$qaStats.Count;workingSetBytes=($qaStats|Measure-Object WorkingSet64 -Sum).Sum;cpuSeconds=($qaStats|Measure-Object CPU -Sum).Sum;handles=($qaStats|Measure-Object HandleCount -Sum).Sum;visibleWindows=@($qaStats|Where-Object {$_.MainWindowHandle -ne 0}).Count}|ConvertTo-Json -Compress`;
-  const r=spawnSync('powershell.exe',['-NoProfile','-Command',script],{windowsHide:true,encoding:'utf8',timeout:30000});assert.equal(r.status,0,r.stderr);return {elapsedMs:Date.now(),...JSON.parse(r.stdout)};
+  const r=spawnSync('powershell.exe',['-NoProfile','-Command',script],{windowsHide:true,encoding:'utf8',timeout:30000});assert.equal(r.status,0,r.stderr);return {rootPid:running.pid,elapsedMs:Date.now(),...JSON.parse(r.stdout)};
 }
 function shortcuts(expected) {
   const script=path.join(directory,'inspect-shortcuts.ps1');
@@ -207,7 +207,7 @@ try {
   const soakInitial=await api(`return fox.reports.getSalesReport('ALL');`);
   const soakStock=await api(`return (await fox.products.list()).find(p=>p.id==='KAFE-1').stockQuantity;`);
   await command('HeapProfiler.collectGarbage');const soakBefore=await command('Memory.getDOMCounters'),soakStart=Date.now();
-  const resources=[resourceSample()];
+  const resources=[resourceSample()];let soakRestarts=0;
   for(let cycle=0;cycle<150;cycle++){
     await evaluate(`document.querySelector('[data-nav=tables]').click()`);await pause(20);
     await evaluate(`document.querySelector('[data-table-code=M5]').click()`);
@@ -222,13 +222,14 @@ try {
     assert.equal(current.summary.completedOrders,soakInitial.summary.completedOrders+cycle+1);
     assert.equal((await api(`return fox.data.diagnostics();`)).databaseStatus,'OK');
     await pause(500);
+    if(cycle===49||cycle===99){const before= snapshot();await close();session=await launch();evaluate=session.evaluate;command=session.command;assert.deepEqual(snapshot(),before);soakRestarts++;}
     if(cycle===74||cycle===149)resources.push(resourceSample());
   }
   assert.equal((await api(`return (await fox.products.list()).find(p=>p.id==='KAFE-1').stockQuantity;`)),soakStock-150);
   await command('HeapProfiler.collectGarbage');const soakAfter=await command('Memory.getDOMCounters');
   assert.equal(soakAfter.documents,soakBefore.documents);assert.ok(soakAfter.nodes<soakBefore.nodes+3000);assert.ok(soakAfter.jsEventListeners<soakBefore.jsEventListeners+500);
   evidence.soak={passed:true,cycles:150,durationMs:Date.now()-soakStart,before:soakBefore,after:soakAfter,offline:true,financialTotalsCorrect:true,stockCorrect:true};
-  evidence.soak.resources=resources;
+  evidence.soak.resources=resources;evidence.soak.actualElectronRestarts=soakRestarts;
   const beforeReinstall=snapshot();
   await close();const uninstaller=fs.readdirSync(install).find(n=>/^Uninstall.*\.exe$/i.test(n));assert.ok(uninstaller);
   const uninstalled=spawnSync(path.join(install,uninstaller),['/S'],{windowsHide:true,timeout:120000});assert.equal(uninstalled.status,0);
