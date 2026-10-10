@@ -13,8 +13,8 @@ public static class FoxOwnedDialogControl {
  [DllImport("user32.dll")] public static extern int GetDlgCtrlID(IntPtr h);
  [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr h);
  [DllImport("user32.dll")] public static extern bool IsWindowEnabled(IntPtr h);
- [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder text, int size);
  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr SendMessage(IntPtr h, uint message, IntPtr w, string value);
+ [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr SendMessage(IntPtr h, uint message, IntPtr w, StringBuilder value);
  [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr h, uint message, IntPtr w, IntPtr l);
 }
 '@
@@ -69,9 +69,11 @@ if($edit.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern,
  ([System.Windows.Automation.ValuePattern]$pattern).SetValue($File)
 }else{
  $editHandle=Owned-Handle $edit 'Edit'
- [FoxOwnedDialogControl]::SendMessage($editHandle,0x000C,[IntPtr]::Zero,$File) | Out-Null
+ $setResult=[FoxOwnedDialogControl]::SendMessage($editHandle,0x000C,[IntPtr]::Zero,$File)
+ if($setResult -eq [IntPtr]::Zero){throw 'Native filename input rejected text'}
  $written=[System.Text.StringBuilder]::new(32768)
- [FoxOwnedDialogControl]::GetWindowText($editHandle,$written,32768) | Out-Null
+ # GetWindowText deliberately cannot read another process's Edit contents.
+ [FoxOwnedDialogControl]::SendMessage($editHandle,0x000D,[IntPtr]32768,$written) | Out-Null
  if($written.ToString() -ne $File){throw 'Native filename input did not retain requested path'}
 }
 $button=$dialog.FindFirst($scope::Descendants,[System.Windows.Automation.PropertyCondition]::new($uia::AutomationIdProperty,'1'))
