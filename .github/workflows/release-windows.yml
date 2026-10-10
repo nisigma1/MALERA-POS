@@ -67,6 +67,12 @@ jobs:
       - run: node scripts/verify-startup-failures.mjs --stress
       - run: npm run package:win
       - run: ./scripts/verify-release.ps1
+      - name: Signed installed owner UI cutover
+        shell: pwsh
+        run: |
+          $version=(Get-Content package.json -Raw | ConvertFrom-Json).version
+          node scripts/verify-cutover.mjs "release/FOX-Setup-$version-x64.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Signed installed owner cutover failed' }
       - name: Actual signed installer acceptance
         env:
           FOX_REQUIRE_SIGNED: '1'
