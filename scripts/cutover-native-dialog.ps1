@@ -17,7 +17,7 @@ $uia=[System.Windows.Automation.AutomationElement]
 $scope=[System.Windows.Automation.TreeScope]
 function Owned-Handle($Control,[string]$Class){
  $handle=[IntPtr]$Control.Current.NativeWindowHandle
- $owner=0u;[FoxOwnedDialogControl]::GetWindowThreadProcessId($handle,[ref]$owner) | Out-Null
+ $owner=[uint32]0;[FoxOwnedDialogControl]::GetWindowThreadProcessId($handle,[ref]$owner) | Out-Null
  $className=[System.Text.StringBuilder]::new(128)
  [FoxOwnedDialogControl]::GetClassName($handle,$className,128) | Out-Null
  if($handle -eq [IntPtr]::Zero -or $owner -ne $FoxProcessId -or $className.ToString() -ne $Class){throw "Owned $Class HWND validation failed: $className"}
