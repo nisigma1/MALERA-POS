@@ -48,9 +48,12 @@ export async function verifyCheckout(window: BrowserWindow, directory: string, d
   };
   const fill = async (selector: string, value: string) => {
     await click(selector);
+    await wait(`document.activeElement===document.querySelector(${JSON.stringify(selector)})`);
     window.webContents.sendInputEvent({type:'keyDown',keyCode:'Home'}); window.webContents.sendInputEvent({type:'keyUp',keyCode:'Home'});
     window.webContents.sendInputEvent({type:'keyDown',keyCode:'End',modifiers:['shift']}); window.webContents.sendInputEvent({type:'keyUp',keyCode:'End',modifiers:['shift']});
-    await window.webContents.insertText(value); await pause(80);
+    await wait(`(() => {const input=document.querySelector(${JSON.stringify(selector)});return input.selectionStart===0&&input.selectionEnd===input.value.length;})()`);
+    await window.webContents.insertText(value);
+    await wait(`document.querySelector(${JSON.stringify(selector)}).value===${JSON.stringify(value)}`);
   };
   const selected = async (code: string) => { await click(`[data-table-code="${code}"]`); await wait(`document.querySelector('#order-heading')?.textContent==='Tavolina ${code}' && ['saved','empty'].includes(document.querySelector('.order-footer')?.dataset.orderState)`); };
   const saved = () => wait(`document.querySelector('.order-footer')?.dataset.orderState==='saved'`);
