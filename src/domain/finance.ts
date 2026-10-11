@@ -6,7 +6,7 @@ export type LossReason = keyof typeof LOSS_REASONS;
 export type FinancePeriod = 'TODAY'|'WEEK'|'MONTH'|'CUSTOM'|'ALL';
 export interface FinanceQuery { period: FinancePeriod; startDate?: string; endDate?: string }
 export interface ExpenseInput { requestId: string; amountCents: number; category: ExpenseCategory; occurredAt: string; description: string; note?:string; paidFromTill: boolean; expenseId?: string; expectedRevision?: string }
-export interface ExpenseRecord { id: string; revisionId: string; amountCents: number; category: ExpenseCategory; occurredAt: string; description: string; note?:string; paidFromTill: boolean; createdAt: string; correction: boolean }
+export interface ExpenseRecord { id: string; revisionId: string; amountCents: number; category: ExpenseCategory; occurredAt: string; description: string; note?:string; paidFromTill: boolean|null; createdAt: string; correction: boolean }
 export interface LossInput { requestId: string; productId: string; quantity: number; reason: LossReason; note: string }
 export interface LossRecord { id: string; productId: string; name: string; quantity: number; reason: LossReason; note: string; unitCostCents: number|null; totalCostCents: number|null; occurredAt: string }
 export interface CashInput { requestId:string; openingCents:number; countedCents:number; expectedFingerprint:string; sessionId:string|null; note:string }

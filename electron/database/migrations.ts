@@ -156,7 +156,7 @@ CREATE TABLE expense_revisions (
  amount_cents INTEGER NOT NULL CHECK(amount_cents BETWEEN 0 AND 9007199254740991),
  category TEXT NOT NULL CHECK(category IN ('RENT','SALARIES','ELECTRICITY','WATER','INTERNET','SUPPLIES','MAINTENANCE','TRANSPORT','OTHER')),
  occurred_at TEXT NOT NULL, expense_date TEXT NOT NULL, description TEXT NOT NULL,
- paid_from_till INTEGER NOT NULL CHECK(paid_from_till IN (0,1)), note TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, request_json TEXT NOT NULL
+ paid_from_till INTEGER CHECK(paid_from_till IN (0,1) OR (paid_from_till IS NULL AND request_json='legacy-original')), note TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, request_json TEXT NOT NULL
 ) STRICT;
 CREATE UNIQUE INDEX expense_original_once ON expense_revisions(expense_id) WHERE previous_revision_id IS NULL;
 CREATE INDEX expense_revision_date ON expense_revisions(expense_date);
