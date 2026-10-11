@@ -5,7 +5,7 @@ import net from 'node:net';
 import assert from 'node:assert/strict';
 import {spawn,spawnSync} from 'node:child_process';
 assert.equal(process.env.GITHUB_ACTIONS,'true','Never run visible/default-userData acceptance on the owner desktop');
-const evidence=JSON.parse(fs.readFileSync(path.resolve('../../outputs/fox-phase8-screenshots/after-packaged-visual-result.json')));
+const evidence=JSON.parse(fs.readFileSync(path.join(path.resolve(process.env.FOX_VISUAL_OUTPUT??'../../outputs/fox-phase9-regression-screenshots'),'after-packaged-visual-result.json')));
 assert.equal(evidence.passed,true);assert.equal(evidence.packaged,true);
 const normalData=path.join(process.env.APPDATA,'FOX Kafeteri');assert.equal(fs.existsSync(path.join(normalData,'fox.sqlite')),false,'Refuse existing normal-profile data');
 const executable=path.join(evidence.directory,'application','FOX Kafeteri.exe');assert.ok(fs.existsSync(executable));
@@ -20,7 +20,7 @@ try{
  const js=async expression=>{const r=await command('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(r.exceptionDetails)throw Error(JSON.stringify(r.exceptionDetails));return r.result.value;};
  for(let i=0;i<200&&!await js('Boolean(window.fox&&document.querySelector("[data-table-code]"))');i++)await pause(50);
  await pause(1000);
- const output=path.resolve('../../outputs/fox-phase8-screenshots');const views=[];
+ const output=path.resolve(process.env.FOX_VISUAL_OUTPUT??'../../outputs/fox-phase9-regression-screenshots');const views=[];
  for(const pageName of ['tables','inventory','reports','settings']){
   await js(`document.querySelector('[data-nav=${pageName}]').click()`);await pause(400);
   const metrics=await js(`(()=>{const b=document.querySelector('[data-open-checkout]')?.getBoundingClientRect();return {viewport:[innerWidth,innerHeight,devicePixelRatio],overflow:document.documentElement.scrollWidth>innerWidth,checkout:b?{top:b.top,bottom:b.bottom,right:b.right}:null};})()`);

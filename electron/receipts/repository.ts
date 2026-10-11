@@ -1,3 +1,4 @@
+import { tableDisplayCode } from '../../src/domain/tableLabels';
 import type Database from 'better-sqlite3';
 import {logError} from '../main/logging';
 import { createHash, randomUUID } from 'node:crypto';
@@ -42,7 +43,7 @@ export function createReceiptRepository(db: Database.Database) {
     const items = lines.map(item => ({ ...item, lineTotalCents: Number(BigInt(item.quantity)*BigInt(item.unitPriceCents)) }));
     const total = db.prepare('SELECT SUM(quantity*unit_price_cents) AS total FROM order_items WHERE order_id=?').get(saleId) as {total:number};
     const business = (db.prepare("SELECT value FROM settings WHERE key='business_name'").get() as {value:string}).value;
-    const payload: ReceiptPayload = { schemaVersion:1,kind:'SALE',...sale,businessDisplayName:business,items,totalCents:total.total,currency:'EUR',nonFiscalNotice:NON_FISCAL_NOTICE };
+    const payload: ReceiptPayload = { schemaVersion:1,kind:'SALE',...sale,tableCode:legacy?sale.tableCode:tableDisplayCode(sale.tableCode),businessDisplayName:business,items,totalCents:total.total,currency:'EUR',nonFiscalNotice:NON_FISCAL_NOTICE };
     validatePayload(payload);
     const json=JSON.stringify(payload),hash=receiptHash(json),id=randomUUID();
     db.prepare("INSERT INTO receipt_documents VALUES (?,?,1,'NON_FISCAL',?,?,?,?)").run(id,saleId,json,hash,Number(legacy),new Date().toISOString());

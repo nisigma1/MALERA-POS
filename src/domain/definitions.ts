@@ -1,5 +1,5 @@
 import type { Area, Category, CategoryCode, TableStatus } from './types';
-export const AREA_LABELS: Record<Area, string> = { MAIN: 'Brenda', BAR: 'Shanku', TERRACE: 'Terrasa' };
+export const AREA_LABELS: Record<Area, string> = { MAIN: 'Brenda', BAR: 'Shanku', TERRACE: 'Jashtë' };
 export const TABLE_STATUS_LABELS: Record<TableStatus, string> = {
   FREE: 'E lirë', ACTIVE: 'Porosi aktive', AWAITING_PAYMENT: 'Pret pagesë', RESERVED: 'E rezervuar',
 };

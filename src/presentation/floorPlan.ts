@@ -18,7 +18,7 @@ export const PHYSICAL_SLOTS: readonly PhysicalSlot[] = [
   slot('B10','MAIN',865,610,64,64,'round'),
   slot('B11','MAIN',1075,585,50,50,'round'),
   slot('B12','MAIN',1062,724,71,109,'rect'),
-  slot('B13','MAIN',173,803,100,42,'rect',45),
+  slot('R11','TERRACE',173,915,100,42,'rect',45),
   ...[354,457,561,666].map((x,i) => slot(`S0${i+1}`,'BAR',x,455,46,32,'stool')),
   slot('R01','TERRACE',995,858,44,44,'round'),
   slot('R02','TERRACE',315,945,65,65,'round'),
@@ -36,7 +36,7 @@ export const CANONICAL_FLOOR_CODES = [
 export const FLOOR_VIEWBOX = { x: 72, y: 315, width: 1204, height: 780 } as const;
 const officialPhysicalIds: Readonly<Record<string,string>> = {
   M1:'B01',M2:'B02',M3:'B03',M4:'B04',M5:'B05',M6:'B06',M7:'B07',
-  M8:'B08',M9:'B09',M10:'B10',M11:'B11',M12:'B12',M13:'B13',
+  M8:'B08',M9:'B09',M10:'B10',M11:'B11',M12:'B12',M13:'R11',
   SH1:'S01',SH2:'S02',SH3:'S03',SH4:'S04',
   T1:'R01',T2:'R02',T3:'R03',T4:'R04',T5:'R05',T6:'R06',T7:'R07',T8:'R08',T9:'R09',T10:'R10',
 };

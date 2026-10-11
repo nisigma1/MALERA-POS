@@ -53,7 +53,7 @@ try{
  await js('(()=>{const e=document.querySelector("#productId");e.value="KAFE-1";e.dispatchEvent(new Event("change",{bubbles:true}));})()');await field('quantity','-5');await js('document.querySelector("button[form=supply-form]").click()');await until('Boolean(document.querySelector("#quantity[aria-invalid=true]"))');await field('quantity','20');
  await js('(()=>{const b=document.querySelector("button[form=supply-form]");b.click();b.click();})()');await until('!document.querySelector("dialog[open]")');assert.equal(await api('return (await fox.products.list()).find(p=>p.id==="KAFE-1").stockQuantity;'),220);
  await nav('tables');await until('Boolean(document.querySelector("[data-order-item]"))');
- await js('(()=>{for(const code of ["M1","M4","T3","M5"])document.querySelector("[data-table-code="+code+"]").click();})()');await until('document.querySelector("#order-heading")?.textContent==="Tavolina M5" && document.querySelector("[data-order-quantity]")?.textContent==="1"');
+ await js('(()=>{for(const code of ["M1","M4","T3","M5"])document.querySelector("[data-table-code="+code+"]").click();})()');await until('document.querySelector("#order-heading")?.textContent==="Tavolina B5" && document.querySelector("[data-order-quantity]")?.textContent==="1"');
  await js('(()=>{for(const c of ["CAJ","PIJE","KAFE"])document.querySelector("[data-order-category="+c+"]").click();})()');
  await js('(()=>{const b=document.querySelector("button[aria-label^=Rrit]");b.click();b.click();})()');await until('document.querySelector("[data-order-quantity]")?.textContent==="2"');
  await js('(()=>{const b=document.querySelector("button[aria-label^=Ul]");b.click();b.click();})()');await until('document.querySelector("[data-order-quantity]")?.textContent==="1"');

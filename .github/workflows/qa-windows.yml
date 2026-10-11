@@ -25,6 +25,8 @@ jobs:
         run: |
           $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
           $visualOutput = [IO.Path]::GetFullPath((Join-Path $env:GITHUB_WORKSPACE '../../outputs/fox-phase9-regression-screenshots'))
+          $financeOutput = [IO.Path]::GetFullPath((Join-Path $env:GITHUB_WORKSPACE '../../outputs/fox-phase9-screenshots'))
+          "FOX_FINANCE_OUTPUT=$financeOutput" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
           "FOX_VISUAL_OUTPUT=$visualOutput" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
           if ($version -notmatch '^\d+\.\d+\.\d+-(?:qa|rc)\.\d+$') { throw 'Only a prerelease candidate is permitted; artifact remains explicitly QA/UNSIGNED' }
           if ($env:REPOSITORY_PRIVATE -ne 'true') { throw 'Repository must remain private' }
@@ -80,7 +82,7 @@ jobs:
         if: always()
         with:
           name: FOX-Financial-Acceptance
-          path: ../../outputs/fox-phase9-screenshots
+          path: ${{ env.FOX_FINANCE_OUTPUT }}
           if-no-files-found: warn
           retention-days: 14
       - name: Installed owner UI cutover and native backup/recovery

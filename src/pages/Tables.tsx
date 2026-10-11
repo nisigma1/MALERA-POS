@@ -1,3 +1,4 @@
+import { tableDisplayCode } from '../domain/tableLabels';
 import { useEffect, useRef, useState } from 'react';
 import { useData } from '../app/useData';
 import { DataState } from '../components/DataState';
@@ -120,7 +121,7 @@ export function Tables() {
     {header}
     <div className="pos-layout"><div className="board-scroll"><RealFloorPlan tables={data} selected={selected} onSelect={select}/></div>
     {table && <aside className="order-workspace" data-order-workspace aria-labelledby="order-heading">
-      <header className="order-header"><div><h2 id="order-heading">Tavolina {table.code}</h2><div className="order-context"><span>{AREA_LABELS[table.area]}</span><StatusBadge tone={tone(table.status)}>{TABLE_STATUS_LABELS[table.status]}</StatusBadge></div></div><Button variant="ghost" className="icon-button" aria-label="Mbyll panelin e tavolinës" onClick={close}><Icon name="close"/></Button></header>
+      <header className="order-header"><div><h2 id="order-heading">Tavolina {tableDisplayCode(table.code)}</h2><div className="order-context"><span>{AREA_LABELS[table.code==='M13'?'TERRACE':table.area]}</span><StatusBadge tone={tone(table.status)}>{TABLE_STATUS_LABELS[table.status]}</StatusBadge></div></div><Button variant="ghost" className="icon-button" aria-label="Mbyll panelin e tavolinës" onClick={close}><Icon name="close"/></Button></header>
       <div className="order-body" ref={orderBody}>
         {message && <div role="alert" className="form-error">{message}{(readFailed || uncertain.current.has(table.id)) && <Button onClick={() => select(table.id)}>Rifresko gjendjen</Button>}</div>}
         {!view ? <p className="order-help">{readFailed ? 'Gjendja e porosisë nuk është e disponueshme.' : 'Duke lexuar porosinë…'}</p> : <>
@@ -142,7 +143,7 @@ export function Tables() {
           </section>
         </>}
       </div>
-      <footer className="order-footer" data-order-state={saveState}><div><strong>{view && !view.order ? 'Pa porosi' : 'Totali'}</strong><strong data-order-total>{view?.order ? formatMoney(view.order.totalCents) : '—'}</strong></div><p role="status">{success || saveMessage}</p><Button variant="primary" className="checkout-open" data-open-checkout disabled={!canOrder || !view?.order?.items.length || tablePending || !!checkout} onClick={() => { if (!view?.order || busy.current.size || checkoutLock.current) return; checkoutLock.current = true; setSuccess(''); setCheckout({ code: table.code, order: view.order }); }}>Mbyll llogarinë</Button></footer>
+      <footer className="order-footer" data-order-state={saveState}><div><strong>{view && !view.order ? 'Pa porosi' : 'Totali'}</strong><strong data-order-total>{view?.order ? formatMoney(view.order.totalCents) : '—'}</strong></div><p role="status">{success || saveMessage}</p><Button variant="primary" className="checkout-open" data-open-checkout disabled={!canOrder || !view?.order?.items.length || tablePending || !!checkout} onClick={() => { if (!view?.order || busy.current.size || checkoutLock.current) return; checkoutLock.current = true; setSuccess(''); setCheckout({ code: tableDisplayCode(table.code), order: view.order }); }}>Mbyll llogarinë</Button></footer>
     </aside>}
     </div>
     {checkout && <CheckoutDialog tableCode={checkout.code} items={checkout.order.items} totalCents={checkout.order.totalCents} onClose={cancelCheckout} onConfirm={confirmCheckout}/>}

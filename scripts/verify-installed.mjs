@@ -93,9 +93,10 @@ try {
   if(fresh.tables.receipt_documents){okay(fresh.tables.receipt_documents.length===0&&fresh.tables.receipt_print_jobs.length===0,'fresh zero receipts/print jobs');okay(fresh.tables.settings.find(s=>s.key==='receipt_auto_print').value==='false'&&fresh.tables.settings.find(s=>s.key==='receipt_printer').value==='null','fresh no printer and auto-print OFF');}
   okay(fresh.tables.products.every(p=>p.selling_price_cents===null&&p.purchase_cost_cents===null&&p.track_inventory===null)&&fresh.tables.inventory_balances.every(p=>p.quantity===null),'fresh no invented configuration');
   for(const code of fresh.tables.cafe_tables.map(t=>t.code)) {
+    const label=await evaluate(`document.querySelector('[data-table-code="${code}"] strong').textContent`);
     await evaluate(`document.querySelector('[data-table-code="${code}"]').click()`);
-    for(let i=0;i<100;i++){if(await evaluate(`document.querySelector('#order-heading')?.textContent==='Tavolina ${code}'`))break;await pause(20);}
-    okay(await evaluate(`document.querySelector('#order-heading')?.textContent==='Tavolina ${code}'`),`clickable installed ${code}`);
+    for(let i=0;i<100;i++){if(await evaluate(`document.querySelector('#order-heading')?.textContent==='Tavolina ${label}'`))break;await pause(20);}
+    okay(await evaluate(`document.querySelector('#order-heading')?.textContent==='Tavolina ${label}'`),`clickable installed ${code}`);
   }
   okay(snapshot().tables.orders.length===0,'free table selection creates no order');
   const floor=await command('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(directory,'installed-floor.png'),Buffer.from(floor.data,'base64'));
