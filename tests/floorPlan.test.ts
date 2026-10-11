@@ -36,7 +36,7 @@ describe('original floor-plan structural transcription', () => {
       if(!physical)throw new Error(`Missing source position for ${code}`);
       expect(FLOOR_PLAN_BY_CODE[code]).toEqual({...physical,id:code,physicalSlotId:physical.id});
     });
-    expect(FLOOR_PLAN_BY_CODE.M13).toMatchObject({x:173,y:915,area:'TERRACE',shape:'rect',rotation:45});
+    expect(FLOOR_PLAN_BY_CODE.M13).toMatchObject({x:150,y:890,area:'TERRACE',shape:'rect',rotation:45});
     expect(FLOOR_PLAN_BY_CODE.T1).toMatchObject({x:995,y:858,shape:'round'});
     expect(['T2','T3','T4'].map(code=>FLOOR_PLAN_BY_CODE[code]?.shape)).toEqual(['round','round','round']);
     expect(['T5','T6','T7','T8','T9','T10'].map(code=>FLOOR_PLAN_BY_CODE[code]?.shape)).toEqual(Array(6).fill('rect'));

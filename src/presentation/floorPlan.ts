@@ -18,7 +18,7 @@ export const PHYSICAL_SLOTS: readonly PhysicalSlot[] = [
   slot('B10','MAIN',865,610,64,64,'round'),
   slot('B11','MAIN',1075,585,50,50,'round'),
   slot('B12','MAIN',1062,724,71,109,'rect'),
-  slot('R11','TERRACE',173,915,100,42,'rect',45),
+  slot('R11','TERRACE',150,890,100,42,'rect',45),
   ...[354,457,561,666].map((x,i) => slot(`S0${i+1}`,'BAR',x,455,46,32,'stool')),
   slot('R01','TERRACE',995,858,44,44,'round'),
   slot('R02','TERRACE',315,945,65,65,'round'),
