@@ -1,3 +1,4 @@
+import { CANONICAL_SERVICE_POSITION_CODES, SERVICE_POSITIONS } from '../domain/definitions';
 // Coordinates traced from docs/references/fox-original-floor-plan.png.
 // Physical slot IDs are review annotations, never DB codes or order identifiers.
 export type PhysicalSlot = {
@@ -18,7 +19,7 @@ export const PHYSICAL_SLOTS: readonly PhysicalSlot[] = [
   slot('B10','MAIN',865,610,64,64,'round'),
   slot('B11','MAIN',1075,585,50,50,'round'),
   slot('B12','MAIN',1062,724,71,109,'rect'),
-  slot('R11','TERRACE',150,890,100,42,'rect',45),
+  slot('B13','MAIN',173,803,100,42,'rect',45),
   ...[354,457,561,666].map((x,i) => slot(`S0${i+1}`,'BAR',x,455,46,32,'stool')),
   slot('R01','TERRACE',995,858,44,44,'round'),
   slot('R02','TERRACE',315,945,65,65,'round'),
@@ -26,24 +27,13 @@ export const PHYSICAL_SLOTS: readonly PhysicalSlot[] = [
   slot('R04','TERRACE',1027,945,65,65,'round'),
   ...[148,351,550,758,965,1199].map((x,i) => slot(`R${String(i+5).padStart(2,'0')}`,'TERRACE',x,1040,35,49,'rect')),
 ];
-export const CANONICAL_FLOOR_CODES = [
-  ...Array.from({length:13},(_,i)=>`M${i+1}`),
-  ...Array.from({length:4},(_,i)=>`SH${i+1}`),
-  ...Array.from({length:10},(_,i)=>`T${i+1}`),
-] as const;
+export const CANONICAL_FLOOR_CODES = CANONICAL_SERVICE_POSITION_CODES;
 // Original sketch geometry + the owner's explicit official numbering in Prompt 3.6D.
 // Presentation only: no coordinates or physical review IDs enter order/database logic.
 export const FLOOR_VIEWBOX = { x: 72, y: 315, width: 1204, height: 780 } as const;
-const officialPhysicalIds: Readonly<Record<string,string>> = {
-  M1:'B01',M2:'B02',M3:'B03',M4:'B04',M5:'B05',M6:'B06',M7:'B07',
-  M8:'B08',M9:'B09',M10:'B10',M11:'B11',M12:'B12',M13:'R11',
-  SH1:'S01',SH2:'S02',SH3:'S03',SH4:'S04',
-  T1:'R01',T2:'R02',T3:'R03',T4:'R04',T5:'R05',T6:'R06',T7:'R07',T8:'R08',T9:'R09',T10:'R10',
-};
-export const FLOOR_PLAN_BY_CODE: Readonly<Record<string, PhysicalSlot & {physicalSlotId:string}>> = Object.fromEntries(CANONICAL_FLOOR_CODES.map(code=>{
-  const physicalSlotId=officialPhysicalIds[code];
+export const FLOOR_PLAN_BY_CODE: Readonly<Record<string, PhysicalSlot & {physicalSlotId:string}>> = Object.fromEntries(SERVICE_POSITIONS.map(({code,area,physicalSlotId})=>{
   const physical=PHYSICAL_SLOTS.find(item=>item.id===physicalSlotId);
-  if(!physicalSlotId||!physical)throw new Error(`Missing confirmed physical slot for ${code}`);
+  if(!physical||physical.area!==area)throw new Error(`Missing or mismatched confirmed physical slot for ${code}`);
   return [code,{...physical,id:code,physicalSlotId}];
 }));
 export const FLOOR_MAPPING_CONFIDENCE: Readonly<Record<string, 'CONFIRMED' | 'AMBIGUOUS'>> = Object.fromEntries(CANONICAL_FLOOR_CODES.map(code=>[code,'CONFIRMED']));

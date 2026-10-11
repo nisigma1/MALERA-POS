@@ -1,4 +1,3 @@
-import { tableDisplayCode } from '../../src/domain/tableLabels';
 // Real native input in a hidden Electron window; requires an isolated FOX_VERIFY_DIR.
 import type { BrowserWindow } from 'electron';
 import { ipcMain } from 'electron';
@@ -56,7 +55,7 @@ export async function verifyCheckout(window: BrowserWindow, directory: string, d
     await window.webContents.insertText(value);
     await wait(`document.querySelector(${JSON.stringify(selector)}).value===${JSON.stringify(value)}`);
   };
-  const selected = async (code: string) => { await click(`[data-table-code="${code}"]`); await wait(`document.querySelector('#order-heading')?.textContent==='Tavolina ${tableDisplayCode(code)}' && ['saved','empty'].includes(document.querySelector('.order-footer')?.dataset.orderState)`); };
+  const selected = async (code: string) => { await click(`[data-table-code="${code}"]`); await wait(`document.querySelector('#order-heading')?.textContent==='Tavolina ${code}' && ['saved','empty'].includes(document.querySelector('.order-footer')?.dataset.orderState)`); };
   const saved = () => wait(`document.querySelector('.order-footer')?.dataset.orderState==='saved'`);
   const expectedFile = path.join(directory,'checkout-expected.json');
   if (restart) {
@@ -88,7 +87,7 @@ export async function verifyCheckout(window: BrowserWindow, directory: string, d
   await assert(`!document.querySelector('[data-confirm-payment]').disabled && document.querySelectorAll('[data-payment]').length===0 && document.querySelector('.checkout-method').textContent.includes('Para të gatshme')`,'Removed payment selector is still present');
   window.webContents.sendInputEvent({type:'keyDown',keyCode:'Escape'}); window.webContents.sendInputEvent({type:'keyUp',keyCode:'Escape'});
   await wait(`!document.querySelector('.checkout-dialog')`);
-  await assert(`document.querySelector('#order-heading').textContent==='Tavolina B5' && document.querySelector('[data-order-total]').textContent==='2.00 €'`,'Escape mutated order or closed table');
+  await assert(`document.querySelector('#order-heading').textContent==='Tavolina M5' && document.querySelector('[data-order-total]').textContent==='2.00 €'`,'Escape mutated order or closed table');
   await click('[data-open-checkout]'); await wait(`Boolean(document.querySelector('.checkout-dialog[open]'))`);
   const metrics: unknown[]=[];
   for(const [width,height] of [[1366,768],[1440,900],[1920,1080],[3840,2160]]) {

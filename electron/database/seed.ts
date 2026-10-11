@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import { CATEGORIES, INITIAL_PRODUCTS, SERVICE_POSITIONS } from '../../src/domain/definitions';
+import { assertCanonicalServicePositions, CATEGORIES, INITIAL_PRODUCTS, SERVICE_POSITIONS } from '../../src/domain/definitions';
 export function seed(db: Database.Database): void {
   db.transaction(() => {
     const now = new Date().toISOString();
@@ -14,9 +14,6 @@ export function seed(db: Database.Database): void {
     for (const item of INITIAL_PRODUCTS) { product.run({ ...item, now }); balance.run(item.id, now); }
     db.prepare("INSERT INTO settings VALUES ('business_name','FOX') ON CONFLICT(key) DO NOTHING").run();
     const positions = db.prepare('SELECT code,area FROM cafe_tables').all() as { code: string; area: string }[];
-    if (positions.length !== SERVICE_POSITIONS.length || SERVICE_POSITIONS.some(expected =>
-      !positions.some(row => row.code === expected.code && row.area === expected.area))) {
-      throw new Error('FOX service positions do not match the authoritative 27 positions');
-    }
+    assertCanonicalServicePositions(positions);
   }).immediate();
 }

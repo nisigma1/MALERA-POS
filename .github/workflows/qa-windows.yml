@@ -147,6 +147,20 @@ jobs:
           node scripts/verify-installed.mjs $oldInstaller "release/FOX-Setup-$version-x64.exe"
           if ($LASTEXITCODE -ne 0) { throw 'Phase 8 upgrade failed' }
 
+      - name: Accepted Phase 9 identity restoration upgrade
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh run download 38168532591 -n FOX-QA-Windows-x64 -D work/phase9-accepted
+          if ($LASTEXITCODE -ne 0) { throw 'Accepted Phase 9 download failed' }
+          $oldInstaller='work/phase9-accepted/release/FOX-Setup-0.7.0-rc.1-x64.exe'
+          $baseline=Get-Content work/phase9-accepted/release/release-manifest.json -Raw | ConvertFrom-Json
+          if ($baseline.commit -ne 'ce31d9ae6a9d1158f73588b1a7cde1cd61d01bcb' -or (Get-FileHash $oldInstaller).Hash.ToLowerInvariant() -ne 'fb3d31fec62126d4e3535dcdf1745e227837e61438ee51f31da58898ecc2ff5b') { throw 'Phase 9 provenance mismatch' }
+          $version=(Get-Content package.json -Raw | ConvertFrom-Json).version
+          node scripts/verify-installed.mjs $oldInstaller "release/FOX-Setup-$version-x64.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Phase 9 canonical identity restoration upgrade failed' }
+
       - name: Retain sanitized acceptance evidence
         if: always()
         shell: pwsh

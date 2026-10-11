@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import net from 'node:net';
 import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
 import {spawn,spawnSync} from 'node:child_process';
 import {createQaDirectory} from './qa-directory.mjs';
 const [installerA,installerB,receiptTargetFile]=process.argv.slice(2);
@@ -111,7 +112,7 @@ try {
   assert.deepEqual(snapshot(),beforeCrash);evidence.checks.push('forced-close active order persistence');
   const sale=await api(`const t=(await fox.tables.list()).find(t=>t.code==='M5');const w=await fox.orders.getForTable(t.id);return fox.orders.completeOrder({orderId:w.order.id,expectedRevision:w.order.revision});`);
   okay(sale.ok,'installed atomic CASH checkout');
-  const report=await api(`return fox.reports.getSalesReport('ALL');`);
+  let report=await api(`return fox.reports.getSalesReport('ALL');`);
   okay(report.summary.salesCents===200&&report.summary.costCents===100&&report.cashCents===200&&report.summary.completedOrders===1,'installed CASH report and cost');
   okay((await api(`return (await fox.products.list()).find(p=>p.id==='KAFE-1').stockQuantity;`))===18,'installed inventory deduction');
   okay((await api(`return (await fox.tables.list()).find(t=>t.code==='M5').status;`))==='FREE','installed paid table free');
@@ -124,9 +125,49 @@ try {
   okay(secondExit===0&&running.exitCode===null,'installed second launch exits; original stays');
   const linked=spawnSync('powershell.exe',['-NoProfile','-Command',`$p=Start-Process -FilePath '${links[0].path.replaceAll("'","''")}' -PassThru -Wait -WindowStyle Hidden;exit $p.ExitCode`],{env:session.env,windowsHide:true,encoding:'utf8',timeout:15000});
   okay(linked.status===0&&running.exitCode===null,'actual shortcut second launch leaves one operational instance');
+  let financeBefore;
+  if(path.basename(installerA)==='FOX-Setup-0.7.0-rc.1-x64.exe') {
+    const fixture=await api(`
+      const must=r=>{if(!r.ok)throw Error(JSON.stringify(r));return r.data;};
+      const w=await fox.orders.getForTable('M6');must(await fox.orders.removeItem({tableId:'M6',itemId:w.order.items[0].id}));
+      const base={category:'OTHER',occurredAt:new Date().toISOString(),description:'Isolated canonical upgrade QA',paidFromTill:true};
+      const expense=must(await fox.finance.saveExpense({...base,requestId:crypto.randomUUID(),amountCents:200}));
+      must(await fox.finance.saveExpense({...base,requestId:crypto.randomUUID(),amountCents:20,expenseId:expense.id,expectedRevision:expense.revisionId}));
+      must(await fox.finance.saveExpense({...base,requestId:crypto.randomUUID(),amountCents:50,paidFromTill:false}));
+      must(await fox.inventory.addSupply({requestId:crypto.randomUUID(),productId:'KAFE-1',quantity:1,drawerPaymentCents:100}));
+      must(await fox.finance.recordLoss({requestId:crypto.randomUUID(),productId:'KAFE-1',quantity:1,reason:'DAMAGED',note:'QA'}));
+      must(await fox.finance.recordCashMovement({requestId:crypto.randomUUID(),direction:'IN',amountCents:100,reason:'QA',note:''}));
+      must(await fox.finance.recordCashMovement({requestId:crypto.randomUUID(),direction:'OUT',amountCents:10,reason:'QA',note:''}));
+      const preview=await fox.finance.cashPreview({openingCents:5000});
+      const closed=must(await fox.finance.closeCash({requestId:crypto.randomUUID(),sessionId:preview.sessionId,openingCents:5000,countedCents:5168,expectedFingerprint:preview.fingerprint,note:'QA'}));
+      must(await fox.finance.recordCashMovement({requestId:crypto.randomUUID(),direction:'IN',amountCents:1,reason:'QA new session',note:''}));
+      must(await fox.orders.addProduct({tableId:'M6',productId:'KAFE-1'}));
+      must(await fox.orders.addProduct({tableId:'M13',productId:'KAFE-1'}));
+      return {closed,report:await fox.finance.report({period:'ALL'}),preview:await fox.finance.cashPreview({openingCents:5000})};
+    `);
+    assert.equal(fixture.closed.expectedCents,5170);assert.equal(fixture.closed.differenceCents,-2);
+    assert.equal(fixture.report.operatingResultCents,-20);
+    financeBefore={report:fixture.report,preview:fixture.preview};
+    report=await api(`return fox.reports.getSalesReport('ALL');`);
+    okay(true,'rc.1 fixture includes expense correction, external expense, stock loss, paid supply, movements, closed/open sessions and OPEN M13');
+  }
   const beforeUpgrade=snapshot();fs.writeFileSync(path.join(directory,'before-upgrade.json'),JSON.stringify(beforeUpgrade,null,2));await close();
   installVersion(installerB);session=await launch();evaluate=session.evaluate;command=session.command;
   const upgraded=snapshot();
+  const canonical=['M1','M2','M3','M4','M5','M6','M7','M8','M9','M10','M11','M12','M13','SH1','SH2','SH3','SH4','T1','T2','T3','T4','T5','T6','T7','T8','T9','T10'];
+  assert.deepEqual(upgraded.tables.cafe_tables.map(t=>t.code).sort(),[...canonical].sort());
+  assert.deepEqual(await evaluate('[...document.querySelectorAll("[data-table-code]")].map(e=>e.querySelector("strong").textContent).sort()'),[...canonical].sort());
+  okay(true,'actual upgraded executable exposes the independent canonical 27-code set, no B/J aliases');
+  fs.writeFileSync(path.join(directory,'after-upgrade.json'),JSON.stringify(upgraded,null,2));
+  evidence.identityPreservation={before:Object.fromEntries(Object.entries(beforeUpgrade.tables).map(([name,rows])=>[name,rows.length])),after:Object.fromEntries(Object.entries(upgraded.tables).map(([name,rows])=>[name,rows.length])),canonical};
+  if(financeBefore){
+    const after={report:await api(`return fox.finance.report({period:'ALL'});`),preview:await api(`return fox.finance.cashPreview({openingCents:5000});`)};
+    assert.deepEqual(after,financeBefore);
+    const hash=rows=>createHash('sha256').update(JSON.stringify(rows)).digest('hex');
+    evidence.financialPreservation={before:financeBefore,after,tableHashes:Object.fromEntries(Object.keys(beforeUpgrade.tables).filter(name=>name!=='schema_migrations').map(name=>[name,{before:hash(beforeUpgrade.tables[name]),after:hash(upgraded.tables[name])}]))};
+    const open=await api(`return fox.orders.getForTable('M13');`);okay(open.order?.totalCents===100&&open.table.code==='M13','OPEN M13 retained through actual rc.1 to rc.2 installer upgrade');
+    const receipts=upgraded.tables.receipt_documents.map(row=>JSON.parse(row.payload_json));okay(receipts.some(doc=>doc.tableCode==='B5'),'immutable rc.1 receipt preserved while operational Reports uses M5');
+  }
   for(const [table,rows] of Object.entries(beforeUpgrade.tables)) {
     if(table==='schema_migrations') {for(const row of rows)assert.ok(upgraded.tables[table].some(r=>JSON.stringify(r)===JSON.stringify(row)));}
     else if(table==='settings') {for(const row of rows)assert.deepEqual(upgraded.tables[table].find(r=>r.key===row.key),row);}

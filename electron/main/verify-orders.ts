@@ -38,7 +38,7 @@ function harness(window: BrowserWindow, directory:string) {
       const tiles=[...board.querySelectorAll('.position')];
       const tileBoxes=tiles.map(e=>e.getBoundingClientRect());
       if(tileBoxes.some((a,i)=>a.width<40||a.height<40||a.left<b.left||a.right>b.right||a.top<b.top||a.bottom>b.bottom||tileBoxes.slice(i+1).some(c=>a.left<c.right&&a.right>c.left&&a.top<c.bottom&&a.bottom>c.top)))throw new Error('Floor-plan target size/visibility/overlap failure');
-      if(new Set(tiles.map(e=>e.dataset.tableCode)).size!==27||new Set(tiles.map(e=>e.dataset.displayCode)).size!==27||tiles.some(e=>{const code=e.dataset.tableCode,display=code==='M13'?'J11':code.startsWith('M')?'B'+code.slice(1):code.startsWith('T')?'J'+code.slice(1):code;return e.dataset.displayCode!==display||e.querySelector('strong').textContent!==display||!e.getAttribute('aria-label')?.includes(display);}))throw new Error('Canonical floor-plan identity/accessibility failure');
+      if(new Set(tiles.map(e=>e.dataset.tableCode)).size!==27||new Set(tiles.map(e=>e.dataset.displayCode)).size!==27||tiles.some(e=>{const code=e.dataset.tableCode,display=code;return e.dataset.displayCode!==display||e.querySelector('strong').textContent!==display||!e.getAttribute('aria-label')?.includes(display);}))throw new Error('Canonical floor-plan identity/accessibility failure');
       const badTiles=tiles.filter(e=>e.scrollWidth>e.clientWidth+1||e.querySelector('.badge').getBoundingClientRect().right>e.getBoundingClientRect().right).map(e=>e.textContent);
       const current=document.querySelector('main');
       const firstItem=panel.querySelector('.order-item'),bodyBox=body.getBoundingClientRect();
@@ -160,7 +160,7 @@ export async function verifyActiveOrders(window:BrowserWindow,directory:string,d
   for(const codes of [['M5','M6','M5'],['T3','SH2','M5']]) {
     await qa.evaluate(`(${JSON.stringify(codes)}).forEach(code=>document.querySelector('[data-table-code="'+code+'"]').click())`);
     await qa.saved();
-    await qa.assert(`document.querySelector('#order-heading').textContent==='Tavolina B5' && document.querySelector('[data-order-total]').textContent==='5.95 €' && document.querySelectorAll('.position[aria-pressed="true"]').length===1 && document.querySelector('.position[aria-pressed="true"]').dataset.tableCode==='M5'`,'Rapid table switch mixed workspace state');
+    await qa.assert(`document.querySelector('#order-heading').textContent==='Tavolina M5' && document.querySelector('[data-order-total]').textContent==='5.95 €' && document.querySelectorAll('.position[aria-pressed="true"]').length===1 && document.querySelector('.position[aria-pressed="true"]').dataset.tableCode==='M5'`,'Rapid table switch mixed workspace state');
   }
   await qa.evaluate(`document.querySelector('.order-body').scrollTop=document.querySelector('.order-body').scrollHeight`);
   await qa.select('M6');

@@ -1,4 +1,3 @@
-import { tableDisplayCode } from '../domain/tableLabels';
 import { FLOOR_PLAN_BY_CODE, FLOOR_VIEWBOX, type PhysicalSlot } from '../presentation/floorPlan';
 import type { TableSummary } from '../domain/types';
 import { TABLE_STATUS_LABELS } from '../domain/definitions';
@@ -14,7 +13,11 @@ function Seats({slot}: {slot:PhysicalSlot}) {
   else if(['M8','M9'].includes(slot.id))seats=[{x:-35,y:41},{x:35,y:41}];
   else if(slot.id==='M12')seats=[{x:-70,y:-31},{x:-70,y:31}];
   else if(slot.id==='M13')seats=[{x:-27,y:-36},{x:27,y:-36},{x:-27,y:36},{x:27,y:36}];
-  else if(slot.shape==='round')seats=[{x:-48,y:-44,rotation:45},{x:48,y:-44,rotation:45},{x:-48,y:44,rotation:45},{x:48,y:44,rotation:45}];
+  else if(slot.shape==='round') {
+    // Keep a small, consistent gap between each diagonal chair and the table edge.
+    const offset=(Math.max(slot.width,slot.height)/2+14)/Math.SQRT2;
+    seats=[{x:-offset,y:-offset,rotation:45},{x:offset,y:-offset,rotation:45},{x:-offset,y:offset,rotation:45},{x:offset,y:offset,rotation:45}];
+  }
   else seats=[{x:-slot.width/2-15,y:-slot.height*.27},{x:slot.width/2+15,y:-slot.height*.27},{x:-slot.width/2-15,y:slot.height*.27},{x:slot.width/2+15,y:slot.height*.27}];
   return <g fill="#a4ac9e" stroke="#465046" strokeWidth="2">{seats.map((seat,i)=><rect key={i} x="-11" y="-11" width="22" height="22" rx="3" transform={`translate(${seat.x} ${seat.y}) rotate(${seat.rotation??0})`}/>)}</g>;
 }
@@ -50,8 +53,8 @@ export function RealFloorPlan({tables,selected,onSelect}: {tables:TableSummary[]
       const slot=FLOOR_PLAN_BY_CODE[table.code]; if(!slot)return null;
       // The diagonal furniture remains rotated; its compact upright target keeps totals readable.
       const targetRotation=table.code==='M13'?0:slot.rotation;
-      return <button key={table.id} type="button" className="position floor-table" data-table-code={table.code} data-display-code={tableDisplayCode(table.code)} data-status={table.status} data-shape={slot.shape} data-rotation={slot.rotation} aria-pressed={table.id===selected} aria-label={`${tableDisplayCode(table.code)}, ${TABLE_STATUS_LABELS[table.status]}${table.activeOrderTotalCents===null?'':`, ${formatMoney(table.activeOrderTotalCents)}`}`} style={{left:`${(slot.x-FLOOR_VIEWBOX.x)/FLOOR_VIEWBOX.width*100}%`,top:`${(slot.y-FLOOR_VIEWBOX.y)/FLOOR_VIEWBOX.height*100}%`,transform:`translate(-50%,-50%) rotate(${targetRotation}deg)`}} onClick={event=>onSelect(table.id,event.currentTarget)}>
-        <span className="floor-table-label" style={{transform:`rotate(${-targetRotation}deg)`}}><strong>{tableDisplayCode(table.code)}</strong><StatusBadge tone={table.status==='ACTIVE'?'info':table.status==='FREE'?'success':'neutral'}>{TABLE_STATUS_LABELS[table.status]}</StatusBadge>
+      return <button key={table.id} type="button" className="position floor-table" data-table-code={table.code} data-display-code={table.code} data-status={table.status} data-shape={slot.shape} data-rotation={slot.rotation} aria-pressed={table.id===selected} aria-label={`${table.code}, ${TABLE_STATUS_LABELS[table.status]}${table.activeOrderTotalCents===null?'':`, ${formatMoney(table.activeOrderTotalCents)}`}`} style={{left:`${(slot.x-FLOOR_VIEWBOX.x)/FLOOR_VIEWBOX.width*100}%`,top:`${(slot.y-FLOOR_VIEWBOX.y)/FLOOR_VIEWBOX.height*100}%`,transform:`translate(-50%,-50%) rotate(${targetRotation}deg)`}} onClick={event=>onSelect(table.id,event.currentTarget)}>
+        <span className="floor-table-label" style={{transform:`rotate(${-targetRotation}deg)`}}><strong>{table.code}</strong><StatusBadge tone={table.status==='ACTIVE'?'info':table.status==='FREE'?'success':'neutral'}>{TABLE_STATUS_LABELS[table.status]}</StatusBadge>
         {table.activeOrderTotalCents!==null&&<span className="position-total"><span>{formatMoney(table.activeOrderTotalCents).replace(' €','')}</span>{' '}<span>€</span></span>}{!table.enabled&&<span className="sr-only">Joaktive</span>}</span>
       </button>;
     })}
