@@ -1,6 +1,6 @@
 {
   "name": "fox-pos",
-  "version": "0.6.0-rc.3",
+  "version": "0.7.0-rc.1",
   "private": true,
   "type": "module",
   "description": "FOX Kafeteri local desktop foundation",
@@ -28,6 +28,7 @@
     "verify:production-db": "node scripts/verify-product.mjs --production-only",
     "verify:product-day": "node scripts/verify-product.mjs",
     "verify:cutover": "node scripts/verify-cutover.mjs",
+    "verify:finance": "node scripts/verify-finance.mjs",
     "verify:visual": "node scripts/verify-visual.mjs after"
   },
   "dependencies": {

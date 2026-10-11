@@ -1,5 +1,7 @@
 import type Database from 'better-sqlite3';
 import type { ReportPeriod, SalesReport } from '../../src/domain/types';
+import { type FinanceQuery, financeBounds } from '../../src/domain/finance';
+import {expenseTotals} from './financeQueries';
 
 export function reportBounds(period: ReportPeriod, now = new Date()): { start: string; end: string } {
   const start = new Date(now); start.setHours(0,0,0,0);
@@ -9,9 +11,16 @@ export function reportBounds(period: ReportPeriod, now = new Date()): { start: s
   return { start: period === 'ALL' ? '' : start.toISOString(), end: period === 'ALL' ? '9999' : end.toISOString() };
 }
 export function readSalesReport(db: Database.Database, input: unknown, now = new Date()): SalesReport {
-  if (typeof input !== 'string' || !['TODAY','7_DAYS','30_DAYS','ALL'].includes(input)) throw new Error('Invalid report period');
+  if (typeof input !== 'string') {
+    const bounds=financeBounds(input,now);
+    return readSalesReportInBounds(db,input as FinanceQuery,bounds);
+  }
+  if (!['TODAY','7_DAYS','30_DAYS','ALL'].includes(input)) throw new Error('Invalid report period');
   const period = input as ReportPeriod;
   const bounds = reportBounds(period,now);
+  return readSalesReportInBounds(db,period,bounds);
+}
+function readSalesReportInBounds(db:Database.Database,period:ReportPeriod|FinanceQuery,bounds:{start:string;end:string}):SalesReport {
   return db.transaction(() => {
     const totals = db.prepare(`SELECT COUNT(DISTINCT o.id) AS orders, COALESCE(SUM(i.quantity*i.unit_price_cents),0) AS sales,
       COALESCE(SUM(i.quantity*i.unit_cost_cents),0) AS cost, COUNT(CASE WHEN i.unit_cost_cents IS NULL THEN 1 END) AS unknownCost,
@@ -25,9 +34,9 @@ export function readSalesReport(db: Database.Database, input: unknown, now = new
       WHERE o.status='CLOSED' AND o.closed_at>=? AND o.closed_at<?`).get(bounds.start,bounds.end) as { orders: number; sales: number; cost: number; unknownCost: number; missingCostUnits: number; salesWithoutCost: number; quantity: number; cash: number; card: number; unknownPayment: number };
     // Expense dates are local YYYY-MM-DD, while completion timestamps are UTC ISO.
     const localDate = (iso: string) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
-    const expenseStart = period === 'ALL' ? '' : localDate(bounds.start);
-    const expenseEnd = period === 'ALL' ? '9999' : localDate(bounds.end);
-    const expense = db.prepare('SELECT COALESCE(SUM(amount_cents),0) AS total FROM expenses WHERE expense_date>=? AND expense_date<?').get(expenseStart,expenseEnd) as { total: number };
+    const expenseStart = bounds.start === '' ? '' : localDate(bounds.start);
+    const expenseEnd = bounds.end === '9999' ? '9999' : localDate(bounds.end);
+    const expense = expenseTotals(db,expenseStart,expenseEnd);
     for (const value of [...Object.values(totals),expense.total]) if (!Number.isSafeInteger(value)) throw new Error('Unsafe report aggregate');
     const cost = totals.unknownCost ? null : totals.cost;
     const gross = cost === null ? null : totals.sales-cost;

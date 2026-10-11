@@ -1,16 +1,21 @@
 import { ipcMain, type BrowserWindow } from 'electron';
 import type { createCheckoutService } from '../database/checkout';
-import { IPC, DATA_IPC } from '../../src/types/api';
+import { IPC, DATA_IPC, FINANCE_IPC } from '../../src/types/api';
+import type {createFinanceService} from '../database/finance';
 import type {DataProtectionService} from '../main/dataProtection';
 import {logError} from '../main/logging';
 import type { createRepositories } from '../database/repositories';
 import type { createConfigurationService } from '../database/configuration';
 import type { createOrderService } from '../database/orders';
 import type { ReceiptService, PrintManager } from '../receipts/manager';
-export function registerIpc(window: BrowserWindow, repositories: ReturnType<typeof createRepositories>, configuration: ReturnType<typeof createConfigurationService>, orders: ReturnType<typeof createOrderService>, checkout: ReturnType<typeof createCheckoutService>, receipts: ReceiptService, printManager: PrintManager, data?:DataProtectionService): void {
+export function registerIpc(window: BrowserWindow, repositories: ReturnType<typeof createRepositories>, configuration: ReturnType<typeof createConfigurationService>, orders: ReturnType<typeof createOrderService>, checkout: ReturnType<typeof createCheckoutService>, receipts: ReceiptService, printManager: PrintManager, data?:DataProtectionService, finance?:ReturnType<typeof createFinanceService>): void {
   const handle:typeof ipcMain.handle=(channel,listener)=>ipcMain.handle(channel,(event,...args:unknown[])=>{
     if(data?.isMaintenance())throw Error('FOX_DATA_MAINTENANCE');
     return listener(event,...args);
+  });
+  if(finance)for(const [channel,action] of [[FINANCE_IPC.report,finance.report],[FINANCE_IPC.expense,finance.saveExpense],[FINANCE_IPC.history,finance.expenseHistory],[FINANCE_IPC.loss,finance.recordLoss],[FINANCE_IPC.preview,finance.cashPreview],[FINANCE_IPC.close,finance.closeCash],[FINANCE_IPC.movement,finance.recordCashMovement]] as const)handle(channel,(event,...args:unknown[])=>{
+    if(event.sender!==window.webContents||event.senderFrame!==window.webContents.mainFrame||args.length!==1)throw Error('Unauthorized FOX request');
+    try{return action(args[0]);}catch(error){logError('FINANCE_IPC',error);throw Error('Të dhënat financiare nuk mund të lexohen. Kontrollo periudhën dhe provo përsëri.');}
   });
   if(data)for(const [channel,count,action] of [
     [DATA_IPC.diagnostics,0,()=>data.diagnostics()],[DATA_IPC.copy,0,()=>data.copyDiagnostics()],

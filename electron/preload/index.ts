@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { IPC, DATA_IPC, type FoxApi } from '../../src/types/api';
+import { IPC, DATA_IPC, FINANCE_IPC, type FoxApi } from '../../src/types/api';
 const api: FoxApi = {
+  finance:{recordCashMovement:input=>ipcRenderer.invoke(FINANCE_IPC.movement,input),report:input=>ipcRenderer.invoke(FINANCE_IPC.report,input),saveExpense:input=>ipcRenderer.invoke(FINANCE_IPC.expense,input),expenseHistory:id=>ipcRenderer.invoke(FINANCE_IPC.history,id),recordLoss:input=>ipcRenderer.invoke(FINANCE_IPC.loss,input),cashPreview:input=>ipcRenderer.invoke(FINANCE_IPC.preview,input),closeCash:input=>ipcRenderer.invoke(FINANCE_IPC.close,input)},
   data: { diagnostics:()=>ipcRenderer.invoke(DATA_IPC.diagnostics),copyDiagnostics:()=>ipcRenderer.invoke(DATA_IPC.copy),backup:()=>ipcRenderer.invoke(DATA_IPC.backup),restore:()=>ipcRenderer.invoke(DATA_IPC.restore),rendererError:input=>ipcRenderer.invoke(DATA_IPC.error,input) },
   tables: { list: () => ipcRenderer.invoke(IPC.tables) },
   orders: {

@@ -52,7 +52,7 @@ export type CheckoutErrorCode = 'INVALID_REQUEST' | 'ORDER_NOT_OPEN' | 'ORDER_EM
 export type CheckoutResult = { ok: true; data: { orderId: string; saleNumber: number; paymentMethod: 'CASH'; totalCents: number; completedAt: string; receiptWarning?: boolean; workspace: OrderWorkspace } } | { ok: false; code: CheckoutErrorCode; message: string };
 export interface SaleReportItem { id: string; name: string; quantity: number; unitPriceCents: number; unitCostCents: number | null; totalCents: number; costCents: number | null; profitCents: number | null }
 export interface SalesReport {
-  summary: ReportSummary; period: ReportPeriod; cashCents: number; cardCents: number; unknownPaymentCents: number;
+  summary: ReportSummary; period: ReportPeriod | import('./finance').FinanceQuery; cashCents: number; cardCents: number; unknownPaymentCents: number;
   costCoverage: { knownCostCents: number; missingCostLines: number; missingCostUnits: number; salesWithoutCostCents: number };
   recentSales: { id: string; saleNumber: number; tableCode: string; completedAt: string; paymentMethod: HistoricalPaymentMethod | null; totalCents: number; items: SaleReportItem[] }[];
 }

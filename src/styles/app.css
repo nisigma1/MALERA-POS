@@ -549,3 +549,11 @@ body:has([data-page="tables"]) .topbar { position: absolute; top: 0; right: 0; w
 @media (max-height: 650px) {
   [data-page="inventory"] .inventory-surface { min-height: 260px; flex-shrink: 0; }
 }
+.finance-tabs,.finance-period,.finance-heading{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.finance-tabs{margin-bottom:20px}.finance-tabs [aria-pressed=true]{background:#ece5d9;border-color:#ae8952;color:#62481f}
+.finance-period{margin:0 0 16px}.finance-period label{display:grid;gap:6px}.finance-section{margin-top:20px;padding:24px;background:#fff;border:1px solid #e1e4e4;border-radius:10px;min-width:0}
+.finance-heading{justify-content:space-between}.finance-heading h2,.finance-section>h2{margin-top:0}.finance-heading p,.finance-section>p{color:#64737d}
+.finance-scroll{overflow:auto;margin-top:16px}.finance-scroll table{min-width:760px;width:100%;border-collapse:collapse}.finance-scroll th,.finance-scroll td{padding:14px 12px;border-bottom:1px solid #e3e6e6;text-align:left;vertical-align:top}.finance-scroll td{overflow-wrap:anywhere;max-width:320px}.finance-scroll td .button{margin:2px 6px 2px 0}.finance-scroll td:not(:last-child){font-variant-numeric:tabular-nums}
+.finance-negative{color:#a63232!important}.finance-result{border-color:#b99556!important}.finance-result small{display:block;margin-top:6px}.finance-history{margin:20px 0;padding:16px;background:#f4f3ef;border-radius:8px;overflow-wrap:anywhere}
+.finance-check{display:flex;gap:10px;align-items:center}.finance-check input{width:18px;height:18px;flex:none}.finance-fields{display:grid;grid-template-columns:1fr 1fr;gap:20px}.cash-form{max-width:780px}.cash-form fieldset{border:0;padding:0;min-width:0}.cash-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin:20px 0}.cash-summary dd{margin:8px 0;font-size:24px;font-weight:650;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.cash-summary dt{color:#64737d}.cash-form .button{margin:8px 12px 8px 0}
+@media(max-width:1100px){.cash-summary{grid-template-columns:1fr}.finance-fields{grid-template-columns:1fr}.finance-section{padding:18px}.finance-period input{max-width:180px}}

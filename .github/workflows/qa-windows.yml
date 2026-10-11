@@ -24,7 +24,7 @@ jobs:
           REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
         run: |
           $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
-          $visualOutput = [IO.Path]::GetFullPath((Join-Path $env:GITHUB_WORKSPACE '../../outputs/fox-phase8-screenshots'))
+          $visualOutput = [IO.Path]::GetFullPath((Join-Path $env:GITHUB_WORKSPACE '../../outputs/fox-phase9-regression-screenshots'))
           "FOX_VISUAL_OUTPUT=$visualOutput" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
           if ($version -notmatch '^\d+\.\d+\.\d+-(?:qa|rc)\.\d+$') { throw 'Only a prerelease candidate is permitted; artifact remains explicitly QA/UNSIGNED' }
           if ($env:REPOSITORY_PRIVATE -ne 'true') { throw 'Repository must remain private' }
@@ -36,6 +36,7 @@ jobs:
       - run: npm run verify:cutover
       - run: npm run verify:product-day
       - run: node scripts/verify-product-ui.mjs
+      - run: node scripts/verify-finance.mjs
       - run: npm run verify:runtime
       - run: npm run verify:checkout
       - run: node scripts/verify-receipt-crashes.mjs
@@ -67,6 +68,19 @@ jobs:
         with:
           name: FOX-Visual-Acceptance
           path: ${{ env.FOX_VISUAL_OUTPUT }}
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Installed owner financial acceptance
+        shell: pwsh
+        run: |
+          $version=(Get-Content package.json -Raw | ConvertFrom-Json).version
+          node scripts/verify-finance.mjs "release/FOX-Setup-$version-x64.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Installed financial acceptance failed' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: FOX-Financial-Acceptance
+          path: ../../outputs/fox-phase9-screenshots
           if-no-files-found: warn
           retention-days: 14
       - name: Installed owner UI cutover and native backup/recovery
@@ -116,6 +130,20 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Frozen baseline upgrade failed' }
           node scripts/verify-installed.mjs work/phase7-visual-baseline/release/FOX-Setup-0.6.0-rc.2-x64.exe "release/FOX-Setup-$version-x64.exe"
           if ($LASTEXITCODE -ne 0) { throw 'Phase 7 baseline upgrade failed' }
+
+      - name: Accepted Phase 8 upgrade
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh run download 38084137512 -n FOX-QA-Windows-x64 -D work/phase8-accepted
+          if ($LASTEXITCODE -ne 0) { throw 'Accepted Phase 8 download failed' }
+          $oldInstaller='work/phase8-accepted/release/FOX-Setup-0.6.0-rc.3-x64.exe'
+          $baseline=Get-Content work/phase8-accepted/release/release-manifest.json -Raw | ConvertFrom-Json
+          if ($baseline.commit -ne '99f9e7d6ac0a85cd65da0585994e87ecf8110636' -or (Get-FileHash $oldInstaller).Hash.ToLowerInvariant() -ne '6b2168941d9e2656f48d041d1ed7a01d17ab28320269a976d778bd5b1574a69b') { throw 'Phase 8 provenance mismatch' }
+          $version=(Get-Content package.json -Raw | ConvertFrom-Json).version
+          node scripts/verify-installed.mjs $oldInstaller "release/FOX-Setup-$version-x64.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Phase 8 upgrade failed' }
 
       - name: Retain sanitized acceptance evidence
         if: always()

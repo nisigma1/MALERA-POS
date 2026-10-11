@@ -8,6 +8,7 @@ import type { CatalogProduct, CategoryCode } from '../domain/types';
 import { Button, EmptyState, Icon, PageHeader, StockBadge } from '../components/ui';
 import { ProductEditor } from '../components/ProductEditor';
 import { SupplyPanel } from '../components/SupplyPanel';
+import {StockLossPanel} from '../components/StockLossPanel';
 const load = () => window.fox.products.list();
 export function Inventory() {
   const { data, error, retry, setData } = useData(load);
@@ -15,6 +16,7 @@ export function Inventory() {
   const [search, setSearch] = useState('');
   const [editor, setEditor] = useState<CatalogProduct>();
   const [supply, setSupply] = useState(false);
+  const [loss,setLoss]=useState(false);
   const [feedback, setFeedback] = useState('');
   useEffect(() => { if (!feedback) return; const timer = setTimeout(() => setFeedback(''), 5000); return () => clearTimeout(timer); }, [feedback]);
   const onSaved = (product: CatalogProduct, message: string) => {
@@ -24,7 +26,7 @@ export function Inventory() {
   const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('sq-AL');
   const filtered = data?.filter(p => (!category || p.categoryId === category) && normalize(p.name).includes(normalize(search.trim()))) ?? [];
   const summary = data ? inventorySummary(data) : null;
-  const header = <PageHeader title="Inventari" helper="Menaxho produktet, çmimet dhe stokun e FOX." actions={<Button variant="primary" onClick={() => setSupply(true)} disabled={!data}><Icon name="plus"/>Shto furnizim</Button>}/>;
+  const header = <PageHeader title="Inventari" helper="Menaxho produktet, çmimet dhe stokun e FOX." actions={<><Button variant="primary" onClick={() => setSupply(true)} disabled={!data}><Icon name="plus"/>Shto furnizim</Button><Button data-stock-loss onClick={()=>setLoss(true)} disabled={!data}>Regjistro humbje</Button></>}/>;
   if (!data || !summary) return <>{header}<DataState error={error} retry={retry}/></>;
   return <div data-page="inventory">
     {header}
@@ -55,5 +57,6 @@ export function Inventory() {
     </div>
     {editor && <ProductEditor product={editor} onClose={() => setEditor(undefined)} onSaved={product => onSaved(product, 'Produkti u ruajt.')}/>}
     {supply && <SupplyPanel products={data} onClose={() => setSupply(false)} onSaved={product => onSaved(product, 'Furnizimi u regjistrua.')}/>}
+    {loss&&<StockLossPanel products={data} onClose={()=>setLoss(false)} onSaved={()=>{setLoss(false);setFeedback('Humbja u regjistrua dhe stoku u përditësua.');retry();}}/>}
   </div>;
 }

@@ -7,7 +7,7 @@ export interface ProductUpdate {
   sellingPriceCents: number | null; trackInventory: boolean | null;
   lowStockThreshold: number | null; active: boolean;
 }
-export interface SupplyRequest { requestId: string; productId: string; quantity: number }
+export interface SupplyRequest { requestId: string; productId: string; quantity: number; drawerPaymentCents?: number }
 export function validateProductUpdate(input: unknown): FieldErrors {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return { form: 'Kërkesa nuk është e vlefshme.' };
   const value = input as Record<string, unknown>;
@@ -31,11 +31,12 @@ export function validateProductUpdate(input: unknown): FieldErrors {
 export function validateSupply(input: unknown): FieldErrors {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return { form: 'Kërkesa nuk është e vlefshme.' };
   const value = input as Record<string, unknown>;
-  if(Object.keys(value).some(key=>!['requestId','productId','quantity'].includes(key)))return {form:'Kërkesa nuk është e vlefshme.'};
+  if(Object.keys(value).some(key=>!['requestId','productId','quantity','drawerPaymentCents'].includes(key)))return {form:'Kërkesa nuk është e vlefshme.'};
   const errors: FieldErrors = {};
   if (typeof value.requestId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.requestId)) errors.form = 'Identifikuesi i furnizimit nuk është i vlefshëm.';
   if (typeof value.productId !== 'string' || !value.productId || value.productId.length>200) errors.productId = 'Zgjidh produktin.';
   if (typeof value.quantity !== 'number' || !Number.isFinite(value.quantity) || value.quantity <= 0 || value.quantity > Number.MAX_SAFE_INTEGER) errors.quantity = 'Sasia duhet të jetë një numër më i madh se zero.';
+  if(value.drawerPaymentCents!==undefined && (typeof value.drawerPaymentCents!=='number'||!Number.isSafeInteger(value.drawerPaymentCents)||value.drawerPaymentCents<=0)) errors.drawerPaymentCents='Vendos shumën e paguar nga arka, më të madhe se zero.';
   return errors;
 }
 export function unitProfit(product: Pick<Product, 'sellingPriceCents' | 'purchaseCostCents'>): number | null {

@@ -34,6 +34,8 @@ export function createConfigurationService(db: Database.Database, repositories: 
         // The movement's primary key is the submission token: a retry cannot add stock twice.
         const existing = db.prepare('SELECT product_id,type,quantity_delta FROM inventory_movements WHERE id=?').get(value.requestId) as { product_id: string; type: string; quantity_delta: number } | undefined;
         if (existing) {
+          const cash=db.prepare('SELECT -amount_cents AS paid FROM cash_events WHERE supply_id=?').get(value.requestId) as {paid:number}|undefined;
+          if(cash?.paid!==value.drawerPaymentCents)return failure({form:'Ky furnizim është regjistruar me pagesë tjetër.'});
           if (existing.product_id !== value.productId || existing.type !== 'SUPPLY' || existing.quantity_delta !== value.quantity) return failure({ form: 'Ky furnizim është regjistruar me të dhëna të tjera. Hap një furnizim të ri.' });
           return { ok: true, data: product } as const;
         }
@@ -46,6 +48,10 @@ export function createConfigurationService(db: Database.Database, repositories: 
           VALUES (?,?,'SUPPLY',?,NULL,?,?)`).run(value.requestId, product.id, value.quantity, product.stockQuantity === null ? 'Vendosja fillestare e stokut përmes furnizimit' : null, now);
         const result = db.prepare('UPDATE inventory_balances SET quantity=?,updated_at=? WHERE product_id=?').run(quantity, now, product.id);
         if (result.changes !== 1) throw new Error('Inventory balance is missing');
+        if(value.drawerPaymentCents!==undefined){
+          db.prepare('INSERT INTO cash_sessions SELECT ?,? WHERE NOT EXISTS(SELECT 1 FROM cash_sessions s WHERE NOT EXISTS(SELECT 1 FROM cash_closes c WHERE c.session_id=s.id))').run('supply-session:'+value.requestId,now);
+          db.prepare(`INSERT INTO cash_events(id,session_id,kind,amount_cents,supply_id,reason,note,created_at,request_json) SELECT ?,id,'INVENTORY_SUPPLY_OUT',?,?,'Furnizim nga arka','',?,? FROM cash_sessions s WHERE NOT EXISTS(SELECT 1 FROM cash_closes c WHERE c.session_id=s.id)`).run('supply:'+value.requestId,-value.drawerPaymentCents,value.requestId,now,JSON.stringify(value));
+        }
         return { ok: true, data: find(product.id)! } as const;
       }).immediate();
     },

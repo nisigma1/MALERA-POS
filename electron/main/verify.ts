@@ -70,7 +70,7 @@ export async function verifyRuntime(window: BrowserWindow, directory: string, re
     nodeAccessible: typeof window.require !== 'undefined' || typeof window.process !== 'undefined',
     keys: Object.keys(window.fox)
   }))()`) as { tables: unknown[]; products: unknown[]; settings: { businessName: string }; reports: { salesCents: number; completedOrders: number }; nodeAccessible: boolean; keys: string[] };
-  if (api.tables.length !== 27 || api.products.length !== 21 || api.settings.businessName !== 'FOX' || api.reports.salesCents !== 0 || api.reports.completedOrders !== 0 || api.nodeAccessible || api.keys.sort().join(',') !== 'data,inventory,orders,products,receipts,reports,settings,tables') {
+  if (api.tables.length !== 27 || api.products.length !== 21 || api.settings.businessName !== 'FOX' || api.reports.salesCents !== 0 || api.reports.completedOrders !== 0 || api.nodeAccessible || api.keys.sort().join(',') !== 'data,finance,inventory,orders,products,receipts,reports,settings,tables') {
     throw new Error('Preload/runtime data verification failed');
   }
   for (const [width, height] of [[1366, 768], [1440, 900], [1920, 1080]] as const) {

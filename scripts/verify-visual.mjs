@@ -10,7 +10,7 @@ import {build} from 'esbuild';
 import {createQaDirectory} from './qa-directory.mjs';
 const phase=process.argv[2]??'before',installer=process.argv[3],directory=createQaDirectory('visual-'+phase);
 assert.ok(['before','after'].includes(phase));
-const output=path.resolve('../../outputs/fox-phase8-screenshots');fs.mkdirSync(output,{recursive:true});
+const output=path.resolve(process.env.FOX_VISUAL_OUTPUT??'../../outputs/fox-phase9-regression-screenshots');fs.mkdirSync(output,{recursive:true});
 await build({entryPoints:['electron/main/cutover-ui.ts'],outfile:'work/visual-ui.cjs',bundle:true,platform:'node',format:'cjs'});
 const {cutoverUi}=createRequire(import.meta.url)('../work/visual-ui.cjs');
 let executable=electron;

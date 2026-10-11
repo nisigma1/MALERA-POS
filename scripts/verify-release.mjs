@@ -55,7 +55,7 @@ const sbom=`FOX-${version}-sbom.json`,sbomContent=fs.readFileSync(path.join(root
 if(JSON.parse(sbomContent).bomFormat!=='CycloneDX'||secrets.test(sbomContent.toString()))throw Error('Invalid SBOM');
 let tag=null;try{tag=execFileSync('git',['describe','--tags','--exact-match'],{encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim();}catch{}
 if(stamp.channel!=='QA'&&tag!==`v${version}`)throw Error('Official tag mismatch');
-const manifest={manifestVersion:2,product:'FOX Kafeteri',appId:'com.foxkafeteri.pos',version,channel:stamp.channel,platform:'win32',arch:'x64',artifact,sha256,commit,tag,ciRun:process.env.GITHUB_RUN_ID??null,builtAt:new Date().toISOString(),schemaVersion:4,signing,signer:signing==='SIGNED'?signatures.find(s=>s.file===artifact)?.signer:null,sbom,sbomSha256:crypto.createHash('sha256').update(sbomContent).digest('hex'),databaseBundled:false};
+const manifest={manifestVersion:2,product:'FOX Kafeteri',appId:'com.foxkafeteri.pos',version,channel:stamp.channel,platform:'win32',arch:'x64',artifact,sha256,commit,tag,ciRun:process.env.GITHUB_RUN_ID??null,builtAt:new Date().toISOString(),schemaVersion:5,signing,signer:signing==='SIGNED'?signatures.find(s=>s.file===artifact)?.signer:null,sbom,sbomSha256:crypto.createHash('sha256').update(sbomContent).digest('hex'),databaseBundled:false};
 fs.writeFileSync(installer+'.sha256',checksum);
 fs.writeFileSync(path.join(root,'release-manifest.json'),JSON.stringify(manifest,null,2)+'\n');
 console.log(JSON.stringify({passed:true,artifact,sha256,commit,asarEntries:files.length}));

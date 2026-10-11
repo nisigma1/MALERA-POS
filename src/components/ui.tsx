@@ -41,7 +41,7 @@ export function useFieldErrorFocus(errors: Record<string, string>, busy: boolean
     previousCount.current = count;
   }, [errors, busy, formId]);
 }
-export function SidePanel({ title, subtitle, children, footer, busy, onClose }: { title: string; subtitle: string; children: ReactNode; footer: ReactNode; busy: boolean; onClose: () => void }) {
+export function SidePanel({ title, subtitle, children, footer, busy, onClose, eyebrow='INVENTARI' }: { title: string; subtitle: string; children: ReactNode; footer: ReactNode; busy: boolean; onClose: () => void; eyebrow?:string }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
@@ -51,7 +51,7 @@ export function SidePanel({ title, subtitle, children, footer, busy, onClose }: 
     return () => { dialog?.close(); opener?.focus(); };
   }, []);
   return <dialog className="side-panel" ref={ref} aria-labelledby="panel-title" onCancel={event => { event.preventDefault(); if (!busy) onClose(); }}>
-    <div className="panel-header"><div><span className="eyebrow">INVENTARI</span><h2 id="panel-title">{title}</h2><p>{subtitle}</p></div>
+    <div className="panel-header"><div><span className="eyebrow">{eyebrow}</span><h2 id="panel-title">{title}</h2><p>{subtitle}</p></div>
       <Button variant="ghost" className="icon-button" aria-label="Mbyll panelin" disabled={busy} onClick={onClose}><Icon name="close"/></Button></div>
     <div className="panel-body">{children}</div><footer className="panel-footer">{footer}</footer>
   </dialog>;
