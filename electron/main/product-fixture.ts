@@ -26,7 +26,7 @@ const count=(name:string)=>Number((db.prepare(`SELECT COUNT(*) n FROM ${name}`).
 const fresh={tables:count('cafe_tables'),products:count('products'),categories:count('categories'),orders:count('orders'),payments:count('order_payments'),movements:count('inventory_movements'),documents:count('receipt_documents'),jobs:count('receipt_print_jobs')};
 assert.deepEqual(fresh,{tables:27,products:21,categories:5,orders:0,payments:0,movements:0,documents:0,jobs:0});
 assert.ok(createRepositories(db).listProducts().every(p=>p.sellingPriceCents===null&&p.purchaseCostCents===null&&p.trackInventory===null&&p.stockQuantity===null&&p.lowStockThreshold===null));
-assert.equal(inspectDatabase(db),4);assert.equal(inspectDatabase(db,true),4);
+assert.equal(inspectDatabase(db),5);assert.equal(inspectDatabase(db,true),5);
 assert.deepEqual(createRepositories(db).listTables().map(t=>({code:t.code,area:t.area})),SERVICE_POSITIONS.map(t=>({code:t.code,area:t.area})));
 assert.deepEqual(createRepositories(db).listProducts().map(p=>({id:p.id,name:p.name,categoryId:p.categoryId})),INITIAL_PRODUCTS);
 assert.deepEqual(db.prepare('SELECT id,name,sort_order AS sortOrder FROM categories ORDER BY sort_order').all(),CATEGORIES);
@@ -60,7 +60,7 @@ if(mode!=='production-only'){
   assert.equal(report.summary.salesCents,revenue);assert.equal(report.cashCents,revenue);assert.equal(report.cardCents,0);assert.equal(report.unknownPaymentCents,0);assert.equal(report.summary.completedOrders,count('order_payments'));assert.equal(report.summary.costCents,null);
   const sequence=db.prepare("SELECT sale_number n FROM orders WHERE status='CLOSED' ORDER BY sale_number").all() as {n:number}[];assert.deepEqual(sequence.map(s=>s.n),Array.from({length:sequence.length},(_,i)=>i+1));
   const stock=createRepositories(db).listProducts().filter(p=>p.trackInventory===true).map(p=>{const delta=Number((db.prepare('SELECT SUM(quantity_delta) n FROM inventory_movements WHERE product_id=?').get(p.id) as {n:number}).n);assert.equal(p.stockQuantity,delta);return {product:p.id,opening:0,movementSum:delta,closing:p.stockQuantity};});
-  assert.equal(inspectDatabase(db,true),4);return {revenueCents:revenue,cashCents:report.cashCents,sales:sequence.length,stock,unknownCost:true};
+  assert.equal(inspectDatabase(db,true),5);return {revenueCents:revenue,cashCents:report.cashCents,sales:sequence.length,stock,unknownCost:true};
  };
  const accounting=reconcile(),beforeHistory=readSalesReport(db,'ALL');set('KAFE-1',250,80,true);const p=createRepositories(db).listProducts().find(p=>p.id==='KAFE-1')!;assert.ok(config().updateProduct({...p,name:'QA changed after historical sale',active:false}).ok);assert.deepEqual(readSalesReport(db,'ALL'),beforeHistory);assert.ok(config().updateProduct({...p,name:'Espresso',active:true}).ok);
  const backup=path.join(directory,'day-end.sqlite');await createBackup(db,backup,version);await validateBackup(backup);const exact=rows();

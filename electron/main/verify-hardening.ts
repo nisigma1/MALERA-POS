@@ -10,7 +10,7 @@ export async function verifyHardening(window:BrowserWindow,directory:string,db:D
  const expectedFile=path.join(directory,'hardening-expected.json'),snapshot=()=>Object.fromEntries((db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all() as {name:string}[]).map(({name})=>[name,db.prepare(`SELECT * FROM ${name} ORDER BY rowid`).all()]));
  const js=<T=unknown>(code:string)=>window.webContents.executeJavaScript(code) as Promise<T>;
  if(fs.existsSync(expectedFile)){
-  assert.deepEqual(snapshot(),JSON.parse(fs.readFileSync(expectedFile,'utf8')));assert.equal(inspectDatabase(db,true),4);
+  assert.deepEqual(snapshot(),JSON.parse(fs.readFileSync(expectedFile,'utf8')));assert.equal(inspectDatabase(db,true),5);
   assert.equal(await js('typeof require'), 'undefined');
   fs.writeFileSync(path.join(directory,'hardening-result.json'),JSON.stringify({passed:true,realElectron:true,backupThroughUi:true,restoreThroughUi:true,nativeConfirmationDefaultsSafe:true,actualAppRelaunch:true,roundtripExact:true,offline:true,nodeAbsent:true,viewports:[1366,1440,1920]},null,2));return;
  }
