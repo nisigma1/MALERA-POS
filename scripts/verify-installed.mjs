@@ -130,7 +130,8 @@ try {
     const fixture=await api(`
       const must=r=>{if(!r.ok)throw Error(JSON.stringify(r));return r.data;};
       const w=await fox.orders.getForTable('M6');must(await fox.orders.removeItem({tableId:'M6',itemId:w.order.items[0].id}));
-      const base={category:'OTHER',occurredAt:new Date().toISOString(),description:'Isolated canonical upgrade QA',paidFromTill:true};
+      // Main/renderer clocks can differ by a timer tick; this fixture is an actual past expense.
+      const base={category:'OTHER',occurredAt:new Date(Date.now()-60000).toISOString(),description:'Isolated canonical upgrade QA',paidFromTill:true};
       const expense=must(await fox.finance.saveExpense({...base,requestId:crypto.randomUUID(),amountCents:200}));
       must(await fox.finance.saveExpense({...base,requestId:crypto.randomUUID(),amountCents:20,expenseId:expense.id,expectedRevision:expense.revisionId}));
       must(await fox.finance.saveExpense({...base,requestId:crypto.randomUUID(),amountCents:50,paidFromTill:false}));
