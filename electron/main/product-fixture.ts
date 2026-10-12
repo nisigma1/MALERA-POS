@@ -27,10 +27,12 @@ const fresh={tables:count('cafe_tables'),products:count('products'),categories:c
 assert.deepEqual(fresh,{tables:27,products:21,categories:5,orders:0,payments:0,movements:0,documents:0,jobs:0});
 assert.ok(createRepositories(db).listProducts().every(p=>p.sellingPriceCents===null&&p.purchaseCostCents===null&&p.trackInventory===null&&p.stockQuantity===null&&p.lowStockThreshold===null));
 assert.equal(inspectDatabase(db),6);assert.equal(inspectDatabase(db,true),6);
+// Independent Phase 9.3 oracle; a seed bug must not redefine the expected domain.
+assert.deepEqual(createRepositories(db).listTables().map(t=>t.code),['M1','M2','M3','M4','M5','M6','M7','M8','M9','M10','M11','M12','M13','SH1','SH2','SH3','SH4','T1','T2','T3','T4','T5','T6','T7','T8','T9','T10']);
 assert.deepEqual(createRepositories(db).listTables().map(t=>({code:t.code,area:t.area})),SERVICE_POSITIONS.map(t=>({code:t.code,area:t.area})));
 assert.deepEqual(createRepositories(db).listProducts().map(p=>({id:p.id,name:p.name,categoryId:p.categoryId})),INITIAL_PRODUCTS);
 assert.deepEqual(db.prepare('SELECT id,name,sort_order AS sortOrder FROM categories ORDER BY sort_order').all(),CATEGORIES);
-const zeroTables=['orders','order_items','order_payments','inventory_movements','expenses','receipt_documents','receipt_print_jobs','receipt_print_attempts','receipt_generation_errors'];
+const zeroTables=['orders','order_items','order_payments','inventory_movements','expenses','expense_revisions','stock_losses','cash_sessions','cash_events','cash_closes','table_reservations','receipt_documents','receipt_print_jobs','receipt_print_attempts','receipt_generation_errors'];
 const zeroHistory=Object.fromEntries(zeroTables.map(name=>[name,count(name)]));assert.ok(Object.values(zeroHistory).every(n=>n===0));
 assert.deepEqual(db.prepare('SELECT key,value FROM settings ORDER BY key').all(),[{key:'business_name',value:'FOX'},{key:'receipt_auto_print',value:'false'},{key:'receipt_printer',value:'null'}]);
 const result:Record<string,unknown>={fresh,zeroHistory,quickCheck:'ok',foreignKeys:'PASS',defaultsVerified:true,exactReferenceData:true,version,isolated:true};

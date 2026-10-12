@@ -49,5 +49,9 @@ try{
  await ui.js('document.querySelector(".reservation-details").scrollTo(0,10000)');await click('[data-reservation-cancel]');await ui.until('Boolean(document.querySelector("[data-open-reservation]"))');
  await ui.select('M5');await click('[data-open-reservation]');await ui.until('Boolean(document.querySelector("#reservation-form"))');await command('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});await ui.until('!document.querySelector("dialog[open]")');check(await ui.js('document.querySelector("#order-heading")?.textContent==="Tavolina M5"'),'Escape closes reservation form and preserves selected table');
  check((await api('return fox.tables.list();')).length===27,'Canonical 27 service positions unchanged');
+ if(process.env.FOX_CERTIFY_BASELINE==='1'){
+   evidence.uiOnlyMutations=false;
+   evidence.certification=await(await import('./certify-reservations.mjs')).certifyReservations({api,ui,command,observe,check,capture,viewport,directory,installer,close,launch,connect,reserveFromUi,processId:()=>processId});
+ }
  await close();evidence.passed=true;fs.writeFileSync(path.join(output,`${installer?'packaged':'source'}-reservations-result.json`),JSON.stringify(evidence,null,2));console.log(JSON.stringify({passed:true,directory,checks:evidence.checks.length,screenshots:evidence.screenshots.length,restarts:evidence.restarts}));
 }catch(error){evidence.passed=false;evidence.error=error.message;fs.writeFileSync(path.join(output,`${installer?'packaged':'source'}-reservations-result.json`),JSON.stringify(evidence,null,2));if(processId)spawnSync('taskkill.exe',['/PID',String(processId),'/T','/F'],{windowsHide:true});ws?.close();throw error;}

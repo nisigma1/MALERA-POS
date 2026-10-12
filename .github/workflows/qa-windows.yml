@@ -12,6 +12,7 @@ jobs:
     runs-on: windows-latest
     env:
       FOX_QA_SESSION_SALES: '25'
+      FOX_CERTIFY_BASELINE: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -33,7 +34,15 @@ jobs:
           if ($version -notmatch '^\d+\.\d+\.\d+-(?:qa|rc)\.\d+$') { throw 'Only a prerelease candidate is permitted; artifact remains explicitly QA/UNSIGNED' }
           if ($env:REPOSITORY_PRIVATE -ne 'true') { throw 'Repository must remain private' }
       - run: npm ci
-      - run: npm test
+      - name: Three consecutive complete regression suites
+        shell: pwsh
+        run: |
+          for ($suiteRun=1; $suiteRun -le 3; $suiteRun++) {
+            npm test
+            if ($LASTEXITCODE -ne 0) { throw "Full-suite repeat $suiteRun failed; certification stops without retry" }
+          }
+          New-Item -ItemType Directory -Path outputs -Force | Out-Null
+          @{passed=$true;consecutivePasses=3;retriedFailures=0} | ConvertTo-Json | Set-Content outputs/fox-phase9-3-repeatability.json
       - run: npm run typecheck
       - run: npm run build
       - run: npm run verify:production-db
@@ -42,6 +51,7 @@ jobs:
       - run: node scripts/verify-product-ui.mjs
       - run: node scripts/verify-finance.mjs
       - run: npm run verify:reservations
+      - run: node scripts/verify-reservation-atomicity.mjs
       - run: npm run verify:runtime
       - run: npm run verify:checkout
       - run: node scripts/verify-receipt-crashes.mjs
@@ -218,6 +228,13 @@ jobs:
               Copy-Item -LiteralPath $_.FullName -Destination (Join-Path work/ci-evidence ($_.Directory.Name+'-'+$_.Name))
             }
           }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: FOX-Functional-Certification
+          path: outputs/fox-phase9-3-*.json
+          if-no-files-found: warn
+          retention-days: 14
       - uses: actions/upload-artifact@v4
         if: always()
         with:
