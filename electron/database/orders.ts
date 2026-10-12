@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { ActiveOrder, ActiveOrderItem, OrderWorkspace } from '../../src/domain/types';
 import type { MutationResult } from '../../src/domain/configuration';
 import type { createRepositories } from './repositories';
+import { bookedReservation } from './reservations';
 
 // Includes quantities and immutable snapshots; timestamps alone can collide within a millisecond.
 export const orderRevision = (lines: ActiveOrderItem[]) => JSON.stringify(lines.map(i => [i.id, i.quantity, i.unitPriceCents, i.name]));
@@ -40,7 +41,7 @@ export function createOrderService(db: Database.Database, repositories: ReturnTy
       const lines = items(row.id);
       order = { ...row, revision: orderRevision(lines), tableId, status: 'OPEN', items: lines, totalCents: safe(lines.reduce((total,line)=>total+BigInt(line.lineTotalCents),0n)) };
     }
-    return { table, order };
+    return { table, order, reservation: bookedReservation(db,tableId) };
   };
   const writable = (view: OrderWorkspace) => {
     if (!view.table.enabled) throw new OrderError('Ky pozicion shërbimi është joaktiv.');

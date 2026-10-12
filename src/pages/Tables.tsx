@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useData } from '../app/useData';
 import { DataState } from '../components/DataState';
 import { CheckoutDialog } from '../components/CheckoutDialog';
+import { ReservationDialog } from '../components/ReservationDialog';
+import { formatReservationTime, type ReserveTableInput } from '../domain/reservations';
 import { RealFloorPlan } from '../components/RealFloorPlan';
 import { AREA_LABELS, CATEGORIES, TABLE_STATUS_LABELS } from '../domain/definitions';
 import { formatMoney } from '../domain/money';
@@ -10,13 +12,14 @@ import type { MutationResult } from '../domain/configuration';
 import { Button, Icon, PageHeader, StatusBadge } from '../components/ui';
 const load = () => window.fox.tables.list();
 const loadProducts = () => window.fox.products.list();
-const tone = (status: TableStatus) => status === 'FREE' ? 'success' : status === 'ACTIVE' ? 'info' : status === 'AWAITING_PAYMENT' ? 'warning' : 'neutral';
+const tone = (status: TableStatus) => status === 'FREE' ? 'neutral' : status === 'ACTIVE' ? 'info' : ['AWAITING_PAYMENT','RESERVED'].includes(status) ? 'warning' : 'neutral';
 
 export function Tables() {
   const { data, error, retry, setData } = useData(load);
   const catalog = useData(loadProducts);
   const [checkout, setCheckout] = useState<{ code: string; order: ActiveOrder }>();
   const checkoutLock = useRef(false);
+  const [reservationDialog, setReservationDialog] = useState<{id:string;code:string}>();
   const [selected, setSelected] = useState<string>();
   const [view, setView] = useState<OrderWorkspace>();
   const [category, setCategory] = useState<CategoryCode>('KAFE');
@@ -36,7 +39,7 @@ export function Tables() {
   function close() { if (checkoutLock.current) return; current.current = undefined; epoch.current++; setSelected(undefined); setView(undefined); setMessage(''); opener.current?.focus(); }
   useEffect(() => {
     if (!selected) return;
-    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape' && !checkoutLock.current) close(); };
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape' && !checkoutLock.current && !document.querySelector('dialog[open]')) close(); };
     window.addEventListener('keydown', escape);
     return () => window.removeEventListener('keydown', escape);
   }, [selected]);
@@ -105,13 +108,28 @@ export function Tables() {
       return null;
     }
   }
+  async function saveReservation(input: ReserveTableInput): Promise<string | null> {
+    try {
+      const result = await window.fox.reservations.reserve(input);
+      if (!mounted.current) return null;
+      if (!result.ok) return result.message;
+      uncertain.current.delete(input.tableId);
+      setData(tables => tables?.map(item => item.id === input.tableId ? result.data.table : item));
+      if (current.current === input.tableId) { epoch.current++; setView(result.data); setMessage(''); setSuccess('Rezervimi u ruajt.'); }
+      return null;
+    } catch {
+      uncertain.current.add(input.tableId);
+      if (mounted.current) setMessage('Rezervimi nuk u konfirmua. Rifresko gjendjen për ta kontrolluar.');
+      throw new Error('Reservation outcome unknown');
+    }
+  }
   const [success, setSuccess] = useState('');
-  const legend = <div className="table-header-context"><span className="board-count">{data?.length ?? '—'} pozicione</span><div className="status-legend" aria-label="Gjendjet e porosive">{(['FREE','ACTIVE'] as const).map(status => <StatusBadge key={status} tone={tone(status)}>{TABLE_STATUS_LABELS[status]}</StatusBadge>)}</div></div>;
+  const legend = <div className="table-header-context"><span className="board-count">{data?.length ?? '—'} pozicione</span><div className="status-legend" aria-label="Gjendjet e porosive">{(['FREE','ACTIVE','RESERVED'] as const).map(status => <StatusBadge key={status} dot={false} tone={tone(status)}>{TABLE_STATUS_LABELS[status]}</StatusBadge>)}</div></div>;
   const header = <PageHeader title="Tavolinat" helper="" actions={data ? legend : undefined}/>;
   if (!data) return <>{header}<DataState error={error} retry={retry}/></>;
   const table = view?.table ?? data.find(item => item.id === selected);
   const canOrder = Boolean(view && table?.enabled && ['FREE','ACTIVE'].includes(table.status) && (table.status === 'ACTIVE') === Boolean(view.order) && !uncertain.current.has(table.id));
-  const canMutate = canOrder && !checkout;
+  const canMutate = canOrder && !checkout && !reservationDialog;
   const tablePending = pending.some(key => key.startsWith(`${selected}:`));
   const visibleProducts = catalog.data?.filter(product => product.active && product.categoryId === category);
   const saveState = tablePending ? 'pending' : message ? 'error' : !view ? 'loading' : view.order ? 'saved' : 'empty';
@@ -120,10 +138,21 @@ export function Tables() {
     {header}
     <div className="pos-layout"><div className="board-scroll"><RealFloorPlan tables={data} selected={selected} onSelect={select}/></div>
     {table && <aside className="order-workspace" data-order-workspace aria-labelledby="order-heading">
-      <header className="order-header"><div><h2 id="order-heading">Tavolina {table.code}</h2><div className="order-context"><span>{AREA_LABELS[table.area]}</span><StatusBadge tone={tone(table.status)}>{TABLE_STATUS_LABELS[table.status]}</StatusBadge></div></div><Button variant="ghost" className="icon-button" aria-label="Mbyll panelin e tavolinës" onClick={close}><Icon name="close"/></Button></header>
+      <header className="order-header"><div><h2 id="order-heading">Tavolina {table.code}</h2><div className="order-context"><span>{AREA_LABELS[table.area]}</span><StatusBadge dot={false} tone={tone(table.status)}>{TABLE_STATUS_LABELS[table.status]}</StatusBadge></div></div><Button variant="ghost" className="icon-button" aria-label="Mbyll panelin e tavolinës" onClick={close}><Icon name="close"/></Button></header>
+      {canOrder && !view?.order && <div className="reservation-toolbar"><Button data-open-reservation disabled={tablePending || !!reservationDialog} onClick={()=>setReservationDialog({id:table.id,code:table.code})}>Rezervo tavolinën</Button></div>}
       <div className="order-body" ref={orderBody}>
         {message && <div role="alert" className="form-error">{message}{(readFailed || uncertain.current.has(table.id)) && <Button onClick={() => select(table.id)}>Rifresko gjendjen</Button>}</div>}
         {!view ? <p className="order-help">{readFailed ? 'Gjendja e porosisë nuk është e disponueshme.' : 'Duke lexuar porosinë…'}</p> : <>
+          {view.reservation ? <section className="reservation-details" aria-label="Rezervimi i tavolinës" data-reservation-details>
+            <span className="eyebrow">REZERVIMI</span><h3>{view.reservation.customerName}</h3>
+            <dl><div><dt>Data / ora</dt><dd>{formatReservationTime(view.reservation.startsAt)}</dd></div>
+              <div><dt>Persona</dt><dd>{view.reservation.guests}</dd></div>
+              {view.reservation.phone && <div><dt>Telefoni</dt><dd>{view.reservation.phone}</dd></div>}
+              {view.reservation.note && <div><dt>Shënim</dt><dd>{view.reservation.note}</dd></div>}</dl>
+            <p className="order-help">Kur klienti të vijë, shëno mbërritjen dhe shto produktet në porosi.</p>
+            <div className="reservation-actions"><Button variant="primary" data-reservation-arrive disabled={tablePending || uncertain.current.has(table.id)} onClick={()=>run(`${table.id}:reservation`,()=>window.fox.reservations.arrive({tableId:table.id,reservationId:view.reservation!.id}))}>Klienti mbërriti</Button>
+              <Button data-reservation-cancel disabled={tablePending || uncertain.current.has(table.id)} onClick={()=>run(`${table.id}:reservation`,()=>window.fox.reservations.cancel({tableId:table.id,reservationId:view.reservation!.id}))}>Anulo rezervimin</Button></div>
+          </section> : <>
           {!canOrder && !uncertain.current.has(table.id) && <p className="notice">{!table.enabled ? 'Ky pozicion shërbimi është joaktiv.' : 'Porositë nuk janë të disponueshme për këtë gjendje tavoline.'}</p>}
           <section className="product-browser" aria-label="Shto produkte në porosi">
           <div className="order-categories" role="group" aria-label="Kategoritë e produkteve">{CATEGORIES.map(item => <Button key={item.id} variant="ghost" aria-pressed={item.id === category} data-order-category={item.id} onClick={() => setCategory(item.id)}>{item.name}</Button>)}</div>
@@ -140,11 +169,13 @@ export function Tables() {
               return <div className="order-item" key={item.id} data-order-item={item.id}><div className="order-item-name"><strong>{item.name}</strong><small>{formatMoney(item.unitPriceCents)} / njësi</small></div><div className="order-item-controls"><div className="quantity-control"><Button className="icon-button" disabled={disabled || item.quantity === 1} aria-label={`Ul sasinë e ${item.name}`} onClick={() => run(key, () => window.fox.orders.decrementItem(input))}><Icon name="minus"/></Button><span data-order-quantity>{item.quantity}</span><Button className="icon-button" disabled={disabled} aria-label={`Rrit sasinë e ${item.name}`} onClick={() => run(key, () => window.fox.orders.incrementItem(input))}><Icon name="plus"/></Button></div><strong>{formatMoney(item.lineTotalCents)}</strong><Button variant="ghost" className="icon-button remove-item" disabled={disabled} aria-label={`Hiq ${item.name}`} onClick={() => run(key, () => window.fox.orders.removeItem(input))}><Icon name="trash"/></Button></div></div>;
             })}
           </section>
+          </>}
         </>}
       </div>
-      <footer className="order-footer" data-order-state={saveState}><div><strong>{view && !view.order ? 'Pa porosi' : 'Totali'}</strong><strong data-order-total>{view?.order ? formatMoney(view.order.totalCents) : '—'}</strong></div><p role="status">{success || saveMessage}</p><Button variant="primary" className="checkout-open" data-open-checkout disabled={!canOrder || !view?.order?.items.length || tablePending || !!checkout} onClick={() => { if (!view?.order || busy.current.size || checkoutLock.current) return; checkoutLock.current = true; setSuccess(''); setCheckout({ code: table.code, order: view.order }); }}>Mbyll llogarinë</Button></footer>
+      <footer className="order-footer" data-order-state={saveState}><div><strong>{view?.reservation ? 'Rezervim' : view && !view.order ? 'Pa porosi' : 'Totali'}</strong><strong data-order-total>{view?.order ? formatMoney(view.order.totalCents) : '—'}</strong></div><p role="status">{view?.reservation ? 'Tavolina mbahet për klientin e rezervuar.' : success || saveMessage}</p>{!view?.reservation && <Button variant="primary" className="checkout-open" data-open-checkout disabled={!canOrder || !view?.order?.items.length || tablePending || !!checkout} onClick={() => { if (!view?.order || busy.current.size || checkoutLock.current) return; checkoutLock.current = true; setSuccess(''); setCheckout({ code: table.code, order: view.order }); }}>Mbyll llogarinë</Button>}</footer>
     </aside>}
     </div>
+    {reservationDialog && <ReservationDialog tableId={reservationDialog.id} tableCode={reservationDialog.code} onClose={()=>setReservationDialog(undefined)} onSave={saveReservation}/> }
     {checkout && <CheckoutDialog tableCode={checkout.code} items={checkout.order.items} totalCents={checkout.order.totalCents} onClose={cancelCheckout} onConfirm={confirmCheckout}/>}
   </div>;
 }

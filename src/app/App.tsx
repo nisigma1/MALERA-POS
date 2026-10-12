@@ -21,7 +21,7 @@ export function App() {
   return <div className="shell">
     <aside className="sidebar"><div className="brand"><strong>FOX</strong><span>KAFETERI</span></div>
       <nav aria-label="Navigimi kryesor">{sections.map(item=><button key={item.id} data-nav={item.id} aria-current={section.id===item.id?'page':undefined} onClick={()=>setSection(item)}><Icon name={item.id}/>{item.label}</button>)}</nav>
-      <div className="local-label"><span className="local-dot"/>Lokale<span className="local-helper">Të dhënat në këtë pajisje</span></div>
+      <div className="local-label"><span>Lokale</span><span className="local-helper">Të dhënat në këtë pajisje</span></div>
     </aside>
     <div className="workspace"><div className="topbar"><time dateTime={now.toISOString()}>{date}<strong>{time}</strong></time></div><PrintNotices/><main className="content"><Page/></main></div>
   </div>;

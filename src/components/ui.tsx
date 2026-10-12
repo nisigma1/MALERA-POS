@@ -20,8 +20,8 @@ export function Button({ variant = 'secondary', className = '', ...props }: Butt
 export function PageHeader({ title, helper, actions }: { title: string; helper: string; actions?: ReactNode }) {
   return <header className="page-header"><div><h1>{title}</h1><p>{helper}</p></div>{actions && <div className="page-actions">{actions}</div>}</header>;
 }
-export function StatusBadge({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'neutral' | 'success' | 'warning' | 'danger' | 'info' }) {
-  return <span className={`badge badge-${tone}`}><span className="badge-dot" />{children}</span>;
+export function StatusBadge({ children, tone = 'neutral', dot = false }: { children: ReactNode; tone?: 'neutral' | 'success' | 'warning' | 'danger' | 'info'; dot?: boolean }) {
+  return <span className={`badge badge-${tone}`}>{dot && <span className="badge-dot" />}{children}</span>;
 }
 export function StockBadge({ state }: { state: StockState }) {
   return <StatusBadge tone={state === 'OUT' ? 'danger' : state === 'LOW' ? 'warning' : state === 'IN_STOCK' ? 'success' : 'neutral'}>{STOCK_LABELS[state]}</StatusBadge>;

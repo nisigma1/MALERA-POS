@@ -7,6 +7,7 @@ import { createRepositories } from '../database/repositories';
 import { createConfigurationService } from '../database/configuration';
 import { createCheckoutService } from '../database/checkout';
 import { createOrderService } from '../database/orders';
+import { createReservationService } from '../database/reservations';
 import {createFinanceService} from '../database/finance';
 import { registerIpc } from '../ipc/register';
 import { verificationDirectory } from '../database/safety';
@@ -62,7 +63,7 @@ async function start() {
   const receiptRepository=createReceiptRepository(database),printerAdapter=new WindowsPrinterAdapter(window);
   printManager=new PrintManager(receiptRepository,printerAdapter);
   protection=createDataProtection(window,database,()=>printManager?.stop());
-  registerIpc(window, repositories, createConfigurationService(database, repositories), orders, createCheckoutService(database, orders),createReceiptService(receiptRepository,printerAdapter,printManager),printManager,protection,createFinanceService(database));
+  registerIpc(window, repositories, createConfigurationService(database, repositories), orders, createCheckoutService(database, orders),createReceiptService(receiptRepository,printerAdapter,printManager),printManager,protection,createFinanceService(database),createReservationService(database,orders));
   printManager.start();
   const rendererErrors: string[] = [];
   window.webContents.on('console-message', details => { if (details.level === 'error') { if(rendererErrors.length<50)rendererErrors.push(details.message);logError('RENDERER_CONSOLE_ERROR'); if (process.env.FOX_VERIFY_DIR) console.error('FOX verification renderer:', details.message); } });

@@ -10,7 +10,7 @@
   --neutral-soft: #f1f3f1; --row-hover: #faf9f5; --row-inactive: #fcfcfa;
   --sidebar-text: #e9eceb; --sidebar-muted: #c9d0d2; --sidebar-helper: #b3bec1;
   --sidebar-accent: #d2ad7c; --sidebar-hover: #ffffff08; --sidebar-selected: #ffffff0d; --sidebar-border: #ffffff10;
-  --local-dot: #a5b7aa; --backdrop: #202b3240;
+  --backdrop: #202b3240;
   --radius-control: 6px; --radius-panel: 10px; --radius-badge: 4px;
   --shadow: 0 4px 20px #202b3210; --focus-ring: 2px solid var(--accent); --focus-ring-dark: 2px solid var(--sidebar-accent); --focus-offset: 3px;
   --space-1: 4px; --space-half: 6px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
@@ -19,6 +19,8 @@
   --control-height: 40px; --control-compact: 36px; --control-row: 32px; --nav-height: 44px; --tile-height: 96px;
   --pos-workspace-width: 424px;
   --sidebar-width: 216px; --transition: 140ms ease;
-  font-family: 'Segoe UI', Arial, sans-serif; font-size: var(--font-body); font-synthesis: none;
+  --font-interface: Tahoma, Arial, sans-serif;
+  --font-numeric: Consolas, 'Courier New', monospace;
+  font-family: var(--font-interface); font-size: var(--font-body); font-synthesis: none;
   color: var(--text); background: var(--background);
 }

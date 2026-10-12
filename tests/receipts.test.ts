@@ -25,7 +25,7 @@ beforeEach(()=>{db=openDatabase(':memory:');db.prepare("UPDATE products SET sell
 afterEach(()=>{managers.forEach(m=>m.stop());managers=[];db.close();vi.restoreAllMocks();});
 
 describe('receipt snapshots and migration',()=>{
- it('fresh migration is v5 with clean documents, jobs and safe printer defaults',()=>{expect(db.prepare('SELECT MAX(version) AS v FROM schema_migrations').get()).toEqual({v:5});expect(repo().settings()).toEqual({deviceName:null,displayName:null,autoPrint:false,paperWidth:80,copies:1});expect(repo().recentJobs()).toEqual([]);expect(db.prepare('SELECT COUNT(*) AS n FROM receipt_documents').get()).toEqual({n:0});});
+ it('fresh migration is v6 with clean documents, jobs and safe printer defaults',()=>{expect(db.prepare('SELECT MAX(version) AS v FROM schema_migrations').get()).toEqual({v:6});expect(repo().settings()).toEqual({deviceName:null,displayName:null,autoPrint:false,paperWidth:80,copies:1});expect(repo().recentJobs()).toEqual([]);expect(db.prepare('SELECT COUNT(*) AS n FROM receipt_documents').get()).toEqual({n:0});});
  it('v3 upgrade preserves financial state, settings, stock, open and closed orders exactly',()=>{
    db.close();db=new Database(':memory:');db.pragma('foreign_keys=ON');db.exec('CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY,applied_at TEXT NOT NULL) STRICT');
    for(const migration of migrations.filter(m=>m.version<=3)){db.exec(migration.sql);db.prepare('INSERT INTO schema_migrations VALUES (?,?)').run(migration.version,'old');}seed(db);

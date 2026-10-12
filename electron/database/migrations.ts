@@ -244,6 +244,29 @@ BEGIN
  COALESCE((SELECT amount_cents*paid_from_till FROM expense_revisions WHERE id=NEW.previous_revision_id),0)-NEW.amount_cents*NEW.paid_from_till,
  NULL,NEW.id,NULL,'Shpenzim / korrigjim','',NEW.created_at,'' FROM cash_sessions s WHERE NOT EXISTS(SELECT 1 FROM cash_closes c WHERE c.session_id=s.id);
 END;
+` }, { version: 6, sql: `
+CREATE TABLE table_reservations (
+ id TEXT PRIMARY KEY, table_id TEXT NOT NULL REFERENCES cafe_tables(id),
+ customer_name TEXT NOT NULL CHECK(length(trim(customer_name)) BETWEEN 1 AND 100),
+ phone TEXT NOT NULL CHECK(length(phone)<=40), starts_at TEXT NOT NULL,
+ guests INTEGER NOT NULL CHECK(guests BETWEEN 1 AND 30), note TEXT NOT NULL CHECK(length(note)<=500),
+ status TEXT NOT NULL CHECK(status IN ('BOOKED','ARRIVED','CANCELLED')),
+ created_at TEXT NOT NULL, resolved_at TEXT,
+ CHECK((status='BOOKED' AND resolved_at IS NULL) OR (status!='BOOKED' AND resolved_at IS NOT NULL))
+) STRICT;
+CREATE UNIQUE INDEX table_one_booked_reservation ON table_reservations(table_id) WHERE status='BOOKED';
+CREATE TRIGGER reservation_free_table BEFORE INSERT ON table_reservations
+WHEN NOT EXISTS(SELECT 1 FROM cafe_tables WHERE id=NEW.table_id AND enabled=1 AND status='FREE')
+ OR EXISTS(SELECT 1 FROM orders WHERE table_id=NEW.table_id AND status='OPEN')
+BEGIN SELECT RAISE(ABORT,'Reservation requires a free table'); END;
+CREATE TRIGGER reservation_keep_history BEFORE DELETE ON table_reservations
+BEGIN SELECT RAISE(ABORT,'Reservation history retained'); END;
+CREATE TRIGGER reservation_resolve_only BEFORE UPDATE ON table_reservations
+WHEN OLD.status!='BOOKED' OR NEW.status NOT IN ('ARRIVED','CANCELLED')
+ OR NEW.id!=OLD.id OR NEW.table_id!=OLD.table_id OR NEW.customer_name!=OLD.customer_name
+ OR NEW.phone!=OLD.phone OR NEW.starts_at!=OLD.starts_at OR NEW.guests!=OLD.guests
+ OR NEW.note!=OLD.note OR NEW.created_at!=OLD.created_at
+BEGIN SELECT RAISE(ABORT,'Reservation details immutable'); END;
 ` }];
 
 export function migrate(db: Database.Database, beforeMigration?:()=>void): void {

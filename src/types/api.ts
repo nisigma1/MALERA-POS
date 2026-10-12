@@ -3,9 +3,12 @@ import type { MutationResult, ProductUpdate, SupplyRequest } from '../domain/con
 import type { Printer, ReceiptSettings, ReceiptSettingsInput, ReceiptSettingsResult, ReceiptAction, ReceiptResult, PrintJob, ReceiptState } from '../domain/receipts';
 import type {DataDiagnostics,DataActionResult} from '../domain/protection';
 import type {FinanceQuery,FinanceReport,ExpenseInput,ExpenseRecord,LossInput,LossRecord,CashInput,CashClose,CashPreview,CashMovementInput,CashEvent} from '../domain/finance';
+import type { ReserveTableInput, ResolveReservationInput } from '../domain/reservations';
+export const RESERVATION_IPC = { reserve: 'fox:reservations:reserve', arrive: 'fox:reservations:arrive', cancel: 'fox:reservations:cancel' } as const;
 export const FINANCE_IPC={report:'fox:finance:report',expense:'fox:finance:expense',history:'fox:finance:expense-history',loss:'fox:finance:loss',preview:'fox:finance:cash-preview',close:'fox:finance:cash-close',movement:'fox:finance:cash-movement'} as const;
 export const DATA_IPC={diagnostics:'fox:data:diagnostics',copy:'fox:data:copy-diagnostics',backup:'fox:data:backup',restore:'fox:data:restore',error:'fox:data:renderer-error'} as const;
 export interface FoxApi {
+  reservations: { reserve(input: ReserveTableInput): Promise<MutationResult<OrderWorkspace>>; arrive(input: ResolveReservationInput): Promise<MutationResult<OrderWorkspace>>; cancel(input: ResolveReservationInput): Promise<MutationResult<OrderWorkspace>> };
   finance:{ report(input:FinanceQuery):Promise<FinanceReport>; saveExpense(input:ExpenseInput):Promise<MutationResult<ExpenseRecord>>; expenseHistory(id:string):Promise<ExpenseRecord[]>; recordLoss(input:LossInput):Promise<MutationResult<LossRecord>>; recordCashMovement(input:CashMovementInput):Promise<MutationResult<CashEvent>>; cashPreview(input:{openingCents:number;countedCents?:number}):Promise<CashPreview>; closeCash(input:CashInput):Promise<MutationResult<CashClose>> };
   data: { diagnostics():Promise<DataDiagnostics>; copyDiagnostics():Promise<DataActionResult>; backup():Promise<DataActionResult>; restore():Promise<DataActionResult>; rendererError(input:'RENDERER_FAILURE'):Promise<DataActionResult> };
   tables: { list(): Promise<TableSummary[]> };

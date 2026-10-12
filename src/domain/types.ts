@@ -14,7 +14,7 @@ export interface ActiveOrderItem {
 export interface ActiveOrder {
   id: string; tableId: string; status: 'OPEN'; revision: string; createdAt: string; items: ActiveOrderItem[]; totalCents: number;
 }
-export interface OrderWorkspace { table: TableSummary; order: ActiveOrder | null }
+export interface OrderWorkspace { table: TableSummary; order: ActiveOrder | null; reservation: import('./reservations').TableReservation | null }
 export interface AddOrderProduct { tableId: string; productId: string }
 export interface OrderItemCommand { tableId: string; itemId: string }
 export interface Category { id: CategoryCode; name: string; sortOrder: number }

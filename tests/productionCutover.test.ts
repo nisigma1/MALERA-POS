@@ -12,6 +12,6 @@ it('initializes approved references with zero business history and truthful unco
   expect(db.prepare('SELECT key,value FROM settings ORDER BY key').all()).toEqual([{key:'business_name',value:'FOX'},{key:'receipt_auto_print',value:'false'},{key:'receipt_printer',value:'null'}]);
   expect(productReadiness(products)).toMatchObject({configured:false,missingPrices:21,missingStockConfiguration:21});
   expect(repository.getSalesReport('ALL')).toMatchObject({summary:{salesCents:0,completedOrders:0},cashCents:0});
-  expect(inspectDatabase(db,true)).toBe(5);
+  expect(inspectDatabase(db,true)).toBe(6);
  }finally{db.close();}
 });
