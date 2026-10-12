@@ -54,6 +54,11 @@ describe('auditable historical sales',()=>{
     expect(report.summary).toMatchObject({salesCents:5100,costCents:2550,completedOrders:51});
     expect(report.recentSales).toHaveLength(50);expect(report.recentSales.every(s=>s.items.length===1)).toBe(true);
   });
+  it('optimized latest-50 query equals the former full aggregation including timestamp ties',()=>{
+    product('KAFE-1',100,50);for(let i=0;i<65;i++)sell([{id:'KAFE-1',quantity:1+(i%3)}]);
+    const former=db.prepare(`SELECT o.id,o.sale_number AS saleNumber,t.code AS tableCode,o.closed_at AS completedAt,p.payment_method AS paymentMethod,SUM(i.quantity*i.unit_price_cents) AS totalCents FROM orders o JOIN cafe_tables t ON t.id=o.table_id JOIN order_items i ON i.order_id=o.id LEFT JOIN order_payments p ON p.order_id=o.id WHERE o.status='CLOSED' AND o.closed_at>=? AND o.closed_at<? GROUP BY o.id ORDER BY o.closed_at DESC,o.id DESC LIMIT 50`).all('','9999');
+    expect(readSalesReport(db,'ALL').recentSales.map(({items:_,...s})=>s)).toEqual(former);
+  });
   it('uses identical accounting across both report endpoints',()=>{
     product('KAFE-1',100,50);product('PIJE-1',150,null);
     sell([{id:'KAFE-1',quantity:2},{id:'PIJE-1',quantity:1}]);

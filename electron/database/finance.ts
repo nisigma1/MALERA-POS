@@ -5,6 +5,8 @@ import type {MutationResult} from '../../src/domain/configuration';
 import {readSalesReport} from './salesReports';
 import {effectiveExpenses,mapExpense,safeMoney} from './financeQueries';
 import {logError} from '../main/logging';
+import {exactQuantity,exactQuantityCost,assertCashTotals} from './numericSafety';
+import {prepareFinancialCapacity,sealFinancialCapacity,commitFinancialCapacity,type FinancialCapacity} from './financialCapacity';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function requireInput(input:unknown,keys:string[]):Record<string,unknown> {if(!input||typeof input!=='object'||Array.isArray(input)||Object.keys(input).some(k=>!keys.includes(k)))throw Error('Kërkesa nuk është e vlefshme.');return input as Record<string,unknown>;}
 function money(n:unknown,positive=false):asserts n is number {if(typeof n!=='number'||!Number.isSafeInteger(n)||n<(positive?1:0))throw Error('Vendos një shumë të vlefshme në euro.');}
@@ -47,25 +49,30 @@ export function createFinanceService(db:Database.Database,clock:()=>Date=()=>new
    if(typeof v.occurredAt!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(v.occurredAt)||!Number.isFinite(Date.parse(v.occurredAt)))throw Error('Vendos datën dhe orën e vlefshme.');const time=new Date(v.occurredAt);if(time.toISOString()!==v.occurredAt||!validDate(localDate(time))||time>clock())throw Error('Data e shpenzimit duhet të jetë sot ose më herët.');
    if(v.expenseId!==undefined){text(v.expenseId,200);text(v.expectedRevision,200);}else if(v.expectedRevision!==undefined)throw Error('Korrigjimi kërkon shpenzimin origjinal.');
    const request=JSON.stringify(v),value=v as unknown as ExpenseInput;
-   return db.transaction(()=>{
+   let capacity:FinancialCapacity|undefined;const saved=db.transaction(()=>{
     const existing=db.prepare('SELECT expense_id,request_json FROM expense_revisions WHERE id=?').get(value.requestId) as {expense_id:string;request_json:string}|undefined;if(existing){if(existing.request_json!==request)throw Error('Ky veprim është regjistruar me të dhëna të tjera.');return expense(existing.expense_id);}
     let previous:string|null=null;const id=value.expenseId??value.requestId,now=clock().toISOString();
+    if(value.expenseId&&!db.prepare('SELECT 1 FROM expenses WHERE id=?').get(id))throw Error('Shpenzimi nuk u gjet.');
+    capacity=prepareFinancialCapacity(db,{expense:BigInt(value.amountCents)-BigInt(value.expenseId?expense(id).amountCents:0)});
     if(value.expenseId){const original=db.prepare('SELECT * FROM expenses WHERE id=?').get(id) as {amount_cents:number;description:string;created_at:string;expense_date:string}|undefined;if(!original)throw Error('Shpenzimi nuk u gjet.');const current=expense(id);if(current.revisionId!==value.expectedRevision)throw Error('Shpenzimi ka ndryshuar. Rifresko para korrigjimit.');previous=current.revisionId;
      if(!db.prepare('SELECT 1 FROM expense_revisions WHERE id=?').get(previous)){previous=randomUUID();db.prepare('INSERT INTO expense_revisions(id,expense_id,previous_revision_id,amount_cents,category,occurred_at,expense_date,description,paid_from_till,created_at,request_json) VALUES (?,?,NULL,?,?,?,?,?,?,?,?)').run(previous,id,original.amount_cents,'OTHER',original.created_at,original.expense_date,original.description,null,now,'legacy-original');}
     }else db.prepare('INSERT INTO expenses VALUES (?,?,?,?,?)').run(id,value.amountCents,value.description.trim()||EXPENSE_CATEGORIES[value.category],localDate(time),now);
     db.prepare('INSERT INTO expense_revisions(id,expense_id,previous_revision_id,amount_cents,category,occurred_at,expense_date,description,paid_from_till,created_at,request_json,note) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').run(value.requestId,id,previous,value.amountCents,value.category,value.occurredAt,localDate(time),value.description.trim(),Number(value.paidFromTill),now,request,value.note?.trim()??'');
+    assertCashTotals(db);
+    sealFinancialCapacity(db,capacity);
     return expense(id);
-   }).immediate();
+   }).immediate();commitFinancialCapacity(db,capacity);return saved;
   });},
   recordLoss(input:unknown):MutationResult<LossRecord> {return result(()=>{const v=requireInput(input,['requestId','productId','quantity','reason','note']);token(v.requestId);text(v.productId,200);text(v.note);if(typeof v.reason!=='string'||!(Object.hasOwn(LOSS_REASONS,v.reason)))throw Error('Zgjidh arsyen e humbjes.');if(typeof v.quantity!=='number'||!Number.isFinite(v.quantity)||v.quantity<=0||v.quantity>Number.MAX_SAFE_INTEGER)throw Error('Sasia duhet të jetë më e madhe se zero.');const value=v as unknown as LossInput,request=JSON.stringify(v);
-   return db.transaction(()=>{const existing=db.prepare('SELECT request_json FROM stock_losses WHERE id=?').get(value.requestId) as {request_json:string}|undefined;if(existing){if(existing.request_json!==request)throw Error('Ky veprim është regjistruar me të dhëna të tjera.');return db.prepare(`${lossSelect} WHERE id=?`).get(value.requestId) as LossRecord;}
+   let capacity:FinancialCapacity|undefined;const saved=db.transaction(()=>{const existing=db.prepare('SELECT request_json FROM stock_losses WHERE id=?').get(value.requestId) as {request_json:string}|undefined;if(existing){if(existing.request_json!==request)throw Error('Ky veprim është regjistruar me të dhëna të tjera.');return db.prepare(`${lossSelect} WHERE id=?`).get(value.requestId) as LossRecord;}
     const p=db.prepare('SELECT p.name,p.purchase_cost_cents AS cost,p.track_inventory AS tracking,b.quantity FROM products p JOIN inventory_balances b ON b.product_id=p.id WHERE p.id=?').get(value.productId) as {name:string;cost:number|null;tracking:number|null;quantity:number|null}|undefined;
     if(!p||p.tracking!==1)throw Error('Zgjidh produkt me ndjekje stoku.');if(p.quantity===null)throw Error('Stoku është pa vendosur.');if(p.quantity<value.quantity||p.quantity-value.quantity===p.quantity)throw Error('Stok i pamjaftueshëm ose sasi jashtë kufirit.');
-    const total=p.cost===null?null:safeMoney(p.cost*value.quantity);const now=clock(),stamp=now.toISOString();const update=db.prepare('UPDATE inventory_balances SET quantity=quantity-?,updated_at=? WHERE product_id=? AND quantity>=?').run(value.quantity,stamp,value.productId,value.quantity);if(update.changes!==1)throw Error('Stoku ka ndryshuar. Rifresko dhe provo përsëri.');
+    const balance=exactQuantity(p.quantity,value.quantity,true),total=p.cost===null?null:exactQuantityCost(value.quantity,p.cost);capacity=prepareFinancialCapacity(db,{loss:BigInt(total??0),missingLoss:total===null?1n:0n});const now=clock(),stamp=now.toISOString();const update=db.prepare('UPDATE inventory_balances SET quantity=?,updated_at=? WHERE product_id=? AND quantity>=?').run(balance,stamp,value.productId,value.quantity);if(update.changes!==1)throw Error('Stoku ka ndryshuar. Rifresko dhe provo përsëri.');
     db.prepare("INSERT INTO inventory_movements VALUES (?,?,'MANUAL_ADJUSTMENT',?,NULL,?,?)").run(value.requestId,value.productId,-value.quantity,`Humbje malli: ${LOSS_REASONS[value.reason]}${value.note?' — '+value.note:''}`,stamp);
     db.prepare('INSERT INTO stock_losses VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').run(value.requestId,value.productId,p.name,value.quantity,value.reason,value.note.trim(),p.cost,total,value.requestId,stamp,localDate(now),request);
+    sealFinancialCapacity(db,capacity);
     return db.prepare(`${lossSelect} WHERE id=?`).get(value.requestId) as LossRecord;
-   }).immediate();
+   }).immediate();commitFinancialCapacity(db,capacity);return saved;
   });},
   cashPreview,
   recordCashMovement(input:unknown):MutationResult<CashEvent> {return result(()=>{
@@ -74,6 +81,7 @@ export function createFinanceService(db:Database.Database,clock:()=>Date=()=>new
    return db.transaction(()=>{const prior=db.prepare('SELECT request_json FROM cash_events WHERE id=?').get(value.requestId) as {request_json:string}|undefined;if(prior){if(prior.request_json!==request)throw Error('Ky veprim është regjistruar me të dhëna të tjera.');return db.prepare(`${eventSelect} WHERE id=?`).get(value.requestId) as CashEvent;}
     const now=clock().toISOString();db.prepare('INSERT INTO cash_sessions SELECT ?,? WHERE NOT EXISTS(SELECT 1 FROM cash_sessions s WHERE NOT EXISTS(SELECT 1 FROM cash_closes c WHERE c.session_id=s.id))').run(randomUUID(),now);
     db.prepare(`INSERT INTO cash_events(id,session_id,kind,amount_cents,reason,note,created_at,request_json) SELECT ?,id,?,?,?,?,?,? FROM cash_sessions s WHERE NOT EXISTS(SELECT 1 FROM cash_closes c WHERE c.session_id=s.id)`).run(value.requestId,value.direction==='IN'?'MANUAL_CASH_IN':'MANUAL_CASH_OUT',value.amountCents*(value.direction==='IN'?1:-1),value.reason.trim(),value.note.trim(),now,request);
+    assertCashTotals(db);
     return db.prepare(`${eventSelect} WHERE id=?`).get(value.requestId) as CashEvent;
    }).immediate();
   });},

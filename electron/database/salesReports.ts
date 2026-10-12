@@ -22,6 +22,9 @@ export function readSalesReport(db: Database.Database, input: unknown, now = new
 }
 function readSalesReportInBounds(db:Database.Database,period:ReportPeriod|FinanceQuery,bounds:{start:string;end:string}):SalesReport {
   return db.transaction(() => {
+    // A full-history range does not benefit from random date-index traversal.
+    // Bounded calendar reports retain the existing date index.
+    const orderSource=bounds.start===''&&bounds.end==='9999'?'orders o NOT INDEXED':'orders o';
     const totals = db.prepare(`SELECT COUNT(DISTINCT o.id) AS orders, COALESCE(SUM(i.quantity*i.unit_price_cents),0) AS sales,
       COALESCE(SUM(i.quantity*i.unit_cost_cents),0) AS cost, COUNT(CASE WHEN i.unit_cost_cents IS NULL THEN 1 END) AS unknownCost,
       COALESCE(SUM(CASE WHEN i.unit_cost_cents IS NULL THEN i.quantity ELSE 0 END),0) AS missingCostUnits,
@@ -30,7 +33,7 @@ function readSalesReportInBounds(db:Database.Database,period:ReportPeriod|Financ
       COALESCE(SUM(CASE WHEN p.payment_method='CASH' THEN i.quantity*i.unit_price_cents ELSE 0 END),0) AS cash,
       COALESCE(SUM(CASE WHEN p.payment_method='CARD' THEN i.quantity*i.unit_price_cents ELSE 0 END),0) AS card,
       COALESCE(SUM(CASE WHEN p.payment_method IS NULL THEN i.quantity*i.unit_price_cents ELSE 0 END),0) AS unknownPayment
-      FROM orders o JOIN order_items i ON i.order_id=o.id LEFT JOIN order_payments p ON p.order_id=o.id
+      FROM ${orderSource} JOIN order_items i ON i.order_id=o.id LEFT JOIN order_payments p ON p.order_id=o.id
       WHERE o.status='CLOSED' AND o.closed_at>=? AND o.closed_at<?`).get(bounds.start,bounds.end) as { orders: number; sales: number; cost: number; unknownCost: number; missingCostUnits: number; salesWithoutCost: number; quantity: number; cash: number; card: number; unknownPayment: number };
     // Expense dates are local YYYY-MM-DD, while completion timestamps are UTC ISO.
     const localDate = (iso: string) => { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
@@ -43,10 +46,17 @@ function readSalesReportInBounds(db:Database.Database,period:ReportPeriod|Financ
     const net = gross === null ? null : gross-expense.total;
     if ((gross !== null && !Number.isSafeInteger(gross)) || (net !== null && !Number.isSafeInteger(net))) throw new Error('Unsafe profit aggregate');
     if (totals.cash+totals.card+totals.unknownPayment !== totals.sales) throw new Error('Payment reconciliation failed');
-    const recentSales = db.prepare(`SELECT o.id,o.sale_number AS saleNumber,t.code AS tableCode,o.closed_at AS completedAt,p.payment_method AS paymentMethod,
+    // Select the same latest 50 nonempty completed orders before aggregating
+    // their lines. The previous plan grouped every historical sale first.
+    const recentSales = db.prepare(`WITH recent AS (
+      SELECT id,table_id,sale_number,closed_at FROM orders o
+      WHERE status='CLOSED' AND closed_at>=? AND closed_at<?
+        AND EXISTS(SELECT 1 FROM order_items i WHERE i.order_id=o.id)
+      ORDER BY closed_at DESC,id DESC LIMIT 50
+    ) SELECT o.id,o.sale_number AS saleNumber,t.code AS tableCode,o.closed_at AS completedAt,p.payment_method AS paymentMethod,
       SUM(i.quantity*i.unit_price_cents) AS totalCents FROM orders o JOIN cafe_tables t ON t.id=o.table_id
       JOIN order_items i ON i.order_id=o.id LEFT JOIN order_payments p ON p.order_id=o.id
-      WHERE o.status='CLOSED' AND o.closed_at>=? AND o.closed_at<? GROUP BY o.id ORDER BY o.closed_at DESC,o.id DESC LIMIT 50`).all(bounds.start,bounds.end) as SalesReport['recentSales'];
+      WHERE o.id IN (SELECT id FROM recent) GROUP BY o.id ORDER BY o.closed_at DESC,o.id DESC`).all(bounds.start,bounds.end) as SalesReport['recentSales'];
     if (recentSales.some(row=>!Number.isSafeInteger(row.totalCents))) throw new Error('Unsafe sale total');
     // Read immutable sale snapshots, never today's product names, prices or costs.
     const details = recentSales.length ? db.prepare(`SELECT id,order_id AS orderId,product_name_snapshot AS name,quantity,

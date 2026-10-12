@@ -34,15 +34,15 @@ jobs:
           if ($version -notmatch '^\d+\.\d+\.\d+-(?:qa|rc)\.\d+$') { throw 'Only a prerelease candidate is permitted; artifact remains explicitly QA/UNSIGNED' }
           if ($env:REPOSITORY_PRIVATE -ne 'true') { throw 'Repository must remain private' }
       - run: npm ci
-      - name: Three consecutive complete regression suites
+      - name: Five consecutive complete regression suites
         shell: pwsh
         run: |
-          for ($suiteRun=1; $suiteRun -le 3; $suiteRun++) {
+          for ($suiteRun=1; $suiteRun -le 5; $suiteRun++) {
             npm test
             if ($LASTEXITCODE -ne 0) { throw "Full-suite repeat $suiteRun failed; certification stops without retry" }
           }
           New-Item -ItemType Directory -Path outputs -Force | Out-Null
-          @{passed=$true;consecutivePasses=3;retriedFailures=0} | ConvertTo-Json | Set-Content outputs/fox-phase9-3-repeatability.json
+          @{passed=$true;consecutivePasses=5;retriedFailures=0} | ConvertTo-Json | Set-Content outputs/fox-phase10-repeatability.json
       - run: npm run typecheck
       - run: npm run build
       - run: npm run verify:production-db
@@ -52,6 +52,12 @@ jobs:
       - run: node scripts/verify-finance.mjs
       - run: npm run verify:reservations
       - run: node scripts/verify-reservation-atomicity.mjs
+      - name: Phase 10 commit-before-response crash matrix
+        run: node scripts/verify-reliability.mjs
+      - name: Phase 10 coherent backup golden master
+        run: node scripts/verify-reliability.mjs --golden
+      - name: Phase 10 deterministic 100k multi-year reconciliation
+        run: node scripts/verify-reliability.mjs --long --100k
       - run: npm run verify:runtime
       - run: npm run verify:checkout
       - run: node scripts/verify-receipt-crashes.mjs
@@ -61,6 +67,12 @@ jobs:
       - run: node scripts/verify-startup-failures.mjs --stress
       - run: npm run package:win -- --qa
       - run: ./scripts/verify-release.ps1
+      - name: Packaged Phase 10 lifecycle and resource soak
+        shell: pwsh
+        run: |
+          $version=(Get-Content package.json -Raw | ConvertFrom-Json).version
+          node scripts/verify-reliability-ui.mjs "release/FOX-Setup-$version-x64.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Installed reliability lifecycle failed' }
       - name: Packaged visual acceptance and frozen visual baseline
         env:
           GH_TOKEN: ${{ github.token }}
@@ -217,6 +229,21 @@ jobs:
           node scripts/verify-installed.mjs $oldInstaller "release/FOX-Setup-$version-x64.exe"
           if ($LASTEXITCODE -ne 0) { throw 'Simplified reports upgrade failed' }
 
+      - name: Frozen Phase 9.3 reliability upgrade
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh run download 38269303496 -n FOX-QA-Windows-x64 -D work/phase9-3-accepted
+          if ($LASTEXITCODE -ne 0) { throw 'Frozen Phase 9.3 download failed' }
+          $oldInstaller='work/phase9-3-accepted/release/FOX-Setup-0.7.1-rc.2-x64.exe'
+          $baseline=Get-Content work/phase9-3-accepted/release/release-manifest.json -Raw | ConvertFrom-Json
+          $oldHash=(Get-FileHash $oldInstaller).Hash.ToLowerInvariant()
+          if ($baseline.commit -ne '05326bab63574328cde5e4d0c09e96d3b7e5d04e' -or $oldHash -ne '7a79fae29674371dc2c7ed19892bd8b3e92923535b76034c01c559a38826094c' -or $oldHash -ne $baseline.sha256) { throw 'Frozen Phase 9.3 provenance mismatch' }
+          $version=(Get-Content package.json -Raw | ConvertFrom-Json).version
+          node scripts/verify-installed.mjs $oldInstaller "release/FOX-Setup-$version-x64.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Frozen Phase 9.3 reliability upgrade failed' }
+
       - name: Retain sanitized acceptance evidence
         if: always()
         shell: pwsh
@@ -228,6 +255,13 @@ jobs:
               Copy-Item -LiteralPath $_.FullName -Destination (Join-Path work/ci-evidence ($_.Directory.Name+'-'+$_.Name))
             }
           }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: FOX-Reliability-Certification
+          path: outputs/fox-phase10-*.json
+          if-no-files-found: warn
+          retention-days: 14
       - uses: actions/upload-artifact@v4
         if: always()
         with:

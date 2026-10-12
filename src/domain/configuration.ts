@@ -1,5 +1,6 @@
 import type { CatalogProduct, CategoryCode, Product } from './types';
 import { CATEGORIES } from './definitions';
+import {exactQuantityCost} from './quantity';
 export type FieldErrors = Record<string, string>;
 export type MutationResult<T> = { ok: true; data: T } | { ok: false; errors: FieldErrors; message: string };
 export interface ProductUpdate {
@@ -65,7 +66,8 @@ export function inventorySummary(products: CatalogProduct[]) {
     if (product.sellingPriceCents !== null && product.purchaseCostCents !== null) fullyPriced++;
     if (product.trackInventory === false) continue;
     if (product.trackInventory === null || product.stockQuantity === null || product.purchaseCostCents === null) { complete = false; continue; }
-    const value = product.stockQuantity * product.purchaseCostCents;
+    let value:number;
+    try {value=exactQuantityCost(product.stockQuantity,product.purchaseCostCents);}catch {complete=false;continue;}
     // Never silently round fractional stock values into a supposedly exact full value.
     if (!Number.isSafeInteger(value) || !Number.isSafeInteger(inventoryValueCents + value)) complete = false;
     else inventoryValueCents += value;

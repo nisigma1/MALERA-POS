@@ -4,6 +4,8 @@ import type { CheckoutErrorCode, CheckoutResult } from '../../src/domain/types';
 import type { createOrderService } from './orders';
 import { createReceiptRepository } from '../receipts/repository';
 import {logError} from '../main/logging';
+import {exactQuantity,assertCashTotals} from './numericSafety';
+import {prepareFinancialCapacity,sealFinancialCapacity,commitFinancialCapacity,type FinancialCapacity} from './financialCapacity';
 
 class CheckoutError extends Error { constructor(readonly code: CheckoutErrorCode, message: string) { super(message); } }
 const fail = (code: CheckoutErrorCode, message: string): never => { throw new CheckoutError(code, message); };
@@ -12,7 +14,8 @@ export function createCheckoutService(db: Database.Database, orders: ReturnType<
   return {
     completeOrder(input: unknown): CheckoutResult {
       try {
-        return { ok: true, data: db.transaction(() => {
+        let capacity:FinancialCapacity|undefined;
+        const data=db.transaction(() => {
           if (!input || typeof input !== 'object' || Array.isArray(input)) return fail('INVALID_REQUEST', 'Kërkesa e pagesës nuk është e vlefshme.');
           const request = input as Record<string, unknown>;
           if (Object.keys(request).some(k => !['orderId','expectedRevision'].includes(k)) || typeof request.orderId !== 'string' || !request.orderId || request.orderId.length > 200 || (request.expectedRevision !== undefined && typeof request.expectedRevision !== 'string')) return fail('INVALID_REQUEST', 'Kërkesa e pagesës nuk është e vlefshme.');
@@ -28,6 +31,7 @@ export function createCheckoutService(db: Database.Database, orders: ReturnType<
           const costs = db.prepare('SELECT quantity,unit_cost_cents FROM order_items WHERE order_id=?').all(row.id) as { quantity: number; unit_cost_cents: number | null }[];
           const knownCost = costs.reduce((total,item) => total + BigInt(item.quantity)*BigInt(item.unit_cost_cents ?? 0),0n);
           if (knownCost > BigInt(Number.MAX_SAFE_INTEGER)) return fail('CHECKOUT_FAILED', 'Kosto e porosisë tejkalon kufirin e lejuar.');
+          capacity=prepareFinancialCapacity(db,{revenue:BigInt(totalCents),cost:knownCost,quantity:costs.reduce((n,i)=>n+BigInt(i.quantity),0n),missingCost:BigInt(costs.filter(i=>i.unit_cost_cents===null).length)});
           const quantities = new Map<string, { name: string; quantity: number }>();
           for (const item of workspace.order.items) {
             const previous = quantities.get(item.productId)?.quantity ?? 0;
@@ -48,10 +52,11 @@ export function createCheckoutService(db: Database.Database, orders: ReturnType<
           }
           const now = new Date().toISOString();
           const paymentMethod = 'CASH' as const;
-          const sequence = db.prepare('SELECT COALESCE(MAX(sale_number),0)+1 AS number FROM orders').get() as { number: number };
+          const sequence = db.prepare('SELECT COALESCE(MAX(sale_number),0)+1 AS number FROM orders WHERE sale_number IS NOT NULL').get() as { number: number };
           if (!Number.isSafeInteger(sequence.number)) return fail('CHECKOUT_FAILED', 'Numri i shitjes tejkalon kufirin e lejuar.');
           for (const item of deductions) {
-            const update = db.prepare('UPDATE inventory_balances SET quantity=quantity-?,updated_at=? WHERE product_id=? AND quantity>=?').run(item.quantity,now,item.productId,item.quantity);
+            const balance=exactQuantity(item.balance,item.quantity,true);
+            const update = db.prepare('UPDATE inventory_balances SET quantity=?,updated_at=? WHERE product_id=? AND quantity>=?').run(balance,now,item.productId,item.quantity);
             if (update.changes !== 1) return fail('INSUFFICIENT_STOCK', 'Stoku ka ndryshuar. Kontrollo Inventarin.');
             db.prepare("INSERT INTO inventory_movements(id,product_id,type,quantity_delta,related_order_id,note,created_at) VALUES (?,?,'SALE',?,?,NULL,?)").run(randomUUID(),item.productId,-item.quantity,row.id,now);
           }
@@ -59,9 +64,13 @@ export function createCheckoutService(db: Database.Database, orders: ReturnType<
           const update = db.prepare("UPDATE orders SET status='CLOSED',closed_at=?,updated_at=?,sale_number=? WHERE id=? AND status='OPEN'").run(now,now,sequence.number,row.id);
           if (update.changes !== 1) return fail('ALREADY_COMPLETED', 'Kjo porosi është paguar tashmë.');
           db.prepare("UPDATE cafe_tables SET status='FREE',updated_at=? WHERE id=?").run(now,row.table_id);
+          assertCashTotals(db);
           const receiptWarning = !receipts.onSaleCompleted(row.id);
+          sealFinancialCapacity(db,capacity);
           return { orderId: row.id, saleNumber: sequence.number, paymentMethod, totalCents, completedAt: now, ...(receiptWarning ? {receiptWarning:true} : {}), workspace: orders.getForTable(row.table_id) };
-        }).immediate() };
+        }).immediate();
+        commitFinancialCapacity(db,capacity);
+        return {ok:true,data};
       } catch (error) {
         if (error instanceof CheckoutError) return { ok: false, code: error.code, message: error.message };
         logError('CHECKOUT_ROLLBACK',error);

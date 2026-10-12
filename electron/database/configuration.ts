@@ -2,6 +2,7 @@ import type Database from 'better-sqlite3';
 import { validateProductUpdate, validateSupply, type MutationResult, type ProductUpdate, type SupplyRequest } from '../../src/domain/configuration';
 import type { CatalogProduct } from '../../src/domain/types';
 import type { createRepositories } from './repositories';
+import {exactQuantity,assertCashTotals} from './numericSafety';
 export function createConfigurationService(db: Database.Database, repositories: ReturnType<typeof createRepositories>) {
   const find = (id: string) => repositories.listProducts().find(product => product.id === id);
   const failure = (errors: Record<string, string>): MutationResult<CatalogProduct> => ({ ok: false, errors, message: 'Kontrollo të dhënat e vendosura.' });
@@ -41,7 +42,8 @@ export function createConfigurationService(db: Database.Database, repositories: 
         }
         if (!product.active) return failure({ productId: 'Aktivizo produktin para furnizimit.' });
         if (product.trackInventory !== true) return failure({ productId: 'Aktivizo ndjekjen e stokut te produkti para furnizimit.' });
-        const quantity = (product.stockQuantity ?? 0) + value.quantity;
+        let quantity:number;
+        try {quantity=exactQuantity(product.stockQuantity ?? 0,value.quantity);}catch {return failure({quantity:'Sasia nuk mund të ruhet saktë.'});}
         if (!Number.isFinite(quantity) || quantity > Number.MAX_SAFE_INTEGER || quantity <= (product.stockQuantity ?? 0)) return failure({ quantity: 'Sasia është jashtë kufirit të lejuar.' });
         const now = new Date().toISOString();
         db.prepare(`INSERT INTO inventory_movements (id,product_id,type,quantity_delta,related_order_id,note,created_at)
@@ -51,6 +53,7 @@ export function createConfigurationService(db: Database.Database, repositories: 
         if(value.drawerPaymentCents!==undefined){
           db.prepare('INSERT INTO cash_sessions SELECT ?,? WHERE NOT EXISTS(SELECT 1 FROM cash_sessions s WHERE NOT EXISTS(SELECT 1 FROM cash_closes c WHERE c.session_id=s.id))').run('supply-session:'+value.requestId,now);
           db.prepare(`INSERT INTO cash_events(id,session_id,kind,amount_cents,supply_id,reason,note,created_at,request_json) SELECT ?,id,'INVENTORY_SUPPLY_OUT',?,?,'Furnizim nga arka','',?,? FROM cash_sessions s WHERE NOT EXISTS(SELECT 1 FROM cash_closes c WHERE c.session_id=s.id)`).run('supply:'+value.requestId,-value.drawerPaymentCents,value.requestId,now,JSON.stringify(value));
+          assertCashTotals(db);
         }
         return { ok: true, data: find(product.id)! } as const;
       }).immediate();
