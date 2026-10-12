@@ -26,8 +26,10 @@ jobs:
           $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
           $visualOutput = [IO.Path]::GetFullPath((Join-Path $env:GITHUB_WORKSPACE '../../outputs/fox-phase9-regression-screenshots'))
           $financeOutput = [IO.Path]::GetFullPath((Join-Path $env:GITHUB_WORKSPACE '../../outputs/fox-phase9-screenshots'))
+          $reservationsOutput = [IO.Path]::GetFullPath((Join-Path $env:GITHUB_WORKSPACE '../../outputs/fox-reservations-acceptance'))
           "FOX_FINANCE_OUTPUT=$financeOutput" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
           "FOX_VISUAL_OUTPUT=$visualOutput" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "FOX_RESERVATIONS_OUTPUT=$reservationsOutput" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
           if ($version -notmatch '^\d+\.\d+\.\d+-(?:qa|rc)\.\d+$') { throw 'Only a prerelease candidate is permitted; artifact remains explicitly QA/UNSIGNED' }
           if ($env:REPOSITORY_PRIVATE -ne 'true') { throw 'Repository must remain private' }
       - run: npm ci
@@ -89,7 +91,7 @@ jobs:
         if: always()
         with:
           name: FOX-Reservation-Acceptance
-          path: ../../outputs/fox-reservations-acceptance
+          path: ${{ env.FOX_RESERVATIONS_OUTPUT }}
           if-no-files-found: warn
           retention-days: 14
       - uses: actions/upload-artifact@v4

@@ -2,7 +2,7 @@
 import fs from 'node:fs';import path from 'node:path';import net from 'node:net';import assert from 'node:assert/strict';
 import {spawn,spawnSync} from 'node:child_process';import {createRequire} from 'node:module';import {build} from 'esbuild';import electron from 'electron';
 import {createQaDirectory} from './qa-directory.mjs';
-const installer=process.argv[2],directory=createQaDirectory('reservations'),output=path.resolve('../../outputs/fox-reservations-acceptance');fs.mkdirSync(output,{recursive:true});
+const installer=process.argv[2],directory=createQaDirectory('reservations'),output=path.resolve(process.env.FOX_RESERVATIONS_OUTPUT||'../../outputs/fox-reservations-acceptance');fs.mkdirSync(output,{recursive:true});
 await build({entryPoints:['electron/main/cutover-ui.ts'],outfile:'work/finance-ui.cjs',bundle:true,platform:'node',format:'cjs'});
 await build({entryPoints:['electron/main/cutover-observer.ts'],outfile:'work/finance-observer.cjs',bundle:true,platform:'node',format:'cjs',external:['better-sqlite3']});
 const {cutoverUi}=createRequire(import.meta.url)('../work/finance-ui.cjs'),version=JSON.parse(fs.readFileSync('package.json')).version;
