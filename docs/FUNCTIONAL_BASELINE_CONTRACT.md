@@ -32,6 +32,8 @@ Migration 6 is additive reservation infrastructure and guards. It does not updat
 
 The initial keyboard probe treated the offscreen native viewport's cycle boundary as an interactive background target. The corrected oracle explicitly rejects any interactive background focus, verifies modal inertness and requires Tab to return into the dialog. Enter instrumentation must include the native carriage-return text event, not just raw key state. These deterministic driver corrections are not runtime fixes and do not conceal a flaky product failure.
 
+Direct IPC probes also require a view-cache refresh before taking operator-facing screenshots; the normal React mutation handler already refreshes that state. The new privacy scanner must normalize ASAR paths using the host's native separator before `statFile`/`extractFile`. The first installed certification stopped deterministically at that scanner API misuse, not at a leaked contact; the corrected scanner was reproduced locally against 115 packaged text assets before restarting final certification. These test-harness findings are retained in the final evidence record.
+
 ## Freeze rule
 
 Only the exact commit and installer hash named in the successful `outputs/fox-phase9-3-freeze-manifest.json` are frozen. The final certificate is `outputs/fox-phase9-3-functional-baseline-certification.md`. Until Phase 11, no new features are permitted. Phase 10 may reproduce/fix defects, add reliability tests, and strengthen existing safety/invariants only. A trusted signing certificate, physical thermal printer and second café laptop must be reported as pending until actually verified; software certification does not imply those hardware/external checks passed.

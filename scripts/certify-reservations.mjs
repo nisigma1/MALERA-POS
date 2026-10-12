@@ -20,7 +20,7 @@ export async function certifyReservations(h){
  if(installer){
    const asar=createRequire(import.meta.url)('@electron/asar'),archive=path.join(directory,'application','resources','app.asar'),files=asar.listPackage(archive).map(name=>name.replaceAll('\\','/'));
    check(!files.some(name=>/\.(?:sqlite(?:-wal|-shm)?|db|log|pfx|pem|key)$/i.test(name)||/^\/(?:tests|scripts|docs|outputs|work)\//.test(name)||/(?:^|\/)\.env(?:\.|$)/.test(name)),'Installed ASAR excludes DBs, backups, logs, screenshots/evidence roots and secrets');
-   for(const name of files.filter(name=>/\.(?:js|cjs|json|html|css|txt)$/i.test(name))){const relative=name.replace(/^\//,''),stat=asar.statFile(archive,relative,false),bytes=stat.unpacked?fs.readFileSync(path.join(archive+'.unpacked',relative)):asar.extractFile(archive,relative);for(const token of [phone,'+383 44 123456','QA Çelik','QA Keyboard','QA crash only'])assert.ok(!bytes.toString().includes(token),'Synthetic contact/test fixture leaked into release asset');}
+   for(const name of files.filter(name=>/\.(?:js|cjs|json|html|css|txt)$/i.test(name))){const relative=path.normalize(name.replace(/^\//,'')),stat=asar.statFile(archive,relative,false),bytes=stat.unpacked?fs.readFileSync(path.join(archive+'.unpacked',relative)):asar.extractFile(archive,relative);for(const token of [phone,'+383 44 123456','QA Çelik','QA Keyboard','QA crash only'])assert.ok(!bytes.toString().includes(token),'Synthetic contact/test fixture leaked into release asset');}
    check(true,'Every packaged text asset excludes reservation contact fixtures');
  }
  const input=tableId=>({requestId:randomUUID(),tableId,customerName:'QA Çelik '+tableId,phone,startsAt:new Date(Date.now()+86400000).toISOString(),guests:4,note:'QA certification only'});
