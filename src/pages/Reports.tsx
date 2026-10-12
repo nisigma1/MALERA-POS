@@ -36,24 +36,25 @@ export function Reports() {
     ['Humbja e mallit', finance!.stockLossCents===null?'—':formatMoney(finance!.stockLossCents)], ['Rezultati operativ', finance!.operatingResultCents===null?'—':formatMoney(finance!.operatingResultCents)],
     ['Porosi të përfunduara', data.completedOrders], ['Produktet e shitura', data.productsSold], ['Mesatarja për porosi', data.averageOrderCents === null ? '—' : formatMoney(data.averageOrderCents)],
   ] as const;
+  const missingCostNote = data.costCents === null
+    ? `Fitimi nuk llogaritet: ${report!.costCoverage.missingCostUnits} njësi pa kosto${finance!.missingLossCosts ? `, ${finance!.missingLossCosts} humbje pa kosto` : ''}.`
+    : finance!.missingLossCosts > 0
+      ? `Rezultati nuk llogaritet: ${finance!.missingLossCosts} humbje pa kosto.`
+      : null;
+  const historicalPayments = report!.cardCents + report!.unknownPaymentCents;
 
   return <div data-page="reports">
 
-    {header}<div className="report-period">{query.period==='ALL'?'Të gjitha regjistrimet':`${finance!.startDate} — ${finance!.endDate}`}</div>
+    {header}{query.period!=='ALL'&&<div className="report-period">{finance!.startDate} — {finance!.endDate}</div>}
     {tab==='expenses'?<ExpenseList report={finance!} onRefresh={refreshFinance}/>:tab==='cash'?<CashControl report={finance!} onRefresh={refreshFinance}/>:<>
-    <dl className="report-kpis">{metrics.slice(0,6).map(([label, value]) => <div key={label} className={label==='Rezultati operativ'?'finance-result':''}><dt>{label}</dt><dd className={label==='Rezultati operativ'&&finance!.operatingResultCents!==null&&finance!.operatingResultCents<0?'finance-negative':''}>{value}</dd>{label==='Rezultati operativ'&&<small>{finance!.operatingResultCents===null?'Kosto të paplota':finance!.operatingResultCents<0?'Humbje':finance!.operatingResultCents>0?'Rezultat pozitiv':'Në baraspeshë'}</small>}</div>)}</dl>
-    <p className="field-helper">Rezultati përfshin vetëm shpenzimet dhe humbjet e regjistruara. Regjistro të gjitha që të marrësh pasqyrën e biznesit; ky nuk është fitimi neto tatimor.</p>
-    {finance!.missingLossCosts>0&&<p className="notice warning-notice">{finance!.missingLossCosts} humbje kanë kosto të panjohur. Rezultati operativ nuk mund të llogaritet plotësisht.</p>}
+    <dl className="report-kpis">{metrics.slice(0,6).map(([label, value]) => <div key={label} className={label==='Rezultati operativ'?'finance-result':''}><dt>{label}</dt><dd className={label==='Rezultati operativ'&&finance!.operatingResultCents!==null&&finance!.operatingResultCents<0?'finance-negative':''}>{value}</dd></div>)}</dl>
     {data.completedOrders === 0 && <div className="report-empty"><EmptyState title="Nuk ka ende shitje të përfunduara." helper="Raportet do të plotësohen automatikisht pasi të mbyllen porositë." icon="reports"/></div>}
 
-    <dl className="report-secondary">{metrics.slice(6).map(([label,value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
-
-    {data.costCents === null && <div className="notice" data-cost-coverage><strong>Kosto e paplotë: fitimi bruto dhe rezultati operativ nuk mund të llogariten.</strong><p>{report!.costCoverage.missingCostUnits} njësi në {report!.costCoverage.missingCostLines} rreshta nuk kanë kosto historike. Shitjet për këta artikuj: {formatMoney(report!.costCoverage.salesWithoutCostCents)}. Kosto e njohur vetëm për artikujt e tjerë: {formatMoney(report!.costCoverage.knownCostCents)}.</p><p>Ndryshimi i kostos së produktit sot nuk plotëson koston e shitjeve të kaluara. Hap porosinë për të parë çfarë mungon.</p></div>}
-    <dl className="report-secondary payment-breakdown"><div><dt>Para të gatshme</dt><dd data-cash-total>{formatMoney(report!.cashCents)}</dd></div></dl>
-    {(report!.cardCents !== 0 || report!.unknownPaymentCents !== 0) && <p className="notice">Pagesa historike / pa metodë: {formatMoney(report!.cardCents + report!.unknownPaymentCents)}.{report!.cardCents !== 0 && <> Kartelë historike: {formatMoney(report!.cardCents)}.</>}{report!.unknownPaymentCents !== 0 && <> Pa metodë të regjistruar: {formatMoney(report!.unknownPaymentCents)}.</>}</p>}
+    <dl className="report-secondary">{metrics.slice(6).map(([label,value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}<div><dt>Para të gatshme</dt><dd data-cash-total>{formatMoney(report!.cashCents)}</dd></div>{historicalPayments>0&&<div><dt>Pagesa të vjetra</dt><dd data-historical-payments>{formatMoney(historicalPayments)}</dd></div>}</dl>
+    {missingCostNote&&<p className="report-caution" data-cost-coverage>{missingCostNote}</p>}
 
     <section className="recent-sales"><h2>Shitjet e fundit</h2>{data.completedOrders>report!.recentSales.length&&<p>Shfaqen {report!.recentSales.length} shitjet e fundit nga {data.completedOrders}. Totalet sipër përfshijnë të gjitha shitjet e periudhës.</p>}<div className="sales-scroll"><table><thead><tr><th>Shitja</th><th>Data / ora</th><th>Tavolina</th><th>Pagesa</th><th>Totali</th><th>Porosia</th></tr></thead><tbody>{report!.recentSales.map(sale => <Fragment key={sale.id}><tr data-sale-id={sale.id}><td>{formatSaleNumber(sale.saleNumber)}</td><td>{formatLocalDateTime(sale.completedAt)}</td><td>{sale.tableCode}</td><td>{sale.paymentMethod === 'CASH' ? 'Para të gatshme' : sale.paymentMethod === 'CARD' ? 'Kartelë historike' : 'Pa metodë të regjistruar'}</td><td>{formatMoney(sale.totalCents)}</td><td><button className="button button-secondary" aria-expanded={expandedSale===sale.id} aria-controls={`sale-details-${sale.id}`} onClick={()=>setExpandedSale(expandedSale===sale.id?undefined:sale.id)}>{expandedSale===sale.id?'Mbyll':'Shiko porosinë'}</button></td></tr>{expandedSale===sale.id&&<tr className="sale-detail-row"><td colSpan={6}><div id={`sale-details-${sale.id}`}><h3>Porosia {formatSaleNumber(sale.saleNumber)} · {sale.tableCode}</h3><table className="sale-item-details"><thead><tr><th>Produkti</th><th>Sasia</th><th>Çmimi / njësi</th><th>Kosto / njësi</th><th>Shitja</th><th>Kosto</th><th>Fitimi bruto</th></tr></thead><tbody>{sale.items.map(item=><tr key={item.id} data-sale-item><td>{item.name}</td><td>{item.quantity}</td><td>{formatMoney(item.unitPriceCents)}</td><td>{item.unitCostCents===null?'Mungon':formatMoney(item.unitCostCents)}</td><td>{formatMoney(item.totalCents)}</td><td>{item.costCents===null?'Mungon':formatMoney(item.costCents)}</td><td>{item.profitCents===null?'—':formatMoney(item.profitCents)}</td></tr>)}</tbody></table><p className="sale-detail-total">Totali i porosisë: <strong>{formatMoney(sale.totalCents)}</strong></p><p>Emrat, çmimet dhe kostot janë ato të ruajtura në porosi.</p><ReceiptActions saleId={sale.id}/></div></td></tr>}</Fragment>)}</tbody></table></div></section>
-    <LossHistory report={finance!}/><div className="report-notes"><div><h3>Fitimi bruto</h3><p>Shitjet − Kosto historike e mallit të shitur</p></div><div><h3>Rezultati operativ</h3><p>Fitimi bruto − Shpenzimet − Humbja e mallit. Diferenca e kasës nuk ndryshon rezultatin.</p></div></div></>}
+    <LossHistory report={finance!}/></>}
   </div>;
 
 }
