@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { performance } from 'node:perf_hooks';
 import { openDatabase } from '../electron/database/connection';
 import { createRepositories } from '../electron/database/repositories';
 import { createOrderService } from '../electron/database/orders';
@@ -74,9 +75,14 @@ describe('persistent phone reservations',()=>{
     const backup=path.join(root,'saved.sqlite');await createBackup(db,backup,'0.7.1-rc.1');expect((await validateBackup(backup)).schemaVersion).toBe(6);db.close();db=openDatabase(backup);expect(snapshot()).toEqual(before);expect(inspectDatabase(db,true)).toBe(6);
   });
   it('upgrades schema5 with a safety backup and identical historical financial rows',()=>{
+    // Windows run 38268258088 completed assertions in 10.75s but exceeded the
+    // generic 5s unit deadline. This is durable file/backup integration, not a
+    // business-performance SLA. Keep every invariant and a bounded 30s deadline.
+    const started=performance.now();
     const root=directory(),file=path.join(root,'fox.sqlite');db.close();db=new Database(file);db.pragma('foreign_keys=ON');db.exec('CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY,applied_at TEXT NOT NULL) STRICT');for(const migration of migrations.filter(m=>m.version<=5)){db.exec(migration.sql);db.prepare('INSERT INTO schema_migrations VALUES (?,?)').run(migration.version,now.toISOString());}seed(db);
     db.prepare("UPDATE products SET selling_price_cents=100,purchase_cost_cents=50,track_inventory=0 WHERE id='KAFE-1'").run();const order=context().orders.addProduct({tableId:'M13',productId:'KAFE-1'});if(!order.ok)throw Error(order.message);expect(context().checkout.completeOrder({orderId:order.data.order!.id}).ok).toBe(true);
-    const before=snapshot(),report=context().finance.report({period:'ALL'}),cash=context().finance.cashPreview({openingCents:100});db.close();db=openDatabase(file,'0.7.1-rc.1');for(const [name,rows] of Object.entries(before))if(name!=='schema_migrations')expect(snapshot()[name]).toEqual(rows);expect(context().finance.report({period:'ALL'})).toEqual(report);expect(context().finance.cashPreview({openingCents:100})).toEqual(cash);
+    const before=snapshot(),report=context().finance.report({period:'ALL'}),cash=context().finance.cashPreview({openingCents:100});const fixtureMs=performance.now()-started;db.close();const migrationStarted=performance.now();db=openDatabase(file,'0.7.1-rc.1');const migrationAndBackupMs=performance.now()-migrationStarted;for(const [name,rows] of Object.entries(before))if(name!=='schema_migrations')expect(snapshot()[name]).toEqual(rows);expect(context().finance.report({period:'ALL'})).toEqual(report);expect(context().finance.cashPreview({openingCents:100})).toEqual(cash);
     expect(db.prepare('SELECT count(*) AS n FROM table_reservations').get()).toEqual({n:0});expect(inspectDatabase(db,true)).toBe(6);const backup=fs.readdirSync(path.join(root,'backups')).find(f=>f.endsWith('.sqlite'))!;const old=new Database(path.join(root,'backups',backup),{readonly:true});try{expect(inspectDatabase(old,true)).toBe(5);}finally{old.close();}
-  });
+    fs.mkdirSync('outputs',{recursive:true});fs.writeFileSync('outputs/fox-phase9-3-migration-timing.json',JSON.stringify({passed:true,fixtureMs,migrationAndBackupMs,totalMs:performance.now()-started,testDeadlineMs:30000,allHistoricalAssertionsRetained:true},null,2));
+  },30000);
 });
