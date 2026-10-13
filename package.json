@@ -1,6 +1,6 @@
 {
   "name": "fox-pos",
-  "version": "0.7.2-rc.1",
+  "version": "0.7.2-rc.2",
   "private": true,
   "type": "module",
   "description": "FOX Kafeteri local desktop foundation",
@@ -14,8 +14,8 @@
     "test": "node scripts/test.mjs",
     "build": "npm run typecheck && vite build && node scripts/build-electron.mjs",
     "start": "electron .",
-    "postinstall": "node node_modules/electron/install.js && electron-rebuild -f -w better-sqlite3",
-    "rebuild:native": "electron-rebuild -f -w better-sqlite3",
+    "postinstall": "node node_modules/electron/install.js && node scripts/rebuild-native.mjs",
+    "rebuild:native": "node scripts/rebuild-native.mjs",
     "verify:checkout": "node scripts/verify-checkout.mjs",
     "verify:runtime": "node scripts/verify-runtime.mjs",
     "build:release": "npm run typecheck && vite build && node scripts/build-electron.mjs --release",

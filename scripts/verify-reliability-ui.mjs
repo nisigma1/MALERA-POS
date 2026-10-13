@@ -4,7 +4,7 @@ import fs from 'node:fs';import path from 'node:path';import net from 'node:net'
 import {spawn,spawnSync} from 'node:child_process';import {randomUUID} from 'node:crypto';import {build} from 'esbuild';import {createRequire} from 'node:module';import electron from 'electron';
 import {createQaDirectory} from './qa-directory.mjs';
 const installer=process.argv[2],directory=createQaDirectory('phase10-lifecycle');let exe=electron;
-if(installer){const target=path.join(directory,'application'),r=spawnSync(path.resolve(installer),['/S',`/D=${target}`],{windowsHide:true,timeout:120000});assert.equal(r.status,0,r.error?.message);exe=path.join(target,'FOX Kafeteri.exe');}
+if(installer){const target=path.join(directory,'application'),r=spawnSync(path.resolve(installer),['/S',`/D=${target}`],{windowsHide:true,timeout:120000});assert.equal(r.status,0,r.error?.message);exe=path.join(target,'FOX Kafeteri.exe');const mapped=spawnSync(process.execPath,['scripts/verify-windows-shm.mjs','--module='+path.join(target,'resources/app.asar/node_modules/better-sqlite3')],{windowsHide:true,encoding:'utf8',timeout:30000});assert.equal(mapped.status,0,mapped.stderr);}
 await build({entryPoints:['electron/main/cutover-ui.ts'],outfile:'work/phase10-ui.cjs',bundle:true,platform:'node',format:'cjs'});
 const {cutoverUi}=createRequire(import.meta.url)('../work/phase10-ui.cjs');
 const env={...process.env};for(const k of Object.keys(env))if(k.startsWith('FOX_VERIFY_')||['FOX_DEV_URL','ELECTRON_RUN_AS_NODE','NODE_ENV','VITEST'].includes(k))delete env[k];Object.assign(env,{FOX_VERIFY_DIR:directory,FOX_VERIFY_MANUAL:'1'});

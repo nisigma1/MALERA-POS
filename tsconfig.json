@@ -15,5 +15,5 @@
     "noEmit": true,
     "types": ["node", "vite/client"]
   },
-  "include": ["src", "electron", "tests", "scripts/reliability-fixture.ts", "vite.config.ts", "vitest.config.ts"]
+  "include": ["src", "electron", "tests", "scripts/reliability-fixture.ts", "scripts/windows-shm-fixture.ts", "vite.config.ts", "vitest.config.ts"]
 }

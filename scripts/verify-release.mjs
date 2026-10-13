@@ -54,9 +54,14 @@ if(stamp.channel!=='QA'&&signatures.some(s=>s.status!=='Valid'||!s.timestamp))th
 const signing=stamp.channel==='QA'?'UNSIGNED':'SIGNED';
 const sbom=`FOX-${version}-sbom.json`,sbomContent=fs.readFileSync(path.join(root,sbom));
 if(JSON.parse(sbomContent).bomFormat!=='CycloneDX'||secrets.test(sbomContent.toString()))throw Error('Invalid SBOM');
+const recovery=JSON.parse(fs.readFileSync('patches/sqlite-windows-shm-recovery.json','utf8'));
+const sqliteComponent=JSON.parse(sbomContent).components.find(c=>c.name==='sqlite');
+const nativeSha256=crypto.createHash('sha256').update(native).digest('hex');
+if(!sqliteComponent||sqliteComponent.version!==recovery.sqliteVersion||!sqliteComponent.properties.some(p=>p.name==='fox:patched-source-sha256'&&p.value===recovery.sourceSha256After)||!sqliteComponent.properties.some(p=>p.name==='fox:native-addon-sha256'&&p.value===nativeSha256))throw Error('Corrected SQLite native provenance mismatch');
 let tag=null;try{tag=execFileSync('git',['describe','--tags','--exact-match'],{encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim();}catch{}
 if(stamp.channel!=='QA'&&tag!==`v${version}`)throw Error('Official tag mismatch');
 const manifest={manifestVersion:2,product:'FOX Kafeteri',appId:'com.foxkafeteri.pos',version,channel:stamp.channel,platform:'win32',arch:'x64',artifact,sha256,commit,tag,ciRun:process.env.GITHUB_RUN_ID??null,builtAt:new Date().toISOString(),schemaVersion:6,signing,signer:signing==='SIGNED'?signatures.find(s=>s.file===artifact)?.signer:null,sbom,sbomSha256:crypto.createHash('sha256').update(sbomContent).digest('hex'),databaseBundled:false};
 fs.writeFileSync(installer+'.sha256',checksum);
+manifest.sqliteRecoveryBackport={upstream:recovery.upstream,sourceSha256:recovery.sourceSha256After,nativeSha256};
 fs.writeFileSync(path.join(root,'release-manifest.json'),JSON.stringify(manifest,null,2)+'\n');
 console.log(JSON.stringify({passed:true,artifact,sha256,commit,asarEntries:files.length}));

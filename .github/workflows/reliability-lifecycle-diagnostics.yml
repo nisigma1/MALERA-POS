@@ -1,6 +1,11 @@
 name: Installed reliability lifecycle diagnostics
 on:
   workflow_dispatch:
+    inputs:
+      candidate_run:
+        description: Exact Windows QA artifact run to investigate
+        required: true
+        type: string
 permissions:
   contents: read
   actions: read
@@ -14,12 +19,19 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - name: Download exact failed candidate
+      - name: Download exact selected candidate
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh run download 38408078451 -n FOX-QA-Windows-x64 -D work/lifecycle-candidate
+          FOX_CANDIDATE_RUN: ${{ inputs.candidate_run }}
+        run: gh run download "$env:FOX_CANDIDATE_RUN" -n FOX-QA-Windows-x64 -D work/lifecycle-candidate
       - name: Observe first failure without retries
-        run: node scripts/verify-reliability-ui.mjs work/lifecycle-candidate/release/FOX-Setup-0.7.2-rc.1-x64.exe
+        shell: pwsh
+        run: |
+          $manifest=Get-Content work/lifecycle-candidate/release/release-manifest.json -Raw | ConvertFrom-Json
+          $installer=Join-Path work/lifecycle-candidate/release $manifest.artifact
+          if ((Get-FileHash -LiteralPath $installer).Hash.ToLowerInvariant() -ne $manifest.sha256) { throw 'Candidate hash mismatch' }
+          node scripts/verify-reliability-ui.mjs $installer
+          if ($LASTEXITCODE -ne 0) { throw 'Lifecycle failed; no retry' }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
