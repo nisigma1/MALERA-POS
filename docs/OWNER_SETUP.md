@@ -23,12 +23,12 @@ Te **Raportet → Shpenzimet**, regjistro qiranë, pagat, energjinë dhe shpenzi
 
 Blerjet e mallit regjistrohen te **Stoku → Shto stok**, jo si shpenzime. Nëse paguan nga arka, shëno **Paguar nga arka** dhe vendos shumën reale të paguar. FOX nuk e hamendëson pagesën nga sasia ose çmimi i blerjes. Furnizimi rrit stokun; kostoja hyn në rezultat vetëm kur malli shitet.
 
-Te **Stoku → Regjistro humbje**, zgjidh produktin, sasinë dhe arsyen e dëmtimit/skadimit. Kjo ul stokun pa krijuar shitje ose dalje parash. Kostoja ruhet në momentin e humbjes; kur nuk dihet, shfaqet si e paplotë.
+Te **Stoku → Hiq si humbje**, zgjidh produktin, sasinë dhe arsyen e dëmtimit/skadimit. Kjo ul stokun pa krijuar shitje ose dalje parash. Kostoja ruhet në momentin e humbjes; kur nuk dihet, shfaqet si e paplotë.
 
 Te **Raportet → Mbyll arkën → Shto / hiq para**, regjistro para që pronari fut ose merr, me arsyen. Mos fut përsëri shitje, shpenzime ose furnizime: FOX i regjistron automatikisht. Hyrja nuk është shitje; tërheqja nuk është shpenzim.
 
-Në fund të punës, mbyll/anulo të gjitha porositë aktive. Te **Mbyll arkën**, konfirmo paratë fillestare të këtij sesioni dhe vendos shumën që numërove fizikisht. FOX shfaq gjendjen e pritur dhe ruan diferencën: përputhet, mungesë ose tepricë. Sesioni hapet automatikisht nga aktiviteti i parë dhe mund të kalojë mesnatën. Sa para ka në arkë? nga mbyllja e fundit është vetëm sugjerim; mos e përdor pa kontrolluar paratë që mbetën. Mbylljet historike nuk ndryshohen. Korrigjimi i parasë regjistrohet me arsye në sesionin aktual.
+Në fund të punës, mbyll/anulo të gjitha porositë aktive. Te **Mbyll arkën**, konfirmo paratë fillestare të këtij sesioni dhe vendos shumën që numërove fizikisht. FOX shfaq gjendjen e pritur dhe ruan diferencën: përputhet, mungesë ose tepricë. Sesioni hapet automatikisht nga aktiviteti i parë dhe mund të kalojë mesnatën. Shuma nga mbyllja e fundit është vetëm sugjerim; mos e përdor pa kontrolluar paratë që mbetën. Mbylljet historike nuk ndryshohen. Korrigjimi i parasë regjistrohet me arsye në sesionin aktual.
 
-**Fitimi** = shitje − kosto historike e mallit të shitur − shpenzime të regjistruara − humbje stoku. Vlera negative tregon humbje operative. Kur mungojnë kosto, FOX shfaq **Kosto të paplota**, jo fitim të rremë. Ky është kontroll operativ, jo fitimi neto ligjor/tatimor. Paratë në arkë janë tjetër gjë: përfshijnë gjendjen fillestare dhe hyrjet/daljet fizike. Filtri i raporteve nuk ndryshon kufijtë e sesionit të arkës.
+**Fitimi** = shitje − kosto historike e mallit të shitur − shpenzime të regjistruara − humbje stoku. Vlera negative tregon humbje operative. Kur mungojnë kosto, FOX shfaq **Nuk llogaritet**, bashkë me arsyen. Ky është kontroll operativ, jo fitimi neto ligjor/tatimor. Paratë në arkë janë tjetër gjë: përfshijnë gjendjen fillestare dhe hyrjet/daljet fizike. Filtri i raporteve nuk ndryshon kufijtë e sesionit të arkës.
 
 Historiku i vjetër nuk merr mbyllje ose gjendje fillestare të shpikura. Kontrolli i arkës fillon nga aktiviteti i ri në këtë version. Backup-i i zakonshëm ruan edhe shpenzimet, korrigjimet, humbjet, lëvizjet dhe sesionet e arkës.
