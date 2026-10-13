@@ -56,6 +56,8 @@ jobs:
         run: node scripts/verify-reliability.mjs
       - name: Phase 10 coherent backup golden master
         run: node scripts/verify-reliability.mjs --golden
+      - name: Phase 10 actual native COMMIT latency baseline
+        run: node scripts/verify-reliability.mjs --latency
       - name: Phase 10 deterministic 100k multi-year reconciliation
         run: node scripts/verify-reliability.mjs --long --100k
       - run: npm run verify:runtime

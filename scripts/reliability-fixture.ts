@@ -17,7 +17,12 @@ const timings:Record<string,number[]>={};
 let measurementLabel='unlabelled';
 function time<T>(name:string,fn:()=>T):T {const t=performance.now(),previous=measurementLabel;measurementLabel=name;try{return fn();}finally{(timings[name]??=[]).push(performance.now()-t);measurementLabel=previous;}}
 function measuredConnection(raw:Database.Database):Database.Database {
- let observed:Database.Database;observed=new Proxy(raw,{get(target,key){if(key==='prepare')return (sql:string)=>{const st=target.prepare(sql);return new Proxy(st,{get(stmt,op){const fn=Reflect.get(stmt,op);if(typeof fn!=='function')return fn;return (...args:unknown[])=>{const started=performance.now();try{return fn.apply(stmt,args);}finally{if(sql.trim()==='COMMIT'&&op==='run')(timings[measurementLabel+':commit']??=[]).push(performance.now()-started);}};}});};const value=Reflect.get(target,key);if(key==='transaction')return (...args:unknown[])=>value.apply(observed,args);return typeof value==='function'?value.bind(target):value;}}) as Database.Database;return observed;
+ // The native transaction controller caches its own prepared COMMIT statement;
+ // intercepting database.prepare cannot observe it. This standalone QA process
+ // observes the actual native Statement prototype, never the production bundle.
+ const prototype=Object.getPrototypeOf(raw.prepare('SELECT 1')) as {run:Database.Statement['run']};const original=prototype.run;
+ prototype.run=function(this:Database.Statement,...args:unknown[]){const started=performance.now();try{return original.apply(this,args);}finally{if(this.source==='COMMIT')(timings[measurementLabel+':commit']??=[]).push(performance.now()-started);}};
+ return raw;
 }
 async function asyncTime<T>(name:string,fn:()=>Promise<T>):Promise<T>{const t=performance.now();try{return await fn();}finally{(timings[name]??=[]).push(performance.now()-t);}}
 function summary(){return Object.fromEntries(Object.entries(timings).map(([k,values])=>{const sorted=[...values].sort((a,b)=>a-b);return [k,{samples:sorted.length,p50:sorted[Math.floor(sorted.length*.5)],p95:sorted[Math.min(sorted.length-1,Math.floor(sorted.length*.95))],max:sorted.at(-1)}];}));}
@@ -36,7 +41,7 @@ if(mode==='latency'){
   const b=time('reservation',()=>accepted(s.reservations.reserve({requestId:randomUUID(),tableId:'M13',customerName:'QA',phone:'',startsAt:'2099-01-01T10:00:00.000Z',guests:2,note:''})));accepted(s.reservations.cancel({tableId:'M13',reservationId:b.reservation!.id}));time('cashClose',()=>accepted(s.finance.closeCash(cash(db))));time('report',()=>s.finance.report({period:'ALL'}));
  }
  for(let i=0;i<5;i++){const saved=path.join(directory!,`timed-${i}.sqlite`);await asyncTime('backup',()=>createBackup(db,saved,'0.7.2-rc.1'));await asyncTime('restoreValidation',()=>validateBackup(saved));}
- assertAll(db);time('shutdown',()=>db.close());const result={passed:true,atScale:!!action,samples:30,timings:summary(),commitInstrumentation:'Test-only prepared COMMIT statement duration on same native transaction controller; no production hook'};write(action?'fox-phase10-latency-scale.json':'fox-phase10-latency-fresh.json',result);output(result);
+ assertAll(db);assert.equal(timings['checkout:commit']?.length,30,'Every native checkout COMMIT must be measured');time('shutdown',()=>db.close());const result={passed:true,atScale:!!action,samples:30,timings:summary(),commitInstrumentation:'Actual native Statement prototype COMMIT duration in standalone owned QA process; no production hook'};write(action?'fox-phase10-latency-scale.json':'fox-phase10-latency-fresh.json',result);output(result);
 }else if(mode==='profile'){
  const db=openDatabase(file),measurements:unknown[]=[];const observed=new Proxy(db,{get(target,key){if(key==='prepare')return (sql:string)=>{const stmt=target.prepare(sql);return new Proxy(stmt,{get(st,op){const value=Reflect.get(st,op);if(typeof value!=='function')return value;return (...args:unknown[])=>{const t=performance.now();try{return value.apply(st,args);}finally{measurements.push({sql:sql.replace(/\s+/g,' '),method:String(op),ms:performance.now()-t});}};}});};const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value;}}) as Database.Database;
  services(observed).finance.report({period:'ALL'});output({measurements,memory:process.memoryUsage()});write('fox-phase10-query-profile.json',{measurements,memory:process.memoryUsage()});db.close();
