@@ -111,7 +111,27 @@ if($edit.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern,
  if($written.ToString() -ne $File){throw 'Native filename input did not retain requested path'}
 }
 $button=$dialog.FindFirst($scope::Descendants,[System.Windows.Automation.PropertyCondition]::new($uia::AutomationIdProperty,'1'))
-if(-not $button){throw 'Owned file selection button not found'}
+if($button -and $button.Current.ControlType -ne [System.Windows.Automation.ControlType]::Button){
+ # Explorer file/folder items can also expose AutomationId=1. They are not
+ # the Save/Open button and invoking one may navigate or cancel selection.
+ $button=$dialog.FindFirst($scope::Descendants,[System.Windows.Automation.AndCondition]::new(
+  [System.Windows.Automation.PropertyCondition]::new($uia::AutomationIdProperty,'1'),
+  [System.Windows.Automation.PropertyCondition]::new($uia::ControlTypeProperty,[System.Windows.Automation.ControlType]::Button)))
+}
+if(-not $button){
+ # Some hosted/common dialogs expose the real Win32 Button as a UIA Pane.
+ # Match the native class and ID, never an Explorer item with the same UIA ID.
+ $selectionButtons=[System.Collections.Generic.List[System.IntPtr]]::new()
+ $callback=[FoxOwnedDialogControl+EnumProc]{param($h,$l)
+  $className=[System.Text.StringBuilder]::new(128)
+  [FoxOwnedDialogControl]::GetClassName($h,$className,128) | Out-Null
+  if($className.ToString() -eq 'Button' -and [FoxOwnedDialogControl]::GetDlgCtrlID($h) -eq 1){$selectionButtons.Add($h)}
+  return $true
+ }
+ [FoxOwnedDialogControl]::EnumChildWindows([IntPtr]$dialog.Current.NativeWindowHandle,$callback,[IntPtr]::Zero) | Out-Null
+ if($selectionButtons.Count -ne 1){throw 'Expected exactly one owned native Save/Open Button'}
+ $button=$uia::FromHandle($selectionButtons[0])
+}
 if($CaptureDirectory){
  $captureFile=Join-Path $CaptureDirectory ($Action+'-selection-native.png')
  & powershell.exe -NoProfile -File (Join-Path $PSScriptRoot 'capture-owned-window.ps1') -FoxProcessId $FoxProcessId -Title $title -File $captureFile

@@ -69,6 +69,12 @@ jobs:
       - run: node scripts/verify-startup-failures.mjs --stress
       - run: npm run package:win -- --qa
       - run: ./scripts/verify-release.ps1
+      - name: Final packaged cafe-day UI reconciliation and recovery
+        shell: pwsh
+        run: |
+          $env:FOX_PHASE11_EXECUTABLE=[IO.Path]::GetFullPath('release/win-unpacked/FOX Kafeteri.exe')
+          node scripts/certify-phase11-day.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Final UI cafe-day failed; no retry' }
       - name: Packaged Phase 10 lifecycle and resource soak
         shell: pwsh
         run: |
@@ -170,6 +176,7 @@ jobs:
           path: |
             outputs/fox-phase10-*.json
             outputs/fox-phase11-*.json
+            outputs/phase11/*.json
             outputs/fox-phase10-worker-failure-*.log
           if-no-files-found: warn
           retention-days: 14
