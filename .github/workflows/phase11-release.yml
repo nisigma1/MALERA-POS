@@ -168,6 +168,7 @@ jobs:
             outputs/fox-phase10-*.json
             outputs/fox-phase11-*.json
             outputs/phase11/*.json
+            outputs/phase11/*.log
             outputs/fox-phase10-worker-failure-*.log
           if-no-files-found: warn
           retention-days: 14
