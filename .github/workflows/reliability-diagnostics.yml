@@ -1,0 +1,33 @@
+name: Windows reliability phase diagnostics
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Reproduce with phase timings; stop at first failure
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path outputs -Force | Out-Null
+          for ($diagnosticRun=1; $diagnosticRun -le 25; $diagnosticRun++) {
+            node scripts/test.mjs tests/reliabilityStress.test.ts 2>&1 | Tee-Object -FilePath "outputs/contention-diagnostic-$diagnosticRun.log"
+            if ($LASTEXITCODE -ne 0) { throw "Diagnostic run $diagnosticRun failed; no retry" }
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: FOX-Contention-Phase-Diagnostics
+          path: |
+            outputs/contention-diagnostic-*.log
+            outputs/fox-phase10-contention-progress-*.json
+            outputs/fox-phase10-storage-*.json
+          if-no-files-found: warn
+          retention-days: 14

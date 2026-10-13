@@ -11,15 +11,17 @@ import {replaceDatabase} from '../electron/database/restore';
 import {random,streamDigest,digest} from './support/reliability';
 
 it.each([10,50,100,250,500])('bounded competing writer %i ms releases without a half mutation or unsafe retry',async delay=>{
- const root=fs.mkdtempSync(path.join(os.tmpdir(),'fox-phase10-contention-')),file=path.join(root,'fox.sqlite'),db=openDatabase(file);let worker:Worker|undefined;
+ const fixtureStarted=performance.now(),phases:{stage:string;elapsedMs:number}[]=[];
+ const mark=(stage:string)=>{phases.push({stage,elapsedMs:performance.now()-fixtureStarted});fs.mkdirSync('outputs',{recursive:true});fs.writeFileSync(`outputs/fox-phase10-contention-progress-${delay}.json`,JSON.stringify({delayMs:delay,phases},null,2));console.info('FOX_CONTENTION_PHASE',JSON.stringify({delayMs:delay,...phases.at(-1)}));};
+ mark('fixture-start');const root=fs.mkdtempSync(path.join(os.tmpdir(),'fox-phase10-contention-')),file=path.join(root,'fox.sqlite'),db=openDatabase(file);let worker:Worker|undefined;mark('database-open');
  try{
-  configure(db);const s=services(db),order=accepted(s.orders.addProduct({tableId:'M5',productId:'KAFE-1'})).order!;
+  configure(db);const s=services(db),order=accepted(s.orders.addProduct({tableId:'M5',productId:'KAFE-1'})).order!;mark('order-prepared');
   worker=new Worker(`const {workerData,parentPort}=require('node:worker_threads');const Database=require('better-sqlite3');const db=new Database(workerData.file);db.pragma('foreign_keys=ON');db.pragma('busy_timeout=5000');db.exec('BEGIN IMMEDIATE');parentPort.postMessage('LOCKED');Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,workerData.delay);db.exec('COMMIT');db.close();parentPort.postMessage('RELEASED');`,{eval:true,workerData:{file,delay},execArgv:[]});
-  await new Promise<void>((resolve,reject)=>{worker!.once('message',()=>resolve());worker!.once('error',reject);});
-  const start=performance.now();accepted(s.checkout.completeOrder({orderId:order.id}));const elapsedMs=performance.now()-start;expect(elapsedMs).toBeLessThan(5000);const committed=snapshot(db);
-  expect(s.checkout.completeOrder({orderId:order.id})).toMatchObject({ok:false,code:'ALREADY_COMPLETED'});expect(snapshot(db)).toEqual(committed);assertAll(db);
-  const backup=path.join(root,'live.sqlite');const booked=accepted(s.reservations.reserve({requestId:randomUUID(),tableId:'M13',customerName:'QA',phone:'',startsAt:'2099-01-01T10:00:00.000Z',guests:2,note:''}));accepted(s.orders.addProduct({tableId:'T1',productId:'KAFE-1'}));await createBackup(db,backup,'0.7.1-rc.2');expect((await validateBackup(backup)).schemaVersion).toBe(6);expect(booked.reservation?.status).toBe('BOOKED');assertAll(db);
-  fs.mkdirSync('outputs',{recursive:true});fs.writeFileSync(`outputs/fox-phase10-storage-${delay}.json`,JSON.stringify({passed:true,delayMs:delay,elapsedMs,busyTimeoutMs:5000,committedOnce:true,liveBackup:true},null,2));
+  await new Promise<void>((resolve,reject)=>{worker!.once('message',()=>resolve());worker!.once('error',reject);});mark('writer-locked');
+  const start=performance.now();accepted(s.checkout.completeOrder({orderId:order.id}));const elapsedMs=performance.now()-start;mark('checkout-returned');expect(elapsedMs).toBeLessThan(5000);const committed=snapshot(db);
+  expect(s.checkout.completeOrder({orderId:order.id})).toMatchObject({ok:false,code:'ALREADY_COMPLETED'});expect(snapshot(db)).toEqual(committed);assertAll(db);mark('retry-reconciled');
+  const backup=path.join(root,'live.sqlite');const booked=accepted(s.reservations.reserve({requestId:randomUUID(),tableId:'M13',customerName:'QA',phone:'',startsAt:'2099-01-01T10:00:00.000Z',guests:2,note:''}));accepted(s.orders.addProduct({tableId:'T1',productId:'KAFE-1'}));mark('backup-start');await createBackup(db,backup,'0.7.1-rc.2');mark('backup-created');expect((await validateBackup(backup)).schemaVersion).toBe(6);expect(booked.reservation?.status).toBe('BOOKED');assertAll(db);mark('backup-reconciled');
+  fs.mkdirSync('outputs',{recursive:true});fs.writeFileSync(`outputs/fox-phase10-storage-${delay}.json`,JSON.stringify({passed:true,delayMs:delay,elapsedMs,busyTimeoutMs:5000,committedOnce:true,liveBackup:true,phases},null,2));
  }finally{await worker?.terminate();db.close();if(path.dirname(root)!==os.tmpdir()||!path.basename(root).startsWith('fox-phase10-contention-'))throw Error('Unsafe cleanup');fs.rmSync(root,{recursive:true,force:true});}
 });
 it.each([0,-1,NaN,Infinity,1.1,1e309,Number.MAX_SAFE_INTEGER+1,'1e9','1,20','1.20','1..20','01.20',' ','alphabetic'])('numeric fuzz rejects non-authoritative cents %#',amountCents=>{
