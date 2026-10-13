@@ -38,6 +38,13 @@ jobs:
         shell: pwsh
         run: |
           for ($suiteRun=1; $suiteRun -le 5; $suiteRun++) {
+              # Separate each native file integration run from the shared OS temp
+              # directory. Keep every SQLite durability setting and test deadline.
+              $suiteTemp=[IO.Path]::GetFullPath((Join-Path $env:GITHUB_WORKSPACE "work/phase10-suite-temp-$suiteRun"))
+              if (-not $suiteTemp.StartsWith([IO.Path]::GetFullPath($env:GITHUB_WORKSPACE)+[IO.Path]::DirectorySeparatorChar)) { throw 'Unsafe QA temp root' }
+              New-Item -ItemType Directory -Path $suiteTemp -Force | Out-Null
+              $env:TEMP=$suiteTemp
+              $env:TMP=$suiteTemp
             npm test
             if ($LASTEXITCODE -ne 0) { throw "Full-suite repeat $suiteRun failed; certification stops without retry" }
           }
