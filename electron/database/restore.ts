@@ -4,6 +4,7 @@ import Database from 'better-sqlite3';
 import { backupName, createBackup, durableWrite, validateBackup } from './backups';
 import { inspectDatabase } from './health';
 import { openDatabase } from './connection';
+declare const FOX_RELEASE: boolean;
 
 const journalName = 'fox-restore-journal.json';
 const oldName = 'fox-restore-original.sqlite';
@@ -51,14 +52,14 @@ export async function replaceDatabase(db: Database.Database, backup: string, dir
     const backupDirectory = path.join(directory, 'backups'); fs.mkdirSync(backupDirectory, { recursive: true });
     const safety = path.join(backupDirectory, backupName('before-restore'));
     await createBackup(db, safety, version,'PRE_RESTORE');
-    inject?.('SAFETY_BACKUP');
+    if (typeof FOX_RELEASE === 'undefined' || !FOX_RELEASE) inject?.('SAFETY_BACKUP');
     // Ensure all committed pages are in the original main file before renaming it.
     const checkpoint = db.pragma('wal_checkpoint(TRUNCATE)') as {busy:number}[];
     if (checkpoint[0]?.busy) throw Error('FOX_RESTORE_CHECKPOINT_BUSY');
     stopServices(); db.close(); closed = true;
     durableWrite(p.journal, JSON.stringify({format:1,state:'REPLACING'}));
-    fs.renameSync(p.current, p.old); inject?.('ORIGINAL_RENAMED');
-    fs.renameSync(p.stage, p.current); inject?.('CANDIDATE_RENAMED');
+    fs.renameSync(p.current, p.old); if (typeof FOX_RELEASE === 'undefined' || !FOX_RELEASE) inject?.('ORIGINAL_RENAMED');
+    fs.renameSync(p.stage, p.current); if (typeof FOX_RELEASE === 'undefined' || !FOX_RELEASE) inject?.('CANDIDATE_RENAMED');
     const restored = new Database(p.current, { readonly: true, fileMustExist: true });
     try { inspectDatabase(restored, true); } finally { restored.close(); }
     // Replace journal via a flushed temp then atomic rename; a pre-COMPLETE crash rolls back.

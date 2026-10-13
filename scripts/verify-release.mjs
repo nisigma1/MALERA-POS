@@ -29,6 +29,7 @@ if(files.some(name=>forbidden(name)||/^\/(?:tests|scripts|docs|work|\.github)\//
 const metadata=JSON.parse(asar.extractFile(archive,'package.json').toString());
 if(metadata.version!==version||metadata.name!=='fox-pos'||metadata.main!=='dist-electron/main.cjs') throw Error('Packaged metadata mismatch');
 const main=asar.extractFile(archive,'dist-electron/main.cjs').toString();
+if(/\binject\?\.\(/.test(main))throw Error('Restore failure seam present in release bundle');
 if(main.includes('Intentional lost checkout response')||main.includes('checkout-expected.json')||main.includes('cutover-dialog.json')||secrets.test(main)) throw Error('QA or secrets embedded');
 for(const name of files.filter(n=>/\.(cjs|js|json|html|css)$/.test(n))) {
   const relative=path.normalize(name.replace(/^\//,''));

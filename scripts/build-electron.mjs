@@ -5,4 +5,5 @@ await build({
   bundle: true, platform: 'node', format: 'cjs', target: 'node22',
   external: ['electron', 'better-sqlite3'], sourcemap: !process.argv.includes('--release'),
   define: { FOX_RELEASE: String(process.argv.includes('--release')) },
+  minifySyntax: process.argv.includes('--release'),
 });
