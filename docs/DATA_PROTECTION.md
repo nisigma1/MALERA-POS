@@ -26,4 +26,6 @@ Për mbështetje teknike, të dhënat zakonisht janë te `%APPDATA%\FOX Kafeteri
 
 Backup-et që zgjedh të krijosh nuk fshihen automatikisht. Kontrollo hapësirën e diskut dhe mbaj disa kopje të verifikuara, përfshirë një kopje jashtë laptopit. Mos fshi kopjen e fundit të mirë. Para pastrimit, verifiko kopjen që do të mbash.
 
+Nëse backup-i nuk krijohet në një dosje shumë të thellë ose me emër shumë të gjatë, provo një dosje të shkurtër me emër të thjeshtë, për shembull në USB. Prit gjithmonë mesazhin e verifikimit; vetëm mbyllja e dritares së zgjedhjes nuk do të thotë se backup-i u krijua.
+
 Backup-i përmban edhe kontaktet e rezervimeve. Ruaje në vend të mbrojtur dhe jepja vetëm personit të autorizuar. Diagnostika e zakonshme kufizohet dhe rrotullohet automatikisht; nuk kërkohet pastrim me komanda.
