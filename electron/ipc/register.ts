@@ -61,6 +61,11 @@ export function registerIpc(window: BrowserWindow, repositories: ReturnType<type
     if(result.ok)printManager.kick();
     return result;
   });
+  handle('fox:settings:business-name',(event,...args:unknown[])=>{
+    if(event.sender!==window.webContents||event.senderFrame!==window.webContents.mainFrame||args.length!==1)throw Error('Unauthorized FOX request');
+    try{return configuration.updateBusinessName(args[0]);}
+    catch(error){logError('BUSINESS_SETTINGS',error);return {ok:false,errors:{form:'Emri nuk u ruajt. Provo përsëri.'},message:'Emri nuk u ruajt. Provo përsëri.'};}
+  });
   handle(IPC.salesReport, (event, ...args: unknown[]) => {
     if (event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame || args.length !== 1) throw new Error('Unauthorized FOX request');
     try { return repositories.getSalesReport(args[0]); }

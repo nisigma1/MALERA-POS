@@ -34,17 +34,8 @@ jobs:
           if ($version -notmatch '^\d+\.\d+\.\d+-(?:qa|rc)\.\d+$') { throw 'Only a prerelease candidate is permitted; artifact remains explicitly QA/UNSIGNED' }
           if ($env:REPOSITORY_PRIVATE -ne 'true') { throw 'Repository must remain private' }
       - run: npm ci
-      - name: One complete frozen regression suite; no retries
-        shell: pwsh
-        run: |
-          $suiteTemp=[IO.Path]::GetFullPath((Join-Path $env:GITHUB_WORKSPACE 'work/phase11-suite-temp'))
-          New-Item -ItemType Directory -Path $suiteTemp -Force | Out-Null
-          $env:TEMP=$suiteTemp
-          $env:TMP=$suiteTemp
-          npm test
-          if ($LASTEXITCODE -ne 0) { throw 'Final full suite failed; no retry' }
-          New-Item -ItemType Directory -Path outputs -Force | Out-Null
-          @{passed=$true;consecutivePasses=1;retriedFailures=0;tests=531;phase=11} | ConvertTo-Json | Set-Content outputs/fox-phase11-regression.json
+      - name: Five complete final suites; stop at first failure
+        run: node scripts/certify-phase11-suites.mjs
       - run: npm run typecheck
       - run: npm run build
       - run: npm run verify:production-db

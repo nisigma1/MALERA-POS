@@ -15,7 +15,7 @@ const api: FoxApi = {
   },
   products: { list: () => ipcRenderer.invoke(IPC.products), update: input => ipcRenderer.invoke(IPC.updateProduct, input) },
   inventory: { addSupply: input => ipcRenderer.invoke(IPC.addSupply, input) },
-  settings: { get: () => ipcRenderer.invoke(IPC.settings) },
+  settings: { get: () => ipcRenderer.invoke(IPC.settings), updateBusinessName: input => ipcRenderer.invoke('fox:settings:business-name',input) },
   receipts: {
     listPrinters: () => ipcRenderer.invoke(IPC.receiptPrinters),
     getSettings: () => ipcRenderer.invoke(IPC.receiptSettings),

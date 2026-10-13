@@ -22,7 +22,7 @@ export interface FoxApi {
   };
   products: { list(): Promise<CatalogProduct[]>; update(input: ProductUpdate): Promise<MutationResult<CatalogProduct>> };
   inventory: { addSupply(input: SupplyRequest): Promise<MutationResult<CatalogProduct>> };
-  settings: { get(): Promise<Settings> };
+  settings: { get(): Promise<Settings>; updateBusinessName(input:{businessName:string}):Promise<MutationResult<Settings>> };
   receipts: {
     listPrinters(): Promise<ReceiptResult<Printer[]>>;
     getSettings(): Promise<ReceiptSettings>;

@@ -1,12 +1,25 @@
 import type Database from 'better-sqlite3';
 import { validateProductUpdate, validateSupply, type MutationResult, type ProductUpdate, type SupplyRequest } from '../../src/domain/configuration';
-import type { CatalogProduct } from '../../src/domain/types';
+import type { CatalogProduct, Settings } from '../../src/domain/types';
 import type { createRepositories } from './repositories';
 import {exactQuantity,assertCashTotals} from './numericSafety';
 export function createConfigurationService(db: Database.Database, repositories: ReturnType<typeof createRepositories>) {
   const find = (id: string) => repositories.listProducts().find(product => product.id === id);
   const failure = (errors: Record<string, string>): MutationResult<CatalogProduct> => ({ ok: false, errors, message: 'Kontrollo të dhënat e vendosura.' });
   return {
+    updateBusinessName(input: unknown): MutationResult<Settings> {
+      const invalid = (): MutationResult<Settings> => ({ok:false,errors:{businessName:'Shkruaj emrin e biznesit, deri në 100 shkronja.'},message:'Kontrollo emrin e biznesit.'});
+      if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).length !== 1 || !Object.hasOwn(input,'businessName')) return invalid();
+      const raw = (input as {businessName:unknown}).businessName;
+      if (typeof raw !== 'string') return invalid();
+      const name = raw.trim();
+      if (!name || name.length > 100 || /[\u0000-\u001f\u007f]/.test(name)) return invalid();
+      return db.transaction(() => {
+        const updated = db.prepare("UPDATE settings SET value=? WHERE key='business_name'").run(name);
+        if (updated.changes !== 1) throw Error('FOX_BUSINESS_SETTING_MISSING');
+        return {ok:true,data:repositories.getSettings()} as const;
+      }).immediate();
+    },
     updateProduct(input: unknown): MutationResult<CatalogProduct> {
       const errors = validateProductUpdate(input);
       if (Object.keys(errors).length) return failure(errors);
