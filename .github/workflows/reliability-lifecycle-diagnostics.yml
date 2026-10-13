@@ -1,0 +1,29 @@
+name: Installed reliability lifecycle diagnostics
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  diagnose:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Download exact failed candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download 38408078451 -n FOX-QA-Windows-x64 -D work/lifecycle-candidate
+      - name: Observe first failure without retries
+        run: node scripts/verify-reliability-ui.mjs work/lifecycle-candidate/release/FOX-Setup-0.7.2-rc.1-x64.exe
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: FOX-Lifecycle-Diagnostics
+          path: outputs/fox-phase10-ui-*.json
+          if-no-files-found: error
+          retention-days: 14
