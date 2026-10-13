@@ -8,7 +8,7 @@ export function DataProtectionPanel(){
   const lock=useRef(false);
   const refresh=()=>Promise.all([window.fox.data.diagnostics(),window.fox.products.list()]).then(([diagnostics,products])=>{setData(diagnostics);setReadiness(productReadiness(products));}).catch(()=>setMessage('Gjendja nuk mund të lexohet. Provo përsëri.'));
   useEffect(()=>{void refresh();},[]);
-  async function action(operation:()=>Promise<DataActionResult>,restarting=false){if(lock.current)return;lock.current=true;setBusy(true);setMessage('');try{const result=await operation();setMessage(result.message);if(!(restarting&&result.ok))await refresh();}catch{setMessage('Veprimi nuk u përfundua. Të dhënat ekzistuese janë ruajtur.');}finally{lock.current=false;setBusy(false);}}
+  async function action(operation:()=>Promise<DataActionResult>,restarting=false){if(lock.current)return;lock.current=true;setBusy(true);setMessage('');try{const result=await operation();setMessage(result.message);if(!(restarting&&result.ok))await refresh();}catch{setMessage('Veprimi nuk u konfirmua. Kontrollo gjendjen te Cilësimet para se ta provosh përsëri.');}finally{lock.current=false;setBusy(false);}}
   return <><section className="settings-panel readiness-panel"><h2>Gati për shitje</h2>{readiness?<>
     <p role="status"><strong>{readiness.configured?'Gati për fillimin e punës':'Nuk është gati për fillimin e punës'}</strong></p>
     <p>{readiness.configured?'Çmimet dhe stoku janë gati.':'Plotëso këto të dhëna te Stoku për produktet aktive:'}</p>

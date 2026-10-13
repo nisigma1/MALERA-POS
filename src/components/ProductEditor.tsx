@@ -47,7 +47,7 @@ export function ProductEditor({ product, onClose, onSaved }: { product: CatalogP
       const result = await window.fox.products.update(input);
       if (result.ok) onSaved(result.data);
       else setErrors(result.errors);
-    } catch (error) { console.error('FOX product save failed', error); setErrors({ form: 'Produkti nuk u ruajt. Provo përsëri.' }); }
+    } catch (error) { console.error('FOX product save failed', error); setErrors({ form: 'Ruajtja nuk u konfirmua. Kontrollo produktin te Stoku para se ta provosh përsëri.' }); }
     finally { submitting.current = false; setBusy(false); }
   }
   return <SidePanel title="Edito produktin" subtitle={`${product.name} · ${product.categoryName} · ${product.active ? 'Aktiv' : 'Joaktiv'}`} busy={busy} onClose={onClose} footer={<>

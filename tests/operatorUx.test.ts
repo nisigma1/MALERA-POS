@@ -43,6 +43,7 @@ it('never presents unknown profit as zero and retains the exact -15 euro result'
 it('daily screens use the agreed plain copy and explicit dates, not native US/AM-PM controls', () => {
   const files=['src/pages/Reports.tsx','src/components/OwnerFinance.tsx','src/components/ExpensePanel.tsx','src/components/StockLossPanel.tsx','src/components/ReservationDialog.tsx'];
   for(const file of files)expect(fs.readFileSync(file,'utf8')).not.toMatch(/Rezultati operativ|Fitimi bruto|PRONARI ·|type="datetime-local"|type="date"/);
+  for(const file of ['src/components/DataProtectionPanel.tsx','src/components/ProductEditor.tsx','src/components/ReceiptSettingsPanel.tsx'])expect(fs.readFileSync(file,'utf8')).not.toMatch(/Të dhënat ekzistuese janë ruajtur|Produkti nuk u ruajt|Cilësimet nuk u ruajtën|Testi nuk u dërgua/);
   expect(fs.readFileSync('src/components/CheckoutDialog.tsx','utf8')).toContain('<strong>Cash</strong>');
   expect(fs.readFileSync('src/components/OwnerFinance.tsx','utf8')).toContain('Duhet të ketë në arkë');
   expect(fs.readFileSync('src/pages/Reports.tsx','utf8')).toContain('Shiko detajet');

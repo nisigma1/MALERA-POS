@@ -16,11 +16,11 @@ export function ReceiptSettingsPanel() {
   async function save(autoPrint:boolean){
     if(busy)return;setBusy(true);setMessage('');
     try{const result=await window.fox.receipts.saveSettings({deviceName:device||null,autoPrint,paperWidth:80,copies:1});if(!result.ok)setMessage(result.message);else if(!result.data.saved)setMessage(result.data.message);else{setConfig(result.data.settings);setMessage('Cilësimet u ruajtën.');}}
-    catch{setMessage('Cilësimet nuk u ruajtën.');}finally{setBusy(false);}
+    catch{setMessage('Ruajtja nuk u konfirmua. Rihap Cilësimet dhe kontrollo printerin.');}finally{setBusy(false);}
   }
   async function printTest(){
     if(busy)return;setBusy(true);setMessage('');
-    try{const result=await window.fox.receipts.testPrint();if(result.ok)setTest(result.data);else setMessage(result.message);}catch{setMessage('Testi nuk u dërgua.');}finally{setBusy(false);}
+    try{const result=await window.fox.receipts.testPrint();if(result.ok)setTest(result.data);else setMessage(result.message);}catch{setMessage('Testi nuk u konfirmua. Kontrollo printerin para se ta provosh përsëri.');}finally{setBusy(false);}
   }
   const savedDevice=device===(config?.deviceName??'');
   const missing=config?.deviceName&&!printers.some(p=>p.deviceName===config.deviceName);
