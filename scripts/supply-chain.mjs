@@ -16,7 +16,10 @@ if(mode==='scan'){
   const electron=JSON.parse(fs.readFileSync('node_modules/electron/package.json','utf8'));
   document.components.push({type:'framework',name:'electron',version:electron.version,purl:`pkg:npm/electron@${electron.version}`,properties:[{name:'fox:role',value:'bundled-runtime'}]});
   const recovery=JSON.parse(fs.readFileSync('patches/sqlite-windows-shm-recovery.json','utf8'));
-  const nativeHash=(await import('node:crypto')).createHash('sha256').update(fs.readFileSync(`node_modules/better-sqlite3/prebuilds/${process.platform}-${process.arch}.node`)).digest('hex');
+  // Signing changes PE bytes. Freeze the shipped (post-signing) native file,
+  // while the separate C source hash identifies the exact upstream correction.
+  const nativeFile=path.join(root,'win-unpacked/resources/app.asar.unpacked/node_modules/better-sqlite3/prebuilds/win32-x64.node');
+  const nativeHash=(await import('node:crypto')).createHash('sha256').update(fs.readFileSync(nativeFile)).digest('hex');
   document.components.push({type:'library',name:'sqlite',version:recovery.sqliteVersion,purl:`pkg:generic/sqlite@${recovery.sqliteVersion}`,properties:[{name:'fox:upstream-recovery-fix',value:recovery.upstream},{name:'fox:patched-source-sha256',value:recovery.sourceSha256After},{name:'fox:native-addon-sha256',value:nativeHash}]});
   const version=JSON.parse(fs.readFileSync('package.json','utf8')).version;
   fs.writeFileSync(path.join(root,`FOX-${version}-sbom.json`),JSON.stringify(document,null,2)+'\n');
