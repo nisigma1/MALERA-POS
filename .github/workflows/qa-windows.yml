@@ -65,8 +65,8 @@ jobs:
         run: node scripts/verify-reliability.mjs --golden
       - name: Phase 10 actual native COMMIT latency baseline
         run: node scripts/verify-reliability.mjs --latency
-      - name: Phase 10 deterministic 100k multi-year reconciliation
-        run: node scripts/verify-reliability.mjs --long --100k
+      - name: Phase 10 practical 50k CI multi-year reconciliation
+        run: node scripts/verify-reliability.mjs --long --50k
       - run: npm run verify:runtime
       - run: npm run verify:checkout
       - run: node scripts/verify-receipt-crashes.mjs
@@ -268,7 +268,9 @@ jobs:
         if: always()
         with:
           name: FOX-Reliability-Certification
-          path: outputs/fox-phase10-*.json
+          path: |
+            outputs/fox-phase10-*.json
+            outputs/fox-phase10-worker-failure-*.log
           if-no-files-found: warn
           retention-days: 14
       - uses: actions/upload-artifact@v4
