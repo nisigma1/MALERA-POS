@@ -19,8 +19,8 @@
   --control-height: 40px; --control-compact: 36px; --control-row: 32px; --nav-height: 44px; --tile-height: 96px;
   --pos-workspace-width: 424px;
   --sidebar-width: 216px; --transition: 140ms ease;
-  --font-interface: Tahoma, Arial, sans-serif;
-  --font-numeric: Consolas, 'Courier New', monospace;
+  --font-interface: 'Segoe UI', Arial, sans-serif;
+  --font-numeric: var(--font-interface);
   font-family: var(--font-interface); font-size: var(--font-body); font-synthesis: none;
   color: var(--text); background: var(--background);
 }

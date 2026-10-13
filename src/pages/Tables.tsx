@@ -1,3 +1,4 @@
+import { tableDisplayCode, tableDisplayArea } from '../presentation/tableIdentity';
 import { useEffect, useRef, useState } from 'react';
 import { useData } from '../app/useData';
 import { DataState } from '../components/DataState';
@@ -5,7 +6,7 @@ import { CheckoutDialog } from '../components/CheckoutDialog';
 import { ReservationDialog } from '../components/ReservationDialog';
 import { formatReservationTime, type ReserveTableInput } from '../domain/reservations';
 import { RealFloorPlan } from '../components/RealFloorPlan';
-import { AREA_LABELS, CATEGORIES, TABLE_STATUS_LABELS } from '../domain/definitions';
+import { CATEGORIES, TABLE_STATUS_LABELS } from '../domain/definitions';
 import { formatMoney } from '../domain/money';
 import type { CategoryCode, OrderWorkspace, TableStatus, ActiveOrder } from '../domain/types';
 import type { MutationResult } from '../domain/configuration';
@@ -133,18 +134,18 @@ export function Tables() {
   const tablePending = pending.some(key => key.startsWith(`${selected}:`));
   const visibleProducts = catalog.data?.filter(product => product.active && product.categoryId === category);
   const saveState = tablePending ? 'pending' : message ? 'error' : !view ? 'loading' : view.order ? 'saved' : 'empty';
-  const saveMessage = { pending: 'Duke ruajtur…', error: 'Kontrollo gjendjen e porosisë.', loading: 'Duke lexuar porosinë…', saved: 'Porosia ruhet automatikisht.', empty: 'Porosia nis me produktin e parë.' }[saveState];
+  const saveMessage = { pending: 'Duke ruajtur…', error: 'Kontrollo gjendjen e porosisë.', loading: 'Duke lexuar porosinë…', saved: '', empty: '' }[saveState];
   return <div data-page="tables" className={selected ? 'pos-selected' : ''}>
     {header}
     <div className="pos-layout"><div className="board-scroll"><RealFloorPlan tables={data} selected={selected} onSelect={select}/></div>
     {table && <aside className="order-workspace" data-order-workspace aria-labelledby="order-heading">
-      <header className="order-header"><div><h2 id="order-heading">Tavolina {table.code}</h2><div className="order-context"><span>{AREA_LABELS[table.area]}</span><StatusBadge dot={false} tone={tone(table.status)}>{TABLE_STATUS_LABELS[table.status]}</StatusBadge></div></div><Button variant="ghost" className="icon-button" aria-label="Mbyll panelin e tavolinës" onClick={close}><Icon name="close"/></Button></header>
-      {canOrder && !view?.order && <div className="reservation-toolbar"><Button data-open-reservation disabled={tablePending || !!reservationDialog} onClick={()=>setReservationDialog({id:table.id,code:table.code})}>Rezervo tavolinën</Button></div>}
+      <header className="order-header"><div><h2 id="order-heading">Tavolina {tableDisplayCode(table.code)}</h2><div className="order-context"><span>{tableDisplayArea(table.code,table.area)}</span><StatusBadge dot={false} tone={tone(table.status)}>{TABLE_STATUS_LABELS[table.status]}</StatusBadge></div></div><Button variant="ghost" className="icon-button" aria-label="Mbyll panelin e tavolinës" onClick={close}><Icon name="close"/></Button></header>
+      {canOrder && !view?.order && <div className="reservation-toolbar"><Button data-open-reservation disabled={tablePending || !!reservationDialog} onClick={()=>setReservationDialog({id:table.id,code:tableDisplayCode(table.code)})}>Rezervo tavolinën</Button></div>}
       <div className="order-body" ref={orderBody}>
         {message && <div role="alert" className="form-error">{message}{(readFailed || uncertain.current.has(table.id)) && <Button onClick={() => select(table.id)}>Rifresko gjendjen</Button>}</div>}
         {!view ? <p className="order-help">{readFailed ? 'Gjendja e porosisë nuk është e disponueshme.' : 'Duke lexuar porosinë…'}</p> : <>
           {view.reservation ? <section className="reservation-details" aria-label="Rezervimi i tavolinës" data-reservation-details>
-            <span className="eyebrow">REZERVIMI</span><h3>{view.reservation.customerName}</h3>
+            <span className="eyebrow">Rezervimi</span><h3>{view.reservation.customerName}</h3>
             <dl><div><dt>Data / ora</dt><dd>{formatReservationTime(view.reservation.startsAt)}</dd></div>
               <div><dt>Persona</dt><dd>{view.reservation.guests}</dd></div>
               {view.reservation.phone && <div><dt>Telefoni</dt><dd>{view.reservation.phone}</dd></div>}
@@ -158,11 +159,11 @@ export function Tables() {
           <div className="order-categories" role="group" aria-label="Kategoritë e produkteve">{CATEGORIES.map(item => <Button key={item.id} variant="ghost" aria-pressed={item.id === category} data-order-category={item.id} onClick={() => setCategory(item.id)}>{item.name}</Button>)}</div>
           {!catalog.data ? <DataState error={catalog.error} retry={catalog.retry}/> : !visibleProducts?.length ? <p className="order-category-empty">Nuk ka produkte aktive në këtë kategori.</p> : <div className="order-products">{visibleProducts.map(product => {
             const key = `${table.id}:product:${product.id}`;
-            return <Button key={product.id} className={`order-product${product.sellingPriceCents === null ? ' unpriced-product' : ''}`} data-order-product={product.id} title={product.sellingPriceCents === null ? 'Pa çmim. Vendos çmimin te Inventari.' : product.trackInventory === null ? 'Zgjidh Po ose Jo te Inventari.' : product.trackInventory === true && product.stockQuantity === null ? 'Vendos stokun përmes furnizimit te Inventari.' : product.trackInventory === true && product.stockQuantity! <= 0 ? 'Pa stok. Shto furnizim te Inventari.' : undefined} disabled={!canMutate || product.trackInventory === null || (product.trackInventory === true && (product.stockQuantity === null || product.stockQuantity <= 0)) || product.sellingPriceCents === null || pending.includes(key)} onClick={() => run(key, () => window.fox.orders.addProduct({ tableId: table.id, productId: product.id }))}><span title={product.name.length > 18 ? product.name : undefined}>{product.name}</span><small>{pending.includes(key) ? 'Duke shtuar…' : product.sellingPriceCents === null ? 'Pa çmim' : product.trackInventory === null ? 'Konfiguro stokun' : product.trackInventory === true && product.stockQuantity === null ? 'Stok pa vendosur' : product.trackInventory === true && product.stockQuantity! <= 0 ? 'Pa stok' : product.sellingPriceCents === null ? 'Pa çmim' : formatMoney(product.sellingPriceCents)}</small></Button>;
+            return <Button key={product.id} className={`order-product${product.sellingPriceCents === null ? ' unpriced-product' : ''}`} data-order-product={product.id} title={product.sellingPriceCents === null ? 'Pa çmim. Vendos çmimin te Stoku.' : product.trackInventory === null ? 'Zgjidh Po ose Jo te Stoku.' : product.trackInventory === true && product.stockQuantity === null ? 'Vendos stokun përmes furnizimit te Stoku.' : product.trackInventory === true && product.stockQuantity! <= 0 ? 'Pa stok. Shto furnizim te Stoku.' : undefined} disabled={!canMutate || product.trackInventory === null || (product.trackInventory === true && (product.stockQuantity === null || product.stockQuantity <= 0)) || product.sellingPriceCents === null || pending.includes(key)} onClick={() => run(key, () => window.fox.orders.addProduct({ tableId: table.id, productId: product.id }))}><span title={product.name.length > 18 ? product.name : undefined}>{product.name}</span><small>{pending.includes(key) ? 'Duke shtuar…' : product.sellingPriceCents === null ? 'Pa çmim' : product.trackInventory === null ? 'Konfiguro stokun' : product.trackInventory === true && product.stockQuantity === null ? 'Stok pa vendosur' : product.trackInventory === true && product.stockQuantity! <= 0 ? 'Pa stok' : product.sellingPriceCents === null ? 'Pa çmim' : formatMoney(product.sellingPriceCents)}</small></Button>;
           })}</div>}
           </section>
-          <section className="current-order" aria-label="Porosia aktuale"><h3>Porosia aktuale</h3>
-            {!view.order ? <div className="order-empty"><p>Nuk ka porosi aktive.</p><small>Zgjidh një produkt për ta nisur porosinë.</small></div> : view.order.items.map(item => {
+          <section className="current-order" aria-label="Porosia"><h3>Porosia</h3>
+            {!view.order ? <div className="order-empty"><p>S’ka porosi.</p><small>Zgjidh një produkt.</small></div> : view.order.items.map(item => {
               const key = `${table.id}:item:${item.id}`;
               const disabled = !canMutate || pending.includes(key);
               const input = { tableId: table.id, itemId: item.id };
@@ -172,7 +173,7 @@ export function Tables() {
           </>}
         </>}
       </div>
-      <footer className="order-footer" data-order-state={saveState}><div><strong>{view?.reservation ? 'Rezervim' : view && !view.order ? 'Pa porosi' : 'Totali'}</strong><strong data-order-total>{view?.order ? formatMoney(view.order.totalCents) : '—'}</strong></div><p role="status">{view?.reservation ? 'Tavolina mbahet për klientin e rezervuar.' : success || saveMessage}</p>{!view?.reservation && <Button variant="primary" className="checkout-open" data-open-checkout disabled={!canOrder || !view?.order?.items.length || tablePending || !!checkout} onClick={() => { if (!view?.order || busy.current.size || checkoutLock.current) return; checkoutLock.current = true; setSuccess(''); setCheckout({ code: table.code, order: view.order }); }}>Mbyll llogarinë</Button>}</footer>
+      <footer className="order-footer" data-order-state={saveState}><div><strong>{view?.reservation ? 'Rezervim' : view && !view.order ? '' : 'Totali'}</strong><strong data-order-total>{view?.order ? formatMoney(view.order.totalCents) : '—'}</strong></div><p role="status">{view?.reservation ? 'Tavolina mbahet për klientin e rezervuar.' : success || saveMessage}</p>{!view?.reservation && <Button variant="primary" className="checkout-open" data-open-checkout disabled={!canOrder || !view?.order?.items.length || tablePending || !!checkout} onClick={() => { if (!view?.order || busy.current.size || checkoutLock.current) return; checkoutLock.current = true; setSuccess(''); setCheckout({ code: tableDisplayCode(table.code), order: view.order }); }}>Mbyll llogarinë</Button>}</footer>
     </aside>}
     </div>
     {reservationDialog && <ReservationDialog tableId={reservationDialog.id} tableCode={reservationDialog.code} onClose={()=>setReservationDialog(undefined)} onSave={saveReservation}/> }

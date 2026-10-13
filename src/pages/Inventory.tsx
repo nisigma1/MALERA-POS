@@ -26,15 +26,15 @@ export function Inventory() {
   const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('sq-AL');
   const filtered = data?.filter(p => (!category || p.categoryId === category) && normalize(p.name).includes(normalize(search.trim()))) ?? [];
   const summary = data ? inventorySummary(data) : null;
-  const header = <PageHeader title="Inventari" helper="Menaxho produktet, çmimet dhe stokun e FOX." actions={<><Button variant="primary" onClick={() => setSupply(true)} disabled={!data}><Icon name="plus"/>Shto furnizim</Button><Button data-stock-loss onClick={()=>setLoss(true)} disabled={!data}>Regjistro humbje</Button></>}/>;
+  const header = <PageHeader title="Stoku" helper="Produktet, çmimet dhe stoku." actions={<><Button variant="primary" onClick={() => setSupply(true)} disabled={!data}><Icon name="plus"/>Shto stok</Button><Button data-stock-loss onClick={()=>setLoss(true)} disabled={!data}>Hiq si humbje</Button></>}/>;
   if (!data || !summary) return <>{header}<DataState error={error} retry={retry}/></>;
   return <div data-page="inventory">
     {header}
     <dl className="summary-strip">
-      <div><dt>Produkte gjithsej</dt><dd>{summary.total}</dd><small title="Çmimi i blerjes dhe çmimi i shitjes janë të dy të vendosur.">Çmime të plota (blerje + shitje): {summary.fullyPriced}</small></div>
-      <div><dt>Produkte aktive</dt><dd>{summary.active}</dd><small>Në katalogun e FOX</small></div>
-      <div><dt>Stok i ulët / pa stok</dt><dd>{summary.low}</dd><small>Vetëm nga stoku i njohur</small></div>
-      <div><dt>Vlera e stokut</dt><dd className={summary.inventoryValueCents === null ? 'incomplete-value' : ''}>{summary.inventoryValueCents === null ? 'Pa të dhëna të plota' : formatMoney(summary.inventoryValueCents)}</dd><small>Sipas çmimit të blerjes</small></div>
+      <div><dt>Produkte</dt><dd>{summary.total}</dd><small title="Blerja dhe çmimi i shitjes janë të dy të vendosur.">Çmime të plota (blerje + shitje): {summary.fullyPriced}</small></div>
+      <div><dt>Aktive</dt><dd>{summary.active}</dd></div>
+      <div><dt>Stok i ulët</dt><dd>{summary.low}</dd></div>
+      <div><dt>Vlera e mallit</dt><dd className={summary.inventoryValueCents === null ? 'incomplete-value' : ''}>{summary.inventoryValueCents === null ? 'Pa të dhëna të plota' : formatMoney(summary.inventoryValueCents)}</dd><small>Sipas çmimit të blerjes</small></div>
     </dl>
     <div className="inventory-surface">
       <div className="inventory-toolbar"><div className="category-filters" role="group" aria-label="Filtro sipas kategorisë">
@@ -43,7 +43,7 @@ export function Inventory() {
       <div className="table-caption"><span>{filtered.length} produkte{category || search ? ` nga ${data.length}` : ''}</span><span className="feedback" role="status">{feedback && <><Icon name="check"/>{feedback}</>}</span><span>«—» = Pa vendosur</span></div>
     {filtered.length ? <div className="catalog-scroll"><table className="catalog"><thead><tr>
       <th>Produkti</th><th>Kategoria</th><th className="numeric">Stoku</th>
-      <th className="numeric">Çmimi i blerjes</th><th className="numeric">Çmimi i shitjes</th><th className="numeric">Fitimi/copë</th><th className="product-status">Statusi</th><th className="actions-heading">Veprime</th>
+      <th className="numeric">Blerja</th><th className="numeric">Shitja</th><th className="numeric">Fitimi për copë</th><th className="product-status">Statusi</th><th className="actions-heading">Veprime</th>
     </tr></thead><tbody>{filtered.map(product => {
       const state = stockState(product);
       return <tr key={product.id} className={product.active ? '' : 'inactive-row'} onClick={() => setEditor(product)}>

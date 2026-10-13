@@ -1,0 +1,195 @@
+name: Phase 11.1 operator UX release certification
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: phase11-1-release-${{ github.sha }}
+  cancel-in-progress: false
+jobs:
+  package:
+    runs-on: windows-latest
+    env:
+      FOX_QA_SESSION_SALES: '25'
+      FOX_CERTIFY_BASELINE: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Validate private QA candidate
+        shell: pwsh
+        env:
+          REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $visualOutput = [IO.Path]::GetFullPath((Join-Path $env:GITHUB_WORKSPACE '../../outputs/fox-phase9-regression-screenshots'))
+          $financeOutput = [IO.Path]::GetFullPath((Join-Path $env:GITHUB_WORKSPACE '../../outputs/fox-phase9-screenshots'))
+          $reservationsOutput = [IO.Path]::GetFullPath((Join-Path $env:GITHUB_WORKSPACE '../../outputs/fox-reservations-acceptance'))
+          "FOX_FINANCE_OUTPUT=$financeOutput" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "FOX_VISUAL_OUTPUT=$visualOutput" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "FOX_RESERVATIONS_OUTPUT=$reservationsOutput" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          if ($version -notmatch '^\d+\.\d+\.\d+-(?:qa|rc)\.\d+$') { throw 'Only a prerelease candidate is permitted; artifact remains explicitly QA/UNSIGNED' }
+          if ($env:REPOSITORY_PRIVATE -ne 'true') { throw 'Repository must remain private' }
+      - run: npm ci
+      - name: Five complete final suites; stop at first failure
+        run: node scripts/certify-phase11-1-suites.mjs
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm run verify:production-db
+      - run: npm run verify:cutover
+      - run: npm run verify:product-day
+      - run: node scripts/verify-product-ui.mjs
+      - run: node scripts/verify-finance.mjs
+      - run: npm run verify:reservations
+      - run: node scripts/verify-reservation-atomicity.mjs
+      - name: Phase 10 commit-before-response crash matrix
+        run: node scripts/verify-reliability.mjs
+      - name: Phase 10 coherent backup golden master
+        run: node scripts/verify-reliability.mjs --golden
+      - name: Phase 10 actual native COMMIT latency baseline
+        run: node scripts/verify-reliability.mjs --latency
+      - run: npm run verify:runtime
+      - run: npm run verify:checkout
+      - run: node scripts/verify-receipt-crashes.mjs
+      - run: npm run release:scan
+      - run: npm run verify:protection
+      - run: node scripts/verify-hardening-runtime.mjs
+      - run: node scripts/verify-startup-failures.mjs --stress
+      - run: npm run package:win -- --qa
+      - run: ./scripts/verify-release.ps1
+      - name: Final packaged cafe-day UI reconciliation and recovery
+        shell: pwsh
+        run: |
+          $env:FOX_PHASE11_EXECUTABLE=[IO.Path]::GetFullPath('release/win-unpacked/FOX Kafeteri.exe')
+          node scripts/certify-phase11-day.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Final UI cafe-day failed; no retry' }
+      - name: Packaged Phase 10 lifecycle and resource soak
+        shell: pwsh
+        run: |
+          $version=(Get-Content package.json -Raw | ConvertFrom-Json).version
+          node scripts/verify-reliability-ui.mjs "release/FOX-Setup-$version-x64.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Installed reliability lifecycle failed' }
+      - name: Packaged visual acceptance and frozen visual baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh run download 38067281942 -n FOX-QA-Windows-x64 -D work/phase7-visual-baseline
+          if ($LASTEXITCODE -ne 0) { throw 'Frozen visual baseline download failed' }
+          $baseline=Get-Content work/phase7-visual-baseline/release/release-manifest.json -Raw | ConvertFrom-Json
+          $oldInstaller='work/phase7-visual-baseline/release/FOX-Setup-0.6.0-rc.2-x64.exe'
+          if ($baseline.commit -ne '418a9b2f50508d025168e3bda19e4f79aa03b904' -or (Get-FileHash $oldInstaller).Hash.ToLowerInvariant() -ne '40fb84f76e26b6fe14493092cb80d8c06184758eedb9c53e07414f3c51737975') { throw 'Visual baseline provenance mismatch' }
+          node scripts/verify-visual.mjs before $oldInstaller
+          if ($LASTEXITCODE -ne 0) { throw 'Visual baseline capture failed' }
+          $version=(Get-Content package.json -Raw | ConvertFrom-Json).version
+          node scripts/verify-visual.mjs after "release/FOX-Setup-$version-x64.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged visual acceptance failed' }
+          node scripts/verify-workarea.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Actual visible window/taskbar acceptance failed' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: FOX-Visual-Acceptance
+          path: ${{ env.FOX_VISUAL_OUTPUT }}
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Installed owner financial acceptance
+        shell: pwsh
+        run: |
+          $version=(Get-Content package.json -Raw | ConvertFrom-Json).version
+          node scripts/verify-finance.mjs "release/FOX-Setup-$version-x64.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Installed financial acceptance failed' }
+      - name: Installed phone reservation acceptance
+        shell: pwsh
+        run: |
+          $version=(Get-Content package.json -Raw | ConvertFrom-Json).version
+          node scripts/verify-reservations.mjs "release/FOX-Setup-$version-x64.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Installed reservation acceptance failed' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: FOX-Reservation-Acceptance
+          path: ${{ env.FOX_RESERVATIONS_OUTPUT }}
+          if-no-files-found: warn
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: FOX-Financial-Acceptance
+          path: ${{ env.FOX_FINANCE_OUTPUT }}
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Installed owner UI cutover and native backup/recovery
+        shell: pwsh
+        run: |
+          $version=(Get-Content package.json -Raw | ConvertFrom-Json).version
+          node scripts/verify-cutover.mjs "release/FOX-Setup-$version-x64.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Installed owner cutover failed' }
+      - name: Actual clean QA installer and reinstall acceptance
+        shell: pwsh
+        run: |
+          $version=(Get-Content package.json -Raw | ConvertFrom-Json).version
+          node scripts/verify-installed.mjs "release/FOX-Setup-$version-x64.exe" "release/FOX-Setup-$version-x64.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Installed QA acceptance failed' }
+      - name: Frozen Phase 10 to final candidate upgrade
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh run download 38426100777 -n FOX-QA-Windows-x64 -D work/phase10-certified
+          if ($LASTEXITCODE -ne 0) { throw 'Certified Phase 10 artifact download failed' }
+          $oldInstaller='work/phase10-certified/release/FOX-Setup-0.7.2-rc.2-x64.exe'
+          $baseline=Get-Content work/phase10-certified/release/release-manifest.json -Raw | ConvertFrom-Json
+          $oldHash=(Get-FileHash $oldInstaller).Hash.ToLowerInvariant()
+          if ($baseline.commit -ne '152b135c6e862ba0c6cb56012f168c69027aa6a4' -or $oldHash -ne '123d527a4df30b5822b2b1c2a32c2361c22bb2d28820a54c7f13380e5db8cae9' -or $oldHash -ne $baseline.sha256) { throw 'Phase 10 provenance mismatch' }
+          $version=(Get-Content package.json -Raw | ConvertFrom-Json).version
+          node scripts/verify-installed.mjs $oldInstaller "release/FOX-Setup-$version-x64.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Phase 10 upgrade invariance failed' }
+
+      - name: Retain sanitized acceptance evidence
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path work/ci-evidence -Force | Out-Null
+          Get-ChildItem -LiteralPath $env:TEMP -Directory -Filter 'fox-qa-*' | ForEach-Object {
+            $qaDir=$_.FullName
+            Get-ChildItem -LiteralPath $qaDir -File | Where-Object Name -match '(?:result|recover-).*\.json$' | ForEach-Object {
+              Copy-Item -LiteralPath $_.FullName -Destination (Join-Path work/ci-evidence ($_.Directory.Name+'-'+$_.Name))
+            }
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: FOX-Reliability-Certification
+          path: |
+            outputs/fox-phase10-*.json
+            outputs/fox-phase11-*.json
+            outputs/phase11-1/*.json
+            outputs/phase11-1/*.log
+            outputs/fox-phase10-worker-failure-*.log
+          if-no-files-found: warn
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: FOX-Functional-Certification
+          path: outputs/fox-phase9-3-*.json
+          if-no-files-found: warn
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: FOX-QA-Windows-x64
+          path: |
+            release/FOX-Setup-*-x64.exe
+            release/FOX-Setup-*-x64.exe.sha256
+            release/release-manifest.json
+            release/FOX-*-sbom.json
+            release/signature-verification.json
+            work/ci-evidence/*.json
+          if-no-files-found: error
+          retention-days: 14
+

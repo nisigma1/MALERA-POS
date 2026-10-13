@@ -24,5 +24,5 @@ export interface ResolveReservationInput { tableId: string; reservationId: strin
 export function formatReservationTime(value: string): string {
   const date = new Date(value);
   const pad = (part: number) => String(part).padStart(2,'0');
-  return `${pad(date.getDate())}.${pad(date.getMonth()+1)}.${date.getFullYear()} · ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return `${pad(date.getDate())}.${pad(date.getMonth()+1)}.${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }

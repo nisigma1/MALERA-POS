@@ -1,3 +1,4 @@
+import { tableDisplayCode } from '../presentation/tableIdentity';
 import { FLOOR_PLAN_BY_CODE, FLOOR_VIEWBOX, type PhysicalSlot } from '../presentation/floorPlan';
 import type { TableSummary } from '../domain/types';
 import { TABLE_STATUS_LABELS } from '../domain/definitions';
@@ -53,9 +54,9 @@ export function RealFloorPlan({tables,selected,onSelect}: {tables:TableSummary[]
       const slot=FLOOR_PLAN_BY_CODE[table.code]; if(!slot)return null;
       // The diagonal furniture remains rotated; its compact upright target keeps totals readable.
       const targetRotation=table.code==='M13'?0:slot.rotation;
-      return <button key={table.id} type="button" className="position floor-table" data-table-code={table.code} data-display-code={table.code} data-status={table.status} data-shape={slot.shape} data-rotation={slot.rotation} aria-pressed={table.id===selected} aria-label={`${table.code}, ${TABLE_STATUS_LABELS[table.status]}${table.activeOrderTotalCents===null?'':`, ${formatMoney(table.activeOrderTotalCents)}`}`} style={{left:`${(slot.x-FLOOR_VIEWBOX.x)/FLOOR_VIEWBOX.width*100}%`,top:`${(slot.y-FLOOR_VIEWBOX.y)/FLOOR_VIEWBOX.height*100}%`,transform:`translate(-50%,-50%) rotate(${targetRotation}deg)`}} onClick={event=>onSelect(table.id,event.currentTarget)}>
-        <span className="floor-table-label" style={{transform:`rotate(${-targetRotation}deg)`}}><strong>{table.code}</strong><StatusBadge dot={false} tone={table.status==='ACTIVE'?'info':table.status==='RESERVED'?'warning':'neutral'}>{TABLE_STATUS_LABELS[table.status]}</StatusBadge>
-        {table.activeOrderTotalCents!==null&&<span className="position-total"><span>{formatMoney(table.activeOrderTotalCents).replace(' €','')}</span>{' '}<span>€</span></span>}{table.status==='RESERVED'&&<span className="position-reserved">Rez.</span>}{!table.enabled&&<span className="sr-only">Joaktive</span>}</span>
+      return <button key={table.id} type="button" className="position floor-table" data-table-code={table.code} data-display-code={tableDisplayCode(table.code)} data-status={table.status} data-shape={slot.shape} data-rotation={slot.rotation} aria-pressed={table.id===selected} aria-label={`${tableDisplayCode(table.code)}, ${TABLE_STATUS_LABELS[table.status]}${table.activeOrderTotalCents===null?'':`, ${formatMoney(table.activeOrderTotalCents)}`}`} style={{left:`${(slot.x-FLOOR_VIEWBOX.x)/FLOOR_VIEWBOX.width*100}%`,top:`${(slot.y-FLOOR_VIEWBOX.y)/FLOOR_VIEWBOX.height*100}%`,transform:`translate(-50%,-50%) rotate(${targetRotation}deg)`}} onClick={event=>onSelect(table.id,event.currentTarget)}>
+        <span className="floor-table-label" style={{transform:`rotate(${-targetRotation}deg)`}}><strong>{tableDisplayCode(table.code)}</strong><StatusBadge dot={false} tone={table.status==='ACTIVE'?'info':table.status==='RESERVED'?'warning':'neutral'}>{TABLE_STATUS_LABELS[table.status]}</StatusBadge>
+        {table.activeOrderTotalCents!==null&&<span className="position-total"><span>{formatMoney(table.activeOrderTotalCents).replace(' €','')}</span>{' '}<span>€</span></span>}{table.status==='RESERVED'&&<span className="position-reserved">Rezervuar</span>}{!table.enabled&&<span className="sr-only">Joaktive</span>}</span>
       </button>;
     })}
   </div></section>;

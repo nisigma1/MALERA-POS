@@ -1,3 +1,5 @@
+import { LocalDateInput } from './LocalDateInput';
+import { parseLocalInput } from '../domain/operatorInput';
 import { useRef, useState, type FormEvent } from 'react';
 import type { ReserveTableInput } from '../domain/reservations';
 import { Button, Field, SidePanel } from './ui';
@@ -15,8 +17,8 @@ export function ReservationDialog({ tableId, tableCode, onClose, onSave }: {
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (lock.current) return;
-    const date = new Date(when);
-    if (!Number.isFinite(date.getTime()) || date.getTime() < Date.now()) { setError('Vendos një datë dhe orë në të ardhmen.'); return; }
+    const date = parseLocalInput(when);
+    if (!date || date.getTime() < Date.now()) { setError('Vendos një datë dhe orë në të ardhmen.'); return; }
     const values = {tableId,customerName:name.trim(),phone:phone.trim(),startsAt:date.toISOString(),guests:Number(guests),note:note.trim()};
     const signature = JSON.stringify(values);
     if (lastRequest.current && lastRequest.current !== signature) requestId.current = crypto.randomUUID();
@@ -26,13 +28,13 @@ export function ReservationDialog({ tableId, tableCode, onClose, onSave }: {
     catch { setError('Rezervimi nuk u konfirmua. Mbyll formularin dhe rifresko tavolinën për ta kontrolluar.'); }
     finally { lock.current = false; setBusy(false); }
   }
-  return <SidePanel title={`Rezervo tavolinën ${tableCode}`} subtitle="Rezervim me telefon" eyebrow="REZERVIMI" busy={busy} onClose={onClose}
+  return <SidePanel title={`Rezervo tavolinën ${tableCode}`} subtitle="" eyebrow="" busy={busy} onClose={onClose}
     footer={<><Button disabled={busy} onClick={onClose}>Anulo</Button><Button variant="primary" type="submit" form="reservation-form" disabled={busy}>{busy ? 'Duke ruajtur…' : 'Ruaj rezervimin'}</Button></>}>
     <form id="reservation-form" onSubmit={submit}>
-      <Field id="reservation-name" label="Emri i klientit"><input id="reservation-name" autoComplete="name" data-initial-focus required maxLength={100} value={name} disabled={busy} onChange={e=>setName(e.target.value)}/></Field>
+      <Field id="reservation-name" label="Emri"><input id="reservation-name" autoComplete="name" data-initial-focus required maxLength={100} value={name} disabled={busy} onChange={e=>setName(e.target.value)}/></Field>
       <Field id="reservation-phone" label="Telefoni (opsional)"><input id="reservation-phone" type="tel" autoComplete="tel" maxLength={40} value={phone} disabled={busy} onChange={e=>setPhone(e.target.value)}/></Field>
-      <Field id="reservation-when" label="Data dhe ora"><input id="reservation-when" type="datetime-local" required value={when} disabled={busy} onChange={e=>setWhen(e.target.value)}/></Field>
-      <Field id="reservation-guests" label="Numri i personave"><input id="reservation-guests" type="number" required min={1} max={30} step={1} value={guests} disabled={busy} onChange={e=>setGuests(e.target.value)}/></Field>
+      <Field id="reservation-when" label="Data dhe ora"><LocalDateInput id="reservation-when" required value={when} disabled={busy} onChange={setWhen}/></Field>
+      <Field id="reservation-guests" label="Persona"><input id="reservation-guests" type="number" required min={1} max={30} step={1} value={guests} disabled={busy} onChange={e=>setGuests(e.target.value)}/></Field>
       <Field id="reservation-note" label="Shënim (opsional)"><input id="reservation-note" maxLength={500} value={note} disabled={busy} onChange={e=>setNote(e.target.value)}/></Field>
       <p className="field-helper">Tavolina mbahet e rezervuar derisa të shënosh mbërritjen ose ta anulosh rezervimin.</p>
       {error && <p role="alert" className="form-error">{error}</p>}

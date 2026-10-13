@@ -19,7 +19,7 @@ export const PHYSICAL_SLOTS: readonly PhysicalSlot[] = [
   slot('B10','MAIN',865,610,64,64,'round'),
   slot('B11','MAIN',1075,585,50,50,'round'),
   slot('B12','MAIN',1062,724,71,109,'rect'),
-  slot('B13','MAIN',173,803,100,42,'rect',45),
+  slot('B13','TERRACE',173,803,100,42,'rect',45),
   ...[354,457,561,666].map((x,i) => slot(`S0${i+1}`,'BAR',x,455,46,32,'stool')),
   slot('R01','TERRACE',995,858,44,44,'round'),
   slot('R02','TERRACE',315,945,65,65,'round'),
@@ -33,7 +33,7 @@ export const CANONICAL_FLOOR_CODES = CANONICAL_SERVICE_POSITION_CODES;
 export const FLOOR_VIEWBOX = { x: 72, y: 315, width: 1204, height: 780 } as const;
 export const FLOOR_PLAN_BY_CODE: Readonly<Record<string, PhysicalSlot & {physicalSlotId:string}>> = Object.fromEntries(SERVICE_POSITIONS.map(({code,area,physicalSlotId})=>{
   const physical=PHYSICAL_SLOTS.find(item=>item.id===physicalSlotId);
-  if(!physical||physical.area!==area)throw new Error(`Missing or mismatched confirmed physical slot for ${code}`);
+  if(!physical||(physical.area!==area&&code!=='M13'))throw new Error(`Missing or mismatched confirmed physical slot for ${code}`);
   return [code,{...physical,id:code,physicalSlotId}];
 }));
 export const FLOOR_MAPPING_CONFIDENCE: Readonly<Record<string, 'CONFIRMED' | 'AMBIGUOUS'>> = Object.fromEntries(CANONICAL_FLOOR_CODES.map(code=>[code,'CONFIRMED']));

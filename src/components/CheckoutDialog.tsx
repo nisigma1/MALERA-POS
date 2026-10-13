@@ -29,9 +29,9 @@ export function CheckoutDialog({ tableCode, items, totalCents, onClose, onConfir
       targets[(index + (e.shiftKey ? -1 : 1) + targets.length) % targets.length]?.focus();
     }
   }} onCancel={e => { e.preventDefault(); if (!submitting.current) onClose(); }}>
-    <header><span className="eyebrow">PAGESA</span><h2 id="checkout-title">Mbyll llogarinë</h2><p>Tavolina {tableCode}</p></header>
+    <header><span className="eyebrow">Pagesa</span><h2 id="checkout-title">Mbyll llogarinë</h2><p>Tavolina {tableCode}</p></header>
     <section className="checkout-summary" aria-labelledby="checkout-summary-title">
-      <h3 id="checkout-summary-title">Përmbledhja e porosisë</h3>
+      <h3 id="checkout-summary-title">Porosia</h3>
       <div className="checkout-items" role="region" aria-labelledby="checkout-summary-title" tabIndex={0}>
         <table><thead><tr><th scope="col">Produkti</th><th scope="col">Sasia</th><th scope="col">Totali</th></tr></thead>
           <tbody>{items.map(item => <tr key={item.id} data-checkout-item={item.id}><td><strong>{item.name}</strong><small>{formatMoney(item.unitPriceCents)} / njësi</small></td><td>{item.quantity}</td><td>{formatMoney(item.lineTotalCents)}</td></tr>)}</tbody>
@@ -39,8 +39,8 @@ export function CheckoutDialog({ tableCode, items, totalCents, onClose, onConfir
       </div>
     </section>
     <div className="checkout-total"><span>Totali për pagesë</span><strong data-checkout-total>{formatMoney(totalCents)}</strong></div>
-    <p className="checkout-method">Pagesa: <strong>Para të gatshme</strong></p>
+    <p className="checkout-method">Pagesa: <strong>Cash</strong></p>
     {error && <p className="form-error" role="alert">{error}</p>}
-    <footer><Button data-cancel-payment disabled={busy} onClick={onClose}>Anulo</Button><Button variant="primary" data-confirm-payment disabled={busy} onClick={confirm}>{busy ? 'Duke regjistruar…' : 'Konfirmo pagesën'}</Button></footer>
+    <footer><Button data-cancel-payment disabled={busy} onClick={onClose}>Anulo</Button><Button variant="primary" data-confirm-payment disabled={busy} onClick={confirm}>{busy ? 'Duke regjistruar…' : 'Mbyll llogarinë'}</Button></footer>
   </dialog>;
 }

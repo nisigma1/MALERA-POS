@@ -66,7 +66,7 @@ describe('Phase 9.3 independent functional certification',()=>{
     expect(createRepositories(db).listTables().map(t=>t.code)).toEqual(approved);
     expect(SERVICE_POSITIONS.map(p=>p.code)).toEqual(approved);expect(Object.keys(FLOOR_PLAN_BY_CODE)).toEqual(approved);
     expect(new Set(approved).size).toBe(27);expect(approved.filter(c=>/^M\d+$/.test(c))).toHaveLength(13);expect(approved.filter(c=>/^SH\d+$/.test(c))).toHaveLength(4);expect(approved.filter(c=>/^T\d+$/.test(c))).toHaveLength(10);
-    expect(FLOOR_PLAN_BY_CODE.M13).toMatchObject({x:173,y:803,area:'MAIN',rotation:45});expect(FLOOR_PLAN_BY_CODE.T1).toMatchObject({x:995,y:858,area:'TERRACE',shape:'round'});
+    expect(FLOOR_PLAN_BY_CODE.M13).toMatchObject({x:173,y:803,area:'TERRACE',rotation:45});expect(FLOOR_PLAN_BY_CODE.T1).toMatchObject({x:995,y:858,area:'TERRACE',shape:'round'});
     expect(['SH1','SH2','SH3','SH4'].map(c=>FLOOR_PLAN_BY_CODE[c]!.x)).toEqual([354,457,561,666]);
     expect(['T2','T3','T4'].map(c=>[FLOOR_PLAN_BY_CODE[c]!.x,FLOOR_PLAN_BY_CODE[c]!.y])).toEqual([[315,945],[672,945],[1027,945]]);
     expect(['T5','T6','T7','T8','T9','T10'].map(c=>[FLOOR_PLAN_BY_CODE[c]!.x,FLOOR_PLAN_BY_CODE[c]!.y,FLOOR_PLAN_BY_CODE[c]!.shape])).toEqual([148,351,550,758,965,1199].map(x=>[x,1040,'rect']));
@@ -102,7 +102,7 @@ describe('Phase 9.3 independent functional certification',()=>{
     expect(()=>db.prepare("INSERT INTO table_reservations VALUES (?,'missing','QA','','2027-01-01T00:00:00.000Z',1,'','BOOKED',?,NULL)").run(randomUUID(),now.toISOString())).toThrow();expect(db.prepare('SELECT count(*) n FROM table_reservations').get()).toEqual({n:0});health();
   });
   it.each(['2026-10-11T12:00:00.000Z','2026-10-11T23:59:00.000Z','2026-10-12T00:00:00.000Z','2026-10-31T23:59:00.000Z','2026-11-01T00:00:00.000Z','2026-12-31T23:59:00.000Z','2027-01-01T00:00:00.000Z'])('preserves exact scheduled instant %s and uses local calendar display',startsAt=>{
-    const reservation=saved(booking('M13',{startsAt}));expect(reservation.startsAt).toBe(startsAt);const date=new Date(startsAt),pad=(n:number)=>String(n).padStart(2,'0');expect(formatReservationTime(startsAt)).toBe(`${pad(date.getDate())}.${pad(date.getMonth()+1)}.${date.getFullYear()} · ${pad(date.getHours())}:${pad(date.getMinutes())}`);health();
+    const reservation=saved(booking('M13',{startsAt}));expect(reservation.startsAt).toBe(startsAt);const date=new Date(startsAt),pad=(n:number)=>String(n).padStart(2,'0');expect(formatReservationTime(startsAt)).toBe(`${pad(date.getDate())}.${pad(date.getMonth()+1)}.${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`);health();
   });
   it('past creation is rejected; a previously booked hold requires explicit arrival/cancel',()=>{
     expect(services().reservations.reserve(booking('M13',{startsAt:'2026-10-11T11:59:59.999Z'})).ok).toBe(false);

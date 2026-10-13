@@ -8,7 +8,7 @@ import { Icon } from '../components/ui';
 import { PrintNotices } from '../components/PrintNotices';
 const sections = [
   { id: 'tables', label: 'Tavolinat', component: Tables },
-  { id: 'inventory', label: 'Inventari', component: Inventory },
+  { id: 'inventory', label: 'Stoku', component: Inventory },
   { id: 'reports', label: 'Raportet', component: Reports },
   { id: 'settings', label: 'Cilësimet', component: Settings },
 ] as const;

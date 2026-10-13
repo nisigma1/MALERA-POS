@@ -1,3 +1,4 @@
+import { amountError } from '../domain/operatorInput';
 import { useRef, useState } from 'react';
 import type { CatalogProduct, CategoryCode } from '../domain/types';
 import { CATEGORIES } from '../domain/definitions';
@@ -32,7 +33,7 @@ export function ProductEditor({ product, onClose, onSaved }: { product: CatalogP
     if (submitting.current) return;
     const nextErrors: FieldErrors = {};
     const parse = (key: string, value: string, kind: 'money' | 'quantity') => {
-      try { return kind === 'money' ? parseEuro(value) : parseQuantity(value, true); }
+      try { if(kind==='money'&&value.trim()){const issue=amountError(value,true);if(issue){nextErrors[key]=issue;return null;}}return kind === 'money' ? parseEuro(value) : parseQuantity(value, true); }
       catch (error) { nextErrors[key] = error instanceof Error ? error.message : 'Vlera nuk është e vlefshme.'; return null; }
     };
     const input: ProductUpdate = { id: product.id, name, categoryId: category, purchaseCostCents: parse('purchaseCostCents', cost, 'money'),
@@ -67,13 +68,13 @@ export function ProductEditor({ product, onClose, onSaved }: { product: CatalogP
           <Field id="sellingPriceCents" label="Çmimi i shitjes (€)" error={errors.sellingPriceCents}><input id="sellingPriceCents" inputMode="decimal" value={price} onChange={e => { setPrice(e.target.value); clearError('sellingPriceCents'); }} placeholder="Pa vendosur" {...invalid('sellingPriceCents')}/>{review('sellingPriceCents')}</Field>
         </div>
         <p className="field-helper price-helper">Lëri bosh çmimet që nuk janë vendosur.</p>
-        <div className="calculated-value"><span>Fitimi/copë <small>I llogaritur</small></span><output aria-live="polite" aria-label="Fitimi për copë">{profit === null ? '—' : formatMoney(profit)}</output></div>
+        <div className="calculated-value"><span>Fitimi për copë</span><output aria-live="polite" aria-label="Fitimi për copë">{profit === null ? '—' : formatMoney(profit)}</output></div>
         </section>
         <section className="form-section" aria-labelledby="stock-section"><h3 id="stock-section">Stoku</h3>
-          <div className="form-columns"><Field id="trackInventory" label="Ndjek stokun" error={errors.trackInventory}><select id="trackInventory" value={tracking} onChange={e => { setTracking(e.target.value); clearError('trackInventory'); if (e.target.value !== 'yes') { setThreshold(product.lowStockThreshold === null ? '' : String(product.lowStockThreshold)); clearError('lowStockThreshold'); } }} {...invalid('trackInventory')}><option value="" disabled>Pa konfiguruar</option><option value="yes">Po</option><option value="no">Jo</option></select></Field>
-          <Field id="lowStockThreshold" label="Pragu i stokut" error={tracking === 'yes' ? errors.lowStockThreshold : undefined}><input id="lowStockThreshold" inputMode="decimal" value={threshold} onChange={e => { setThreshold(e.target.value); clearError('lowStockThreshold'); }} placeholder="Pa vendosur" disabled={tracking !== 'yes'} {...(tracking === 'yes' ? invalid('lowStockThreshold') : {})}/></Field></div>
-          <p className="field-helper">{tracking === '' ? 'Zgjidh Po ose Jo për të konfiguruar stokun.' : tracking === 'no' ? 'Pragu ruhet, por nuk zbatohet kur stoku nuk ndiqet.' : 'Pragu paralajmëron vetëm për stokun e njohur.'}</p>
-          <div className="current-stock"><span>Stoku aktual</span><div>{tracking === 'yes' && product.stockQuantity !== null && <strong>{product.stockQuantity}</strong>}<StockBadge state={currentStock}/></div></div>
+          <div className="form-columns"><Field id="trackInventory" label="Mbaj stok?" error={errors.trackInventory}><select id="trackInventory" value={tracking} onChange={e => { setTracking(e.target.value); clearError('trackInventory'); if (e.target.value !== 'yes') { setThreshold(product.lowStockThreshold === null ? '' : String(product.lowStockThreshold)); clearError('lowStockThreshold'); } }} {...invalid('trackInventory')}><option value="" disabled>Pa konfiguruar</option><option value="yes">Po</option><option value="no">Jo</option></select></Field>
+          <Field id="lowStockThreshold" label="Njofto kur mbeten" error={tracking === 'yes' ? errors.lowStockThreshold : undefined}><input id="lowStockThreshold" inputMode="decimal" value={threshold} onChange={e => { setThreshold(e.target.value); clearError('lowStockThreshold'); }} placeholder="Pa vendosur" disabled={tracking !== 'yes'} {...(tracking === 'yes' ? invalid('lowStockThreshold') : {})}/></Field></div>
+          <p className="field-helper">{tracking === '' ? 'Zgjidh Po ose Jo për të konfiguruar stokun.' : tracking === 'no' ? 'Sasia nuk ulet pas shitjes.' : 'Njoftimi shfaqet kur stoku bie në këtë sasi.'}</p>
+          <div className="current-stock"><span>Stoku tani</span><div>{tracking === 'yes' && product.stockQuantity !== null && <strong>{product.stockQuantity}</strong>}<StockBadge state={currentStock}/></div></div>
         </section>
       </fieldset>
     </form>
