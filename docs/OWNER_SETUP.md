@@ -13,7 +13,7 @@
 
 Nëse përdor printer, ruaje dhe provo një kupon në letër para printimit automatik. Kuponi është jo-fiskal. Kontrollo që testi nuk ka krijuar shitje prove.
 
-Te **Cilësimet**, kontrollo emrin dhe të dhënat e biznesit që do të shfaqen në kupon. Shëno vetëm të dhëna të sakta. Për rezervim telefonik, zgjidh tavolinën te **Tavolinat → Rezervo** dhe shëno klientin, orën dhe personat. Kur klienti vjen ose anulon, përditëso rezervimin; pagesa bëhet vetëm për porosinë.
+Te **Cilësimet**, kontrollo emrin dhe të dhënat e biznesit që do të shfaqen në kupon. Shëno vetëm të dhëna të sakta. Për rezervim telefonik, zgjidh tavolinën te **Tavolinat → Rezervo tavolinën** dhe shëno klientin, orën dhe personat. Kur klienti vjen ose anulon, përditëso rezervimin; pagesa bëhet vetëm për porosinë.
 
 Instaluesi QA pa nënshkrim nuk zëvendëson dorëzimin me nënshkrim të besuar Windows. Mos çaktivizo sigurinë e pajisjes për ta hapur.
 

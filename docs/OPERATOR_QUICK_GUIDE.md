@@ -4,7 +4,7 @@
 - **Shto produktin.** Zgjidh kategorinë dhe produktin. Porosia ruhet automatikisht.
 - **Ndrysho sasinë.** Përdor + dhe −. Koshi heq rreshtin; heqja e produktit të fundit liron tavolinën.
 - **Ndërro tavolinën.** Mund të kthehesh te porosia e mëparshme. Kontrollo kodin para shtimit ose pagesës.
-- **Rezervim me telefon.** Zgjidh tavolinën dhe **Rezervo**. Shëno emrin, orën, numrin e personave dhe kontaktin kur nevojitet. Kur klienti vjen, përdor **Ka ardhur**; nëse anulon, përdor **Anulo rezervimin**. Rezervimi vetë nuk krijon porosi ose pagesë.
+- **Rezervim me telefon.** Zgjidh tavolinën dhe **Rezervo tavolinën**. Shëno emrin, orën, numrin e personave dhe kontaktin kur nevojitet. Kur klienti vjen, përdor **Klienti mbërriti**; nëse anulon, përdor **Anulo rezervimin**. Rezervimi vetë nuk krijon porosi ose pagesë.
 - **Mbyll llogarinë.** Kontrollo produktet, sasitë dhe totalin; kliko Konfirmo pagesën. Pagesa bëhet me para të gatshme. Pas suksesit tavolina lirohet dhe zbritet stoku i ndjekur.
 - **Kontrollo stokun.** Pa stok do të thotë zero. Stok pa vendosur është sasi e panjohur. Pa çmim ose Pa konfiguruar kërkon ndërhyrjen e pronarit; mos vendos vlera të hamendësuara.
 - **Shiko Raportet.** Zgjidh periudhën dhe Shiko porosinë për produktet e shitura. Fitimi mbetet i panjohur kur mungojnë kostot historike.
