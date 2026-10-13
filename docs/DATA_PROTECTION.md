@@ -21,3 +21,9 @@ Backup-i i dëmtuar, i paplotë ose i një programi tjetër refuzohet. Nëse rik
 Mos fshi skedarët e të dhënave, skedarët shoqërues, dosjen e rikuperimit ose backup-et për të zgjidhur problem nisjeje. Mos kopjo të dhënat e zhvillimit/provave te pajisja e lokalit. Instalimi i ri për punë kërkon gjendje të pastër, të verifikuar; instalimi me histori kërkon kontroll dhe ruajtje, jo pastrim automatik.
 
 Për mbështetje teknike, të dhënat zakonisht janë te `%APPDATA%\FOX Kafeteri`; vendndodhja e saktë shfaqet te **Gjendja dhe diagnostika**. [Dokumentacioni teknik](DATA_PROTECTION_TECHNICAL.md) është për personin që ofron mbështetje.
+
+## Hapësira dhe privatësia
+
+Backup-et që zgjedh të krijosh nuk fshihen automatikisht. Kontrollo hapësirën e diskut dhe mbaj disa kopje të verifikuara, përfshirë një kopje jashtë laptopit. Mos fshi kopjen e fundit të mirë. Para pastrimit, verifiko kopjen që do të mbash.
+
+Backup-i përmban edhe kontaktet e rezervimeve. Ruaje në vend të mbrojtur dhe jepja vetëm personit të autorizuar. Diagnostika e zakonshme kufizohet dhe rrotullohet automatikisht; nuk kërkohet pastrim me komanda.

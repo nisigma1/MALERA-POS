@@ -37,6 +37,10 @@ Plotësohet në pajisjen reale me pronarin. Provat e automatizuara nuk e plotës
 - [ ] Pronari ka kontrolluar konfigurimin dhe kupton backup-in/rikthimin.
 - [ ] Operatori kupton tavolinat, porositë, sasitë dhe pagesën me para të gatshme.
 - [ ] Nëse përdoret printer, kuponi fizik është testuar.
+- [ ] Rezervimi, ardhja dhe anulimi janë provuar në mjedisin e veçuar.
+- [ ] Pronari ka provuar furnizim, shpenzim, humbje dhe mbyllje arke.
+- [ ] Rikthimi nga backup është provuar në mjedisin e veçuar dhe puna vazhdon pas tij.
+- [ ] Rinisja e Windows në pajisjen reale ruan të njëjtën gjendje.
 
 ## Përfundimi
 
