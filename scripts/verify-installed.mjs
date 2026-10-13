@@ -157,8 +157,10 @@ try {
   const upgraded=snapshot();
   const canonical=['M1','M2','M3','M4','M5','M6','M7','M8','M9','M10','M11','M12','M13','SH1','SH2','SH3','SH4','T1','T2','T3','T4','T5','T6','T7','T8','T9','T10'];
   assert.deepEqual(upgraded.tables.cafe_tables.map(t=>t.code).sort(),[...canonical].sort());
-  assert.deepEqual(await evaluate('[...document.querySelectorAll("[data-table-code]")].map(e=>e.querySelector("strong").textContent).sort()'),[...canonical].sort());
-  okay(true,'actual upgraded executable exposes the independent canonical 27-code set, no B/J aliases');
+  assert.deepEqual(await evaluate('[...document.querySelectorAll("[data-table-code]")].map(e=>e.dataset.tableCode).sort()'),[...canonical].sort());
+  const ownerLabels=['B1','B2','B3','B4','B5','B6','B7','B8','B9','B10','B11','B12','J11','SH1','SH2','SH3','SH4','J1','J2','J3','J4','J5','J6','J7','J8','J9','J10'];
+  assert.deepEqual(await evaluate('[...document.querySelectorAll("[data-table-code]")].map(e=>e.querySelector("strong").textContent).sort()'),[...ownerLabels].sort());
+  okay(true,'actual upgraded executable preserves canonical 27 storage IDs and exact owner-approved B/J labels');
   fs.writeFileSync(path.join(directory,'after-upgrade.json'),JSON.stringify(upgraded,null,2));
   evidence.identityPreservation={before:Object.fromEntries(Object.entries(beforeUpgrade.tables).map(([name,rows])=>[name,rows.length])),after:Object.fromEntries(Object.entries(upgraded.tables).map(([name,rows])=>[name,rows.length])),canonical};
   if(financeBefore){
