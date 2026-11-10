@@ -14,7 +14,8 @@ if(!(Test-Path -LiteralPath $app)){throw 'Install the POS before registering upd
 $homeDir=Join-Path $env:LOCALAPPDATA 'MALERA Update'
 New-Item -ItemType Directory -Path $homeDir -Force | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $homeDir 'runtime') -Force | Out-Null
-Copy-Item -LiteralPath $NodePath -Destination (Join-Path $homeDir 'runtime\node.exe') -Force
+$runtime=Join-Path $homeDir 'runtime\node.exe'
+if(!(Test-Path -LiteralPath $runtime) -or (Get-FileHash -LiteralPath $NodePath).Hash -ne (Get-FileHash -LiteralPath $runtime).Hash){Copy-Item -LiteralPath $NodePath -Destination $runtime -Force}
 foreach($name in @('client.mjs','core.mjs')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $homeDir $name) -Force}
 @{repository=$Repository;branch=$Branch;allowUnsignedQA=$true} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $homeDir 'config.json') -Encoding UTF8
 $state=Join-Path $homeDir 'state.json'
@@ -28,6 +29,11 @@ code = shell.Run("""$node"" ""$client"" --launch", 0, True)
 If code <> 0 Then MsgBox "MALERA update/launch failed. Check %LOCALAPPDATA%\MALERA Update\status.json. Your database backup is preserved.", 48, "MALERA POS"
 "@
 Set-Content -LiteralPath $launcher -Value $vbs -Encoding ASCII
+$checker=Join-Path $homeDir 'check.vbs'
+Set-Content -LiteralPath $checker -Value @"
+Set shell = CreateObject("WScript.Shell")
+code = shell.Run("""$node"" ""$client"" --check-only", 0, True)
+"@ -Encoding ASCII
 $shell=New-Object -ComObject WScript.Shell
 $shortcut=$shell.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) 'MALERA POS.lnk'))
 $shortcut.TargetPath=Join-Path $env:WINDIR 'System32\wscript.exe'
@@ -41,7 +47,7 @@ Get-ChildItem -LiteralPath $menu -Filter '*.lnk' -Recurse | ForEach-Object {
  $link=$shell.CreateShortcut($_.FullName)
  if($link.TargetPath -eq $app){$link.TargetPath=Join-Path $env:WINDIR 'System32\wscript.exe';$link.Arguments='"'+$launcher+'"';$link.WorkingDirectory=$homeDir;$link.IconLocation=$app+',0';$link.Save()}
 }
-$action=New-ScheduledTaskAction -Execute $node -Argument ('"'+$client+'" --check-only') -WorkingDirectory $homeDir
+$action=New-ScheduledTaskAction -Execute (Join-Path $env:WINDIR 'System32\wscript.exe') -Argument ('"'+$checker+'"') -WorkingDirectory $homeDir
 $trigger=New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 5)
 $logon=New-ScheduledTaskTrigger -AtLogOn -User ([Security.Principal.WindowsIdentity]::GetCurrent().Name)
 $principal=New-ScheduledTaskPrincipal -UserId ([Security.Principal.WindowsIdentity]::GetCurrent().Name) -LogonType Interactive -RunLevel Limited

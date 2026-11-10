@@ -1,7 +1,7 @@
 name: Desktop updates
 on:
   push:
-    branches: [codex/duo-hp, refactor/repository-structure]
+    branches: [codex/duo-hp]
   workflow_dispatch:
 permissions:
   contents: read

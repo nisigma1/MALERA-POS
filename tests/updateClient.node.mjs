@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import {validateDescriptor,validateAssetUrl,verifyInstaller,selectRelease,APP_ID} from '../scripts/update/core.mjs';
 const config={repository:'nisigma1/MALERA-POS',branch:'codex/duo-hp'};
-const good={...config,formatVersion:1,appId:APP_ID,platform:'win32',arch:'x64',channel:'DESKTOP_QA',commit:'a'.repeat(40),sha256:'b'.repeat(64),version:'0.7.2-rc.4',artifact:'FOX-Setup-0.7.2-rc.4-x64.exe',runId:123,minUpdaterVersion:1};
+const good={...config,formatVersion:1,appId:APP_ID,platform:'win32',arch:'x64',channel:'DESKTOP_QA',commit:'a'.repeat(40),sha256:'b'.repeat(64),version:'0.7.2-rc.4',artifact:'FOX-Setup-0.7.2-rc.4-x64.exe',runId:123,schemaVersion:6,minUpdaterVersion:1};
 test('accepts only the configured application, repository and branch',()=>{
  assert.equal(validateDescriptor(good,config),good);
- for(const [key,value]of Object.entries({repository:'other/repo',branch:'main',appId:'other',arch:'arm64',platform:'linux',channel:'PRODUCTION',commit:'../main',version:'../../exe',artifact:'../evil.exe',runId:'123',minUpdaterVersion:2}))assert.throws(()=>validateDescriptor({...good,[key]:value},config),key);
+ for(const [key,value]of Object.entries({repository:'other/repo',branch:'main',appId:'other',arch:'arm64',platform:'linux',channel:'PRODUCTION',commit:'../main',version:'../../exe',artifact:'../evil.exe',runId:'123',schemaVersion:0,minUpdaterVersion:2}))assert.throws(()=>validateDescriptor({...good,[key]:value},config),key);
 });
 test('restricts downloads to HTTPS release assets from the configured repository',()=>{
  assert.equal(validateAssetUrl('https://github.com/nisigma1/MALERA-POS/releases/download/desktop-abc/file.exe',config.repository),'https://github.com/nisigma1/MALERA-POS/releases/download/desktop-abc/file.exe');

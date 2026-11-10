@@ -77,7 +77,7 @@ async function stage(){
  }
  status(read(pendingFile,null)?'ready-for-next-launch':'up-to-date',{commit:state.commit??null});
 }
-async function backup(){
+async function backup(descriptor){
  const database=path.join(profile,'fox.sqlite');
  if(!fs.existsSync(database)){
   if(fs.existsSync(path.join(profile,'fox-data-identity.json')))throw Error('Existing business database is missing; update refused');
@@ -86,7 +86,7 @@ async function backup(){
  const folder=path.join(home,'backups');fs.mkdirSync(folder,{recursive:true});
  const target=path.join(folder,`FOX-before-update-${Date.now()}-${crypto.randomBytes(3).toString('hex')}.sqlite`);
  const modulePath=path.join(path.dirname(executable),'resources','app.asar','node_modules','better-sqlite3');
- const code=`(async()=>{const fs=require('fs'),crypto=require('crypto'),DB=require(${JSON.stringify(modulePath)});const source=new DB(${JSON.stringify(database)},{readonly:true,fileMustExist:true});try{await source.backup(${JSON.stringify(target)});}finally{source.close();}const copy=new DB(${JSON.stringify(target)},{readonly:true,fileMustExist:true});try{if(copy.pragma('integrity_check',{simple:true})!=='ok'||copy.pragma('foreign_key_check').length)throw Error('Backup integrity failed');const schemaVersion=copy.prepare('SELECT MAX(version) AS v FROM schema_migrations').get().v;const metadata={format:'FOX_SQLITE_BACKUP',formatVersion:1,createdAt:new Date().toISOString(),applicationVersion:${JSON.stringify(state.version??'0.7.2-rc.4')},schemaVersion,sha256:crypto.createHash('sha256').update(fs.readFileSync(${JSON.stringify(target)})).digest('hex'),kind:'MANUAL'};fs.writeFileSync(${JSON.stringify(target+'.json')},JSON.stringify(metadata,null,2),{flag:'wx'});}finally{copy.close();}})().catch(e=>{console.error(e.message);process.exitCode=1;});`;
+ const code=`(async()=>{const fs=require('fs'),crypto=require('crypto'),DB=require(${JSON.stringify(modulePath)});const source=new DB(${JSON.stringify(database)},{readonly:true,fileMustExist:true});try{await source.backup(${JSON.stringify(target)});}finally{source.close();}const copy=new DB(${JSON.stringify(target)},{readonly:true,fileMustExist:true});try{if(copy.pragma('integrity_check',{simple:true})!=='ok'||copy.pragma('foreign_key_check').length)throw Error('Backup integrity failed');const schemaVersion=copy.prepare('SELECT MAX(version) AS v FROM schema_migrations').get().v;if(schemaVersion>${descriptor.schemaVersion})throw Error('Schema downgrade refused');const hash=crypto.createHash('sha256');for await(const bytes of fs.createReadStream(${JSON.stringify(target)}))hash.update(bytes);const metadata={format:'FOX_SQLITE_BACKUP',formatVersion:1,createdAt:new Date().toISOString(),applicationVersion:${JSON.stringify(state.version??'0.7.2-rc.4')},schemaVersion,sha256:hash.digest('hex'),kind:'MANUAL'};fs.writeFileSync(${JSON.stringify(target+'.json')},JSON.stringify(metadata,null,2),{flag:'wx'});}finally{copy.close();}})().catch(e=>{console.error(e.message);process.exitCode=1;});`;
  const env={...process.env,ELECTRON_RUN_AS_NODE:'1'};
  for(const key of Object.keys(env))if(key.startsWith('FOX_VERIFY_')||key==='FOX_DEV_URL')delete env[key];
  const result=spawnSync(executable,['-e',code],{env,encoding:'utf8',windowsHide:true,timeout:120000});
@@ -99,7 +99,7 @@ async function apply(){
  if(descriptor.commit===state.commit){fs.unlinkSync(pendingFile);return;}
  if(appRunning()){status('waiting-for-app-to-close',{commit:descriptor.commit});return;}
  const installer=path.join(home,'downloads',descriptor.commit+'.exe');await verifyFile(installer,descriptor);
- const backupPath=await backup();
+ const backupPath=await backup(descriptor);
  if(appRunning()){status('waiting-for-app-to-close',{commit:descriptor.commit});return;}
  status('installing',{commit:descriptor.commit,backupPath});
  const result=spawnSync(installer,['/currentuser','/S',`/D=${path.dirname(executable)}`],{windowsHide:true,encoding:'utf8',timeout:180000});

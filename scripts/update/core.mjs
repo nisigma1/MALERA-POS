@@ -7,6 +7,7 @@ export function validateDescriptor(value, config) {
       !/^[a-f0-9]{40}$/.test(value.commit) || !/^[a-f0-9]{64}$/.test(value.sha256) ||
       !/^\d+\.\d+\.\d+(?:-[A-Za-z0-9.]+)?$/.test(value.version) ||
       value.artifact !== `FOX-Setup-${value.version}-x64.exe` || !Number.isSafeInteger(value.runId) || value.runId < 1 ||
+      !Number.isSafeInteger(value.schemaVersion) || value.schemaVersion < 1 ||
       value.minUpdaterVersion !== 1) throw Error('Invalid desktop update descriptor');
   return value;
 }
