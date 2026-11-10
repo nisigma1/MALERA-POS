@@ -51,6 +51,8 @@ No setup can guarantee zero conflicts when both PCs edit independently. These gu
 
 ## The cafe terminal
 
+The operational app and its business data must be preserved. Do not uninstall the cafe's app, remove its shortcuts or reset/delete its database to test or fix code. Run installer/uninstaller tests on a disposable CI runner or separate disposable machine, even when the test database itself is isolated. The owner may lose business records or service time if the operational installation is disturbed.
+
 Use its installed MALERA POS shortcut for operation. Do development on the other PC with its own test data. Never copy `%APPDATA%\FOX Kafeteri` between active devices or put the live SQLite database in a synced/shared folder.
 
 After a passing `main` build, the terminal checks for downloads every five minutes while signed in. It installs at the next launch while the app is closed, after a verified backup. A failed build leaves the current app in place. See [automatic updates](../release/AUTOMATIC_UPDATES.md).
