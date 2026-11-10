@@ -20,6 +20,8 @@ The app manages a 27-position floor plan, persistent orders, cash checkout, stoc
 
 ## Quick start
 
+For work from another PC, follow [the two-PC workflow](docs/guides/TWO_PC_WORKFLOW.md). Each PC needs its own fresh clone; the Git helpers stop instead of overwriting unsaved or divergent work.
+
 Use Windows x64 and the Node version in [`.nvmrc`](.nvmrc). Dependency installation also needs Python and Visual Studio C++ build tools: SQLite is compiled with the checked-in Windows recovery patch.
 
 ```powershell

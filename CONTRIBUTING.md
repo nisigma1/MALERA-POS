@@ -2,6 +2,8 @@
 
 ## Development
 
+See [the two-PC workflow](docs/guides/TWO_PC_WORKFLOW.md) for fresh-clone setup, safe synchronization and handing work between devices. Run `npm run dev:setup` once per clone, `npm run dev:sync` before editing, and `npm run dev:publish` after committing tested work.
+
 Clone `main`; use the Node version in `.nvmrc`, Python and Visual Studio C++ tools on Windows x64. Run `npm ci`, then `npm run dev`. Installation validates/applies the tracked SQLite recovery patch before native compilation; do not substitute an unpatched addon.
 
 After the one-time history consolidation, use a fresh clone. Save uncommitted work separately first. Do not merge old branches/history back into `main`.

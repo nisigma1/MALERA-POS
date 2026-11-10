@@ -18,7 +18,7 @@ jobs:
       - run: npm ci
       - run: npm run format:check
       - run: npm test
-      - run: node --test tests/updateClient.node.mjs
+      - run: npm run test:tooling
       - run: npm run typecheck
       - run: npm run build
       - run: npm run release:scan

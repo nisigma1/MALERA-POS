@@ -28,7 +28,7 @@ jobs:
         run: |
           npm test
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --test tests/updateClient.node.mjs
+          npm run test:tooling
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - run: npm run build
       - run: npm run verify:production-db

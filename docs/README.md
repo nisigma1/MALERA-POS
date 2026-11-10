@@ -23,6 +23,8 @@ Start with the section for the work you are doing. Historical records describe e
 
 ## Development and release
 
+- [Working from the other PC](guides/TWO_PC_WORKFLOW.md)
+
 - [Automatic desktop updates](release/AUTOMATIC_UPDATES.md)
 
 - [Repository structure](architecture/REPOSITORY_STRUCTURE.md)

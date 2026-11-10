@@ -9,6 +9,11 @@
     "node": ">=22.12.0"
   },
   "scripts": {
+    "dev:setup": "node scripts/dev/workspace.mjs setup",
+    "dev:sync": "node scripts/dev/workspace.mjs sync",
+    "dev:publish": "node scripts/dev/workspace.mjs publish",
+    "dev:status": "node scripts/dev/workspace.mjs status",
+    "test:tooling": "node --test tests/*.node.mjs",
     "dev": "node scripts/dev/dev.mjs",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/qa/test.mjs",
