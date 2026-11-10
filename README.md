@@ -16,6 +16,8 @@ Amounts use integer cents. Completed sales, receipts and inventory audit records
 
 ## Download and install
 
+This terminal's [automatic update channel](docs/release/AUTOMATIC_UPDATES.md) follows `codex/duo-hp`: passing push builds are downloaded automatically and installed on the next app launch, after a verified backup. The channel is explicitly QA/unsigned.
+
 Download the Windows installer and matching checksum from the repository's [releases](https://github.com/nisigma1/fox-pos/releases). The current rc.4 artifact is an **unsigned QA release candidate**, not a signed production release. See [current GitHub delivery](docs/release/GITHUB_DELIVERY.md) for exact build provenance and limitations.
 
 Business data is stored separately in `%APPDATA%\FOX Kafeteri`. Installers and this repository do not include the owner's live database, sales, stock, customers or backups. Make an application backup before upgrading. Do not delete the data folder to resolve an installation issue.

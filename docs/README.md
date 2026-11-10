@@ -23,6 +23,8 @@ Start with the section for the work you are doing. Historical records describe e
 
 ## Development and release
 
+- [Automatic desktop updates](release/AUTOMATIC_UPDATES.md)
+
 - [Repository structure](architecture/REPOSITORY_STRUCTURE.md)
 - [Data protection internals](architecture/DATA_PROTECTION_TECHNICAL.md)
 - [Canonical service positions](architecture/CANONICAL_SERVICE_POSITIONS.md)

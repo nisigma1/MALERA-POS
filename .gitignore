@@ -5,7 +5,7 @@ dist-electron/
 work/
 coverage/
 *.log
-release/
+/release/
 out/
 outputs/
 *.db
