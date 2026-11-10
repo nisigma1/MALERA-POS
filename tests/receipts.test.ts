@@ -1,0 +1,595 @@
+import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
+import Database from 'better-sqlite3';
+import { randomUUID } from 'node:crypto';
+import { openDatabase } from '../electron/database/connection';
+import { migrations, migrate } from '../electron/database/migrations';
+import { seed } from '../electron/database/seed';
+import { createRepositories } from '../electron/database/repositories';
+import { createOrderService } from '../electron/database/orders';
+import { createCheckoutService } from '../electron/database/checkout';
+import {
+  createReceiptRepository,
+  receiptHash,
+  validateReceiptAction,
+  validatePayload,
+} from '../electron/receipts/repository';
+import {
+  PrintManager,
+  PrintError,
+  createReceiptService,
+  type PrinterAdapter,
+} from '../electron/receipts/manager';
+import { renderReceipt } from '../electron/receipts/render';
+import { readSalesReport } from '../electron/database/salesReports';
+import type { ReceiptPayload } from '../src/domain/receipts';
+let db: Database.Database;
+let managers: PrintManager[] = [];
+const financial = () =>
+  Object.fromEntries(
+    [
+      'orders',
+      'order_items',
+      'order_payments',
+      'inventory_balances',
+      'inventory_movements',
+      'products',
+      'cafe_tables',
+      'expenses',
+    ].map((table) => [table, db.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all()]),
+  );
+const repo = () => createReceiptRepository(db);
+const printer = {
+  deviceName: 'QA exact system name',
+  displayName: 'QA printer',
+  description: 'isolated mock',
+};
+function setup(auto = true) {
+  repo().saveSettings({
+    deviceName: printer.deviceName,
+    displayName: printer.displayName,
+    autoPrint: auto,
+    paperWidth: 80,
+    copies: 1,
+  });
+}
+function sale(table = 'M5', complete = true) {
+  const r = createRepositories(db),
+    orders = createOrderService(db, r);
+  const add = orders.addProduct({ tableId: table, productId: 'KAFE-1' });
+  if (!add.ok) throw Error(add.message);
+  const id = add.data.order!.id;
+  if (complete) {
+    const checkout = createCheckoutService(db, orders).completeOrder({ orderId: id });
+    expect(checkout.ok).toBe(true);
+  }
+  return id;
+}
+function manager(adapter: PrinterAdapter, timeout = 200) {
+  const m = new PrintManager(repo(), adapter, timeout);
+  managers.push(m);
+  return m;
+}
+const accepted = (): PrinterAdapter => ({
+  list: async () => [printer],
+  submit: async () => {
+    expect(db.inTransaction).toBe(false);
+  },
+});
+beforeEach(() => {
+  db = openDatabase(':memory:');
+  db.prepare(
+    "UPDATE products SET selling_price_cents=100,purchase_cost_cents=50,track_inventory=1 WHERE id='KAFE-1'",
+  ).run();
+  db.prepare("UPDATE inventory_balances SET quantity=100 WHERE product_id='KAFE-1'").run();
+});
+afterEach(() => {
+  managers.forEach((m) => m.stop());
+  managers = [];
+  db.close();
+  vi.restoreAllMocks();
+});
+
+describe('receipt snapshots and migration', () => {
+  it('fresh migration is v6 with clean documents, jobs and safe printer defaults', () => {
+    expect(db.prepare('SELECT MAX(version) AS v FROM schema_migrations').get()).toEqual({ v: 6 });
+    expect(repo().settings()).toEqual({
+      deviceName: null,
+      displayName: null,
+      autoPrint: false,
+      paperWidth: 80,
+      copies: 1,
+    });
+    expect(repo().recentJobs()).toEqual([]);
+    expect(db.prepare('SELECT COUNT(*) AS n FROM receipt_documents').get()).toEqual({ n: 0 });
+  });
+  it('v3 upgrade preserves financial state, settings, stock, open and closed orders exactly', () => {
+    db.close();
+    db = new Database(':memory:');
+    db.pragma('foreign_keys=ON');
+    db.exec(
+      'CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY,applied_at TEXT NOT NULL) STRICT',
+    );
+    for (const migration of migrations.filter((m) => m.version <= 3)) {
+      db.exec(migration.sql);
+      db.prepare('INSERT INTO schema_migrations VALUES (?,?)').run(migration.version, 'old');
+    }
+    seed(db);
+    db.prepare(
+      "UPDATE products SET selling_price_cents=100,track_inventory=0 WHERE id='KAFE-1'",
+    ).run();
+    const r = createRepositories(db),
+      orders = createOrderService(db, r);
+    const add = orders.addProduct({ tableId: 'M5', productId: 'KAFE-1' });
+    if (!add.ok) throw Error('fixture');
+    db.prepare(
+      "UPDATE orders SET status='CLOSED',sale_number=1,closed_at='2026-10-01T10:00:00.000Z' WHERE id=?",
+    ).run(add.data.order!.id);
+    orders.addProduct({ tableId: 'M6', productId: 'KAFE-1' });
+    const before = financial(),
+      settings = db.prepare('SELECT * FROM settings').all(),
+      report = readSalesReport(db, 'ALL');
+    migrate(db);
+    migrate(db);
+    expect(financial()).toEqual(before);
+    expect(readSalesReport(db, 'ALL')).toEqual(report);
+    expect(db.prepare("SELECT * FROM settings WHERE key='business_name'").all()).toEqual(settings);
+    expect(repo().recentJobs()).toEqual([]);
+  });
+  it('persists a hashed immutable receipt in the sale transaction with auto-print OFF', () => {
+    const id = sale();
+    const doc = repo().document(id);
+    expect(doc.hash).toBe(receiptHash(doc.json));
+    expect(doc.payload).toMatchObject({
+      saleNumber: 1,
+      tableCode: 'M5',
+      paymentMethod: 'CASH',
+      totalCents: 100,
+    });
+    expect(repo().recentJobs()).toHaveLength(0);
+    expect(() => db.prepare('UPDATE receipt_documents SET payload_json=?').run('{}')).toThrow();
+    expect(() => db.exec('DELETE FROM receipt_documents')).toThrow();
+  });
+  it('receipt JSON and hash remain identical after product and business edits', () => {
+    const id = sale(),
+      before = repo().document(id);
+    db.prepare(
+      "UPDATE products SET name='Changed',selling_price_cents=900 WHERE id='KAFE-1'",
+    ).run();
+    db.prepare("UPDATE settings SET value='Other business' WHERE key='business_name'").run();
+    expect(repo().document(id)).toEqual(before);
+  });
+  it.each(['CARD', null] as const)(
+    'legacy lazy snapshot preserves payment %s and excludes unknown costs',
+    (method) => {
+      const id = sale('M5', false);
+      if (method)
+        db.prepare('INSERT INTO order_payments VALUES (?,?,?)').run(
+          id,
+          method,
+          '2026-10-01T10:00:00.000Z',
+        );
+      db.prepare('UPDATE order_items SET unit_cost_cents=NULL WHERE order_id=?').run(id);
+      db.prepare(
+        "UPDATE orders SET status='CLOSED',sale_number=1,closed_at='2026-10-01T10:00:00.000Z' WHERE id=?",
+      ).run(id);
+      const before = financial();
+      const doc = repo().document(id);
+      expect(doc.payload.paymentMethod).toBe(method);
+      expect(doc.json).not.toContain('Cost');
+      expect(financial()).toEqual(before);
+      expect(
+        db.prepare('SELECT generated_from_legacy AS legacy FROM receipt_documents').get(),
+      ).toEqual({ legacy: 1 });
+    },
+  );
+  it('OPEN order cannot produce a final receipt or copy', () => {
+    setup();
+    const id = sale('M5', false);
+    expect(() => repo().document(id)).toThrow();
+    expect(() => repo().enqueueCopy({ saleId: id, requestId: randomUUID() })).toThrow();
+  });
+  it('integer-cent reconciliation rejects mismatched, unsafe and fractional payloads', () => {
+    const payload = repo().document(sale()).payload;
+    expect(() => validatePayload({ ...payload, totalCents: 101 })).toThrow();
+    expect(() => validatePayload({ ...payload, totalCents: 1.1 })).toThrow();
+    expect(() =>
+      validatePayload({
+        ...payload,
+        items: [
+          {
+            name: 'x',
+            quantity: 2,
+            unitPriceCents: Number.MAX_SAFE_INTEGER,
+            lineTotalCents: Number.MAX_SAFE_INTEGER * 2,
+          },
+        ],
+        totalCents: Number.MAX_SAFE_INTEGER * 2,
+      }),
+    ).toThrow();
+  });
+  it('escapes HTML-like names, Albanian text and business text without remote resources', () => {
+    const payload = repo().document(sale()).payload;
+    const html = renderReceipt(
+      {
+        ...payload,
+        businessDisplayName: 'FOX <script>alert(1)</script>',
+        items: [
+          { ...payload.items[0]!, name: 'Çaj ë Ë ç Ç <img src=x onerror="alert(1)"> & \' "' },
+        ],
+      },
+      true,
+    );
+    expect(html).toContain('KOPJE');
+    expect(html).toContain('KUPON JO-FISKAL');
+    expect(html).toContain('nuk e zëvendëson kuponin fiskal');
+    expect(html).toContain('ë Ë ç Ç');
+    expect(html).toContain('&lt;img');
+    expect(html).not.toContain('<script>');
+    expect(html).not.toContain('<img');
+    expect(html).not.toContain('https:');
+    expect(html).not.toContain('purchase_cost');
+  });
+  it('supports long product names, large totals and many immutable items', () => {
+    const base = repo().document(sale()).payload;
+    const payload: ReceiptPayload = {
+      ...base,
+      items: Array.from({ length: 25 }, () => ({
+        name: 'Çaj shumë i gjatë '.repeat(15),
+        quantity: 2,
+        unitPriceCents: 12345,
+        lineTotalCents: 24690,
+      })),
+      totalCents: 617250,
+    };
+    validatePayload(payload);
+    const html = renderReceipt(payload);
+    expect(html.match(/class="line"/g)).toHaveLength(25);
+    expect(html).toContain('6172.50 €');
+    expect(html).toContain('overflow-wrap:anywhere');
+  });
+  it('receipt storage error rolls back the entire checkout before commit', () => {
+    db.exec(
+      "CREATE TRIGGER inject_receipt_error BEFORE INSERT ON receipt_documents BEGIN SELECT RAISE(ABORT,'QA receipt metadata failure'); END",
+    );
+    const id = sale('M5', false),
+      before = financial();
+    expect(
+      createCheckoutService(db, createOrderService(db, createRepositories(db))).completeOrder({
+        orderId: id,
+      }).ok,
+    ).toBe(false);
+    expect(financial()).toEqual(before);
+    expect(readSalesReport(db, 'ALL').summary.completedOrders).toBe(0);
+    expect(
+      db.prepare("SELECT quantity FROM inventory_balances WHERE product_id='KAFE-1'").get(),
+    ).toEqual({ quantity: 100 });
+  });
+});
+describe('transactional print outbox and financial isolation', () => {
+  it('an older unresolved failure remains visible beyond the 30 recent jobs', () => {
+    setup();
+    const id = sale(),
+      job = repo().claim()!;
+    repo().finish(job, 'FAILED', 'PRINTER_NOT_FOUND');
+    setup(false);
+    for (let i = 0; i < 35; i++) {
+      const later = sale();
+      repo().enqueueCopy({ saleId: later, requestId: randomUUID() });
+      const claimed = repo().claim()!;
+      repo().finish(claimed, 'SUBMITTED', null);
+    }
+    expect(
+      repo()
+        .recentJobs()
+        .some((j) => j.saleId === id && j.status === 'FAILED'),
+    ).toBe(true);
+  });
+  it('receipt storage failure keeps the order active and lets the operator retry', () => {
+    db.exec(
+      "CREATE TRIGGER inject_metadata_error BEFORE INSERT ON receipt_documents BEGIN SELECT RAISE(ABORT,'QA'); END",
+    );
+    const id = sale('M5', false),
+      checkout = createCheckoutService(db, createOrderService(db, createRepositories(db)));
+    expect(checkout.completeOrder({ orderId: id })).toMatchObject({
+      ok: false,
+      code: 'CHECKOUT_FAILED',
+    });
+    expect(createOrderService(db, createRepositories(db)).getForTable('M5')).toMatchObject({
+      table: { status: 'ACTIVE' },
+      order: { id },
+    });
+    db.exec('DROP TRIGGER inject_metadata_error');
+    expect(checkout.completeOrder({ orderId: id }).ok).toBe(true);
+    expect(repo().document(id).payload.totalCents).toBe(100);
+  });
+  it('an original retry joins behind intents already queued later', () => {
+    setup();
+    const id = sale();
+    const failed = repo().claim()!;
+    repo().finish(failed, 'FAILED', 'PRINTER_NOT_FOUND');
+    const later = sale('M6');
+    db.prepare(
+      "UPDATE receipt_print_jobs SET queued_at='2000-01-01T00:00:00.000Z' WHERE sale_id=?",
+    ).run(later);
+    repo().retry(repo().state(id).jobs[0]!.id);
+    expect(repo().claim()!.saleId).toBe(later);
+  });
+  it('one sale, payment, stock deduction and original intent survive double checkout', () => {
+    setup();
+    const id = sale();
+    const orders = createOrderService(db, createRepositories(db));
+    expect(createCheckoutService(db, orders).completeOrder({ orderId: id })).toMatchObject({
+      ok: false,
+      code: 'ALREADY_COMPLETED',
+    });
+    expect(repo().state(id).jobs).toHaveLength(1);
+    expect(repo().state(id).jobs[0]?.status).toBe('PENDING');
+    expect(db.prepare('SELECT COUNT(*) AS n FROM order_payments').get()).toEqual({ n: 1 });
+  });
+  it('failed checkout rolls back receipt documents and print jobs as well', () => {
+    setup();
+    db.exec(
+      "CREATE TRIGGER stop_release BEFORE UPDATE OF status ON cafe_tables WHEN NEW.status='FREE' BEGIN SELECT RAISE(ABORT,'QA'); END",
+    );
+    const id = sale('M5', false),
+      before = financial();
+    const checkout = createCheckoutService(db, createOrderService(db, createRepositories(db)));
+    expect(checkout.completeOrder({ orderId: id }).ok).toBe(false);
+    expect(financial()).toEqual(before);
+    expect(repo().recentJobs()).toHaveLength(0);
+    expect(db.prepare('SELECT COUNT(*) AS n FROM receipt_documents').get()).toEqual({ n: 0 });
+  });
+  it('known missing printer never rolls back a sale, stock, table release or report', async () => {
+    setup();
+    const id = sale(),
+      before = financial(),
+      report = readSalesReport(db, 'ALL');
+    const m = manager({ list: async () => [], submit: vi.fn() });
+    m.start();
+    await m.idle();
+    expect(repo().state(id).jobs[0]).toMatchObject({
+      status: 'FAILED',
+      errorCode: 'PRINTER_NOT_FOUND',
+    });
+    expect(financial()).toEqual(before);
+    expect(readSalesReport(db, 'ALL')).toEqual(report);
+  });
+  it('PENDING at startup is recovered and submitted once after commit', async () => {
+    setup();
+    const id = sale(),
+      before = financial();
+    const adapter = accepted(),
+      submit = vi.spyOn(adapter, 'submit'),
+      m = manager(adapter);
+    m.start();
+    await m.idle();
+    m.kick();
+    await m.idle();
+    expect(submit).toHaveBeenCalledTimes(1);
+    expect(repo().state(id).jobs[0]?.status).toBe('SUBMITTED');
+    expect(financial()).toEqual(before);
+  });
+  it('stale SUBMITTING becomes UNKNOWN, cannot retry original and never auto-submits', async () => {
+    setup();
+    const id = sale();
+    repo().claim();
+    const adapter = accepted(),
+      submit = vi.spyOn(adapter, 'submit'),
+      m = manager(adapter);
+    m.start();
+    await m.idle();
+    expect(repo().state(id).jobs[0]).toMatchObject({
+      status: 'UNKNOWN',
+      errorCode: 'UNKNOWN_AFTER_CRASH',
+    });
+    expect(submit).not.toHaveBeenCalled();
+    expect(() => repo().retry(repo().state(id).jobs[0]!.id)).toThrow();
+  });
+  it('timed-out uncertain submission becomes UNKNOWN and queue resumes later jobs', async () => {
+    setup();
+    const id = sale();
+    sale('M6');
+    let calls = 0;
+    const m = manager(
+      {
+        list: async () => [printer],
+        submit: async () => {
+          if (++calls === 1) await new Promise(() => {});
+        },
+      },
+      20,
+    );
+    m.start();
+    await m.idle();
+    expect(repo().state(id).jobs[0]?.status).toBe('UNKNOWN');
+    expect(
+      repo()
+        .recentJobs()
+        .filter((j) => j.status === 'SUBMITTED'),
+    ).toHaveLength(1);
+  });
+  it('known pre-submission failure may retry the same job with append-only attempts', async () => {
+    setup();
+    const id = sale();
+    let found = false;
+    const m = manager({ list: async () => (found ? [printer] : []), submit: async () => {} });
+    m.start();
+    await m.idle();
+    const before = financial(),
+      report = readSalesReport(db, 'ALL'),
+      job = repo().state(id).jobs[0]!;
+    found = true;
+    const retry = repo().retry(job.id);
+    expect(retry.id).toBe(job.id);
+    m.kick();
+    await m.idle();
+    expect(repo().state(id).jobs[0]).toMatchObject({
+      status: 'SUBMITTED',
+      attemptCount: 2,
+      kind: 'ORIGINAL_RETRY',
+    });
+    expect(financial()).toEqual(before);
+    expect(readSalesReport(db, 'ALL')).toEqual(report);
+    expect(db.prepare('SELECT outcome FROM receipt_print_attempts ORDER BY rowid').all()).toEqual([
+      { outcome: 'FAILED' },
+      { outcome: 'SUBMITTED' },
+    ]);
+  });
+  it('COPY is marked and never alters finances, stock, reports or sale numbers', async () => {
+    setup();
+    const id = sale();
+    const adapter = accepted(),
+      submit = vi.spyOn(adapter, 'submit'),
+      m = manager(adapter);
+    m.start();
+    await m.idle();
+    const before = financial(),
+      report = readSalesReport(db, 'ALL');
+    const token = randomUUID();
+    const a = repo().enqueueCopy({ saleId: id, requestId: token }),
+      b = repo().enqueueCopy({ saleId: id, requestId: token });
+    expect(a.id).toBe(b.id);
+    m.kick();
+    await m.idle();
+    expect(submit.mock.calls[1]?.[0]).toContain('KOPJE');
+    expect(financial()).toEqual(before);
+    expect(readSalesReport(db, 'ALL')).toEqual(report);
+    expect(repo().state(id).jobs).toHaveLength(2);
+    repo().enqueueCopy({ saleId: id, requestId: token });
+    expect(repo().state(id).jobs).toHaveLength(2);
+  });
+  it('rapid distinct copy requests coalesce while PENDING/SUBMITTING', async () => {
+    setup(false);
+    const id = sale();
+    const a = repo().enqueueCopy({ saleId: id, requestId: randomUUID() }),
+      b = repo().enqueueCopy({ saleId: id, requestId: randomUUID() });
+    expect(a.id).toBe(b.id);
+    const m = manager(accepted());
+    m.start();
+    await m.idle();
+    expect(repo().state(id).jobs).toHaveLength(1);
+  });
+  it('50 submissions are FIFO, serial, and continue after one rejection', async () => {
+    setup(false);
+    const ids = Array.from({ length: 50 }, () => sale());
+    ids.forEach((id) => repo().enqueueCopy({ saleId: id, requestId: randomUUID() }));
+    let active = 0,
+      max = 0;
+    const seen: number[] = [];
+    const m = manager({
+      list: async () => [printer],
+      submit: async (html) => {
+        active++;
+        max = Math.max(max, active);
+        seen.push(Number(html.match(/Shitja #(\d+)/)?.[1]));
+        await new Promise<void>((r) => setTimeout(r, 1));
+        active--;
+        if (seen.length === 25) throw new PrintError('SPOOLER_REJECTED');
+      },
+    });
+    m.start();
+    await m.idle();
+    expect(max).toBe(1);
+    expect(seen).toEqual(Array.from({ length: 50 }, (_, i) => i + 1));
+    expect(
+      db.prepare("SELECT COUNT(*) AS n FROM receipt_print_jobs WHERE status='SUBMITTED'").get(),
+    ).toEqual({ n: 49 });
+  });
+});
+describe('settings, test printing and constrained backend inputs', () => {
+  it('TEST uses same queue without sales, stock, payments or numbers', async () => {
+    setup(false);
+    const before = financial(),
+      report = readSalesReport(db, 'ALL'),
+      job = repo().enqueueTest();
+    const adapter = accepted(),
+      submit = vi.spyOn(adapter, 'submit'),
+      m = manager(adapter);
+    m.start();
+    await m.idle();
+    expect(repo().recentJobs()[0]).toMatchObject({
+      id: job.id,
+      kind: 'TEST',
+      saleId: null,
+      status: 'SUBMITTED',
+    });
+    expect(submit.mock.calls[0]?.[0]).toContain('ë Ë ç Ç');
+    expect(financial()).toEqual(before);
+    expect(readSalesReport(db, 'ALL')).toEqual(report);
+  });
+  it('rejects auto-print before a test and allows only the exact tested printer', async () => {
+    const m = manager(accepted()),
+      service = createReceiptService(repo(), accepted(), m);
+    expect(
+      await service.saveSettings({
+        deviceName: printer.deviceName,
+        autoPrint: true,
+        paperWidth: 80,
+        copies: 1,
+      }),
+    ).toMatchObject({ ok: true, data: { saved: false } });
+    expect(repo().settings().autoPrint).toBe(false);
+    expect(
+      await service.saveSettings({
+        deviceName: printer.deviceName,
+        autoPrint: false,
+        paperWidth: 80,
+        copies: 1,
+      }),
+    ).toMatchObject({ ok: true, data: { saved: true } });
+    await service.testPrint();
+    await m.idle();
+    expect(
+      await service.saveSettings({
+        deviceName: printer.deviceName,
+        autoPrint: true,
+        paperWidth: 80,
+        copies: 1,
+      }),
+    ).toMatchObject({ ok: true, data: { saved: true } });
+    expect(repo().settings().autoPrint).toBe(true);
+  });
+  it.each([0, 2, 3, 100, -1, 1.5])(
+    'rejects unsupported copy count %s on backend',
+    async (copies) => {
+      const m = manager(accepted()),
+        service = createReceiptService(repo(), accepted(), m);
+      expect(
+        (
+          await service.saveSettings({
+            deviceName: printer.deviceName,
+            autoPrint: false,
+            paperWidth: 80,
+            copies,
+          })
+        ).ok,
+      ).toBe(false);
+    },
+  );
+  it('removed/renamed printer cannot be silently replaced with default', async () => {
+    setup();
+    const adapter: PrinterAdapter = {
+        list: async () => [{ ...printer, deviceName: 'Other default' }],
+        submit: vi.fn(),
+      },
+      m = manager(adapter);
+    const id = sale();
+    m.start();
+    await m.idle();
+    expect(repo().state(id).jobs[0]?.errorCode).toBe('PRINTER_NOT_FOUND');
+    expect(adapter.submit).not.toHaveBeenCalled();
+  });
+  it.each([
+    { saleId: 'a', requestId: randomUUID(), totalCents: 1 },
+    { saleId: 'a', requestId: randomUUID(), items: [] },
+    { saleId: 'a', requestId: randomUUID(), paymentMethod: 'CARD' },
+    null,
+    { saleId: 'a', requestId: 'not-a-token' },
+  ])('rejects renderer financial spoofing %#', (input) => {
+    expect(() => validateReceiptAction(input)).toThrow();
+  });
+  it('test request without config fails safely and does not select PDF/default', () => {
+    expect(() => repo().enqueueTest()).toThrow('NO_PRINTER_CONFIGURED');
+    expect(repo().recentJobs()).toEqual([]);
+  });
+});

@@ -1,0 +1,56 @@
+{
+  "name": "fox-pos",
+  "version": "0.7.2-rc.4",
+  "private": true,
+  "type": "module",
+  "description": "FOX Kafeteri local desktop foundation",
+  "main": "dist-electron/main.cjs",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "node scripts/dev/dev.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node scripts/qa/test.mjs",
+    "build": "npm run typecheck && vite build && node scripts/build/build-electron.mjs",
+    "start": "electron .",
+    "postinstall": "node node_modules/electron/install.js && node scripts/build/rebuild-native.mjs",
+    "rebuild:native": "node scripts/build/rebuild-native.mjs",
+    "verify:checkout": "node scripts/qa/verify-checkout.mjs",
+    "verify:runtime": "node scripts/qa/verify-runtime.mjs",
+    "build:release": "npm run typecheck && vite build && node scripts/build/build-electron.mjs --release",
+    "package:win": "node scripts/release/package-windows.mjs",
+    "verify:release": "node scripts/release/verify-release.mjs",
+    "verify:installed": "node scripts/qa/verify-installed.mjs",
+    "release:sbom": "node scripts/release/supply-chain.mjs sbom",
+    "release:scan": "node scripts/release/supply-chain.mjs scan",
+    "verify:protection": "node scripts/qa/verify-protection.mjs",
+    "verify:production-db": "node scripts/qa/verify-product.mjs --production-only",
+    "verify:product-day": "node scripts/qa/verify-product.mjs",
+    "verify:cutover": "node scripts/qa/verify-cutover.mjs",
+    "verify:finance": "node scripts/qa/verify-finance.mjs",
+    "verify:reservations": "node scripts/qa/verify-reservations.mjs",
+    "verify:visual": "node scripts/qa/verify-visual.mjs after",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.2.0",
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.6.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "electron": "^44.5.1",
+    "electron-builder": "26.15.3",
+    "esbuild": "^0.28.2",
+    "prettier": "3.6.2",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.2",
+    "vitest": "^5.0.3"
+  }
+}

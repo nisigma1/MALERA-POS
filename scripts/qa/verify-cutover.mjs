@@ -1,0 +1,524 @@
+// QA controller: all configuration/supply/order/payment mutations use FOX UI.
+// Read-only observations and native file-selection instrumentation stay outside production.
+import fs from 'node:fs';
+import path from 'node:path';
+import net from 'node:net';
+import assert from 'node:assert/strict';
+import { spawn, spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
+import { build } from 'esbuild';
+import electron from 'electron';
+import { createQaDirectory } from '../lib/qa-directory.mjs';
+const require = createRequire(import.meta.url),
+  version = JSON.parse(fs.readFileSync('package.json', 'utf8')).version;
+const installer = process.argv[2],
+  directory = createQaDirectory(installer ? 'cutover-installed' : 'cutover'),
+  recoveryDirectory = createQaDirectory('cutover-recovery');
+const evidence = {
+  version,
+  isolated: true,
+  uiOnlyMutations: true,
+  installed: Boolean(installer),
+  checks: [],
+  screenshots: [],
+};
+const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+await build({
+  entryPoints: ['electron/verification/cutover-ui.ts'],
+  outfile: 'work/cutover-ui.cjs',
+  bundle: true,
+  platform: 'node',
+  format: 'cjs',
+});
+await build({
+  entryPoints: ['electron/verification/cutover-observer.ts'],
+  outfile: 'work/cutover-observer.cjs',
+  bundle: true,
+  platform: 'node',
+  format: 'cjs',
+  external: ['better-sqlite3'],
+});
+const { cutoverUi } = require('../../work/cutover-ui.cjs');
+let executable = electron;
+if (installer) {
+  const install = path.join(directory, 'application');
+  const r = spawnSync(path.resolve(installer), ['/S', `/D=${install}`], {
+    windowsHide: true,
+    timeout: 120000,
+  });
+  assert.equal(r.status, 0, r.error?.message);
+  executable = path.join(install, 'FOX Kafeteri.exe');
+  assert.ok(fs.existsSync(executable));
+  evidence.installer = path.basename(installer);
+}
+let activeDirectory = directory,
+  port,
+  ws,
+  ui,
+  processId;
+function environment() {
+  const env = { ...process.env };
+  for (const k of Object.keys(env))
+    if (
+      k.startsWith('FOX_VERIFY_') ||
+      ['FOX_DEV_URL', 'ELECTRON_RUN_AS_NODE', 'NODE_ENV', 'VITEST'].includes(k)
+    )
+      delete env[k];
+  Object.assign(env, { FOX_VERIFY_DIR: activeDirectory, FOX_VERIFY_MANUAL: '1' });
+  if (!installer) env.FOX_VERIFY_CUTOVER_DIALOGS = '1';
+  if (installer) {
+    const key = Object.keys(env).find((k) => k.toLowerCase() === 'path') || 'Path';
+    const root = env.SystemRoot || 'C:\\Windows';
+    env[key] = [
+      root,
+      path.join(root, 'System32'),
+      path.join(root, 'System32/WindowsPowerShell/v1.0'),
+    ].join(';');
+    evidence.noDeveloperToolsOnAppPath = true;
+  }
+  return env;
+}
+async function socket(url) {
+  const socket = new WebSocket(url);
+  await new Promise((r, j) => {
+    socket.onopen = r;
+    socket.onerror = j;
+  });
+  let id = 0;
+  const pending = new Map();
+  socket.onmessage = (e) => {
+    const m = JSON.parse(e.data);
+    const p = pending.get(m.id);
+    if (p) {
+      pending.delete(m.id);
+      m.error ? p.reject(Error(JSON.stringify(m.error))) : p.resolve(m.result);
+    }
+  };
+  socket.onclose = () => {
+    for (const p of pending.values()) p.reject(Error('CDP disconnected'));
+    pending.clear();
+  };
+  return {
+    socket,
+    command: (method, params = {}) =>
+      new Promise((resolve, reject) => {
+        pending.set(++id, { resolve, reject });
+        socket.send(JSON.stringify({ id, method, params }));
+      }),
+  };
+}
+async function connect() {
+  let page;
+  for (let i = 0; i < 300; i++) {
+    try {
+      page = (await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()).find(
+        (p) => p.type === 'page',
+      );
+      if (page) break;
+    } catch {}
+    await pause(50);
+  }
+  assert.ok(page, 'Cutover app did not open');
+  const browserInfo = await (await fetch(`http://127.0.0.1:${port}/json/version`)).json(),
+    browser = await socket(browserInfo.webSocketDebuggerUrl);
+  const processes = await browser.command('SystemInfo.getProcessInfo');
+  processId = processes.processInfo.find((p) => p.type === 'browser').id;
+  browser.socket.close();
+  const client = await socket(page.webSocketDebuggerUrl);
+  ws = client.socket;
+  ui = cutoverUi(async (expression) => {
+    const r = await client.command('Runtime.evaluate', {
+      expression,
+      awaitPromise: true,
+      returnByValue: true,
+    });
+    if (r.exceptionDetails) throw Error(JSON.stringify(r.exceptionDetails));
+    return r.result.value;
+  });
+  await ui.until(
+    'Boolean(window.fox && document.querySelectorAll("[data-table-code]").length===27)',
+  );
+  await client.command('Network.enable');
+  await client.command('Network.emulateNetworkConditions', {
+    offline: true,
+    latency: 0,
+    downloadThroughput: 0,
+    uploadThroughput: 0,
+  });
+  evidence.offline = true;
+  ui.capture = async (name) => {
+    const image = await client.command('Page.captureScreenshot', { format: 'png' });
+    fs.writeFileSync(path.join(activeDirectory, name + '.png'), Buffer.from(image.data, 'base64'));
+    evidence.screenshots.push(name);
+  };
+}
+async function launch(target = activeDirectory) {
+  activeDirectory = target;
+  port = await new Promise((r) => {
+    const s = net.createServer();
+    s.listen(0, '127.0.0.1', () => {
+      const p = s.address().port;
+      s.close(() => r(p));
+    });
+  });
+  spawn(executable, [...(installer ? [] : ['.']), `--remote-debugging-port=${port}`], {
+    env: environment(),
+    windowsHide: true,
+    stdio: 'ignore',
+  });
+  await connect();
+}
+function alive() {
+  try {
+    process.kill(processId, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+async function close() {
+  if (ws?.readyState === 1) ws.send(JSON.stringify({ id: 999999, method: 'Page.close' }));
+  for (let i = 0; i < 240 && alive(); i++) await pause(50);
+  assert.equal(alive(), false, 'Owned QA app did not close');
+  ws?.close();
+}
+function observe(relative = 'fox.sqlite') {
+  const env = { ...process.env, ELECTRON_RUN_AS_NODE: '1' };
+  for (const k of Object.keys(env))
+    if (k.startsWith('FOX_VERIFY_') || k === 'NODE_ENV' || k === 'VITEST') delete env[k];
+  const r = spawnSync(electron, ['work/cutover-observer.cjs', activeDirectory, relative, version], {
+    env,
+    windowsHide: true,
+    encoding: 'utf8',
+    timeout: 30000,
+  });
+  assert.equal(r.status, 0, r.stderr);
+  return JSON.parse(r.stdout);
+}
+const check = (condition, name) => {
+  assert.ok(condition, name);
+  evidence.checks.push(name);
+};
+const config = (s) => ({ products: s.tables.products, settings: s.tables.settings });
+function zero(s, opening = false) {
+  for (const name of [
+    'orders',
+    'order_items',
+    'order_payments',
+    'expenses',
+    'receipt_documents',
+    'receipt_print_jobs',
+    'receipt_print_attempts',
+    'receipt_generation_errors',
+  ])
+    assert.equal(s.tables[name].length, 0, name);
+  check(s.report.summary.salesCents === 0 && s.report.cashCents === 0, 'Zero-sale accounting');
+  assert.equal(s.tables.inventory_movements.filter((m) => m.type === 'SALE').length, 0);
+  if (!opening) assert.equal(s.tables.inventory_movements.length, 0);
+}
+async function fileChoice(action, file, confirm = true) {
+  const filename = path.join(activeDirectory, file);
+  if (!installer)
+    fs.writeFileSync(
+      path.join(activeDirectory, 'cutover-dialog.json'),
+      JSON.stringify({ action, path: filename }),
+    );
+  await (action === 'backup' ? ui.backupButton() : ui.restoreButton());
+  if (installer) {
+    const r = spawnSync(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-File',
+        'scripts/windows/cutover-native-dialog.ps1',
+        '-FoxProcessId',
+        String(processId),
+        '-Action',
+        action,
+        '-File',
+        filename,
+        ...(confirm ? [] : ['-NoConfirmation']),
+      ],
+      { windowsHide: true, encoding: 'utf8', timeout: 60000 },
+    );
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+  }
+  return filename;
+}
+async function backup(file) {
+  await fileChoice('backup', file);
+  await ui.until(
+    'document.querySelector(".data-protection").textContent.includes("Backup u krijua dhe u verifikua")',
+  );
+  const copy = observe(file);
+  assert.deepEqual(copy.tables, observe().tables);
+  check(
+    copy.manifest.schemaVersion === 6 && copy.quickCheck === 'ok' && copy.foreignKeys.length === 0,
+    'Backup checksum/schema/integrity/FK and exact state',
+  );
+  return copy;
+}
+async function restore(file) {
+  const old = processId;
+  await fileChoice('restore', file);
+  for (let i = 0; i < 240 && alive(); i++) await pause(50);
+  assert.equal(alive(), false, 'Restore did not close old process');
+  ws?.close();
+  await connect();
+  assert.notEqual(processId, old);
+  await ui.readiness(true);
+  evidence.actualRestoreRelaunches = (evidence.actualRestoreRelaunches || 0) + 1;
+}
+async function restart(expected) {
+  await close();
+  await launch();
+  assert.deepEqual(observe().tables, expected.tables);
+  await ui.readiness(true);
+  evidence.actualRestarts = (evidence.actualRestarts || 0) + 1;
+}
+async function reconcile() {
+  const s = observe(),
+    closed = s.tables.orders.filter((o) => o.status === 'CLOSED'),
+    items = s.tables.order_items.filter((i) => closed.some((o) => o.id === i.order_id)),
+    revenue = items.reduce((n, i) => n + i.quantity * i.unit_price_cents, 0);
+  assert.equal(s.report.summary.salesCents, revenue);
+  assert.equal(s.report.cashCents, revenue);
+  assert.equal(s.report.summary.completedOrders, closed.length);
+  assert.equal(s.tables.order_payments.length, closed.length);
+  assert.ok(s.tables.order_payments.every((p) => p.payment_method === 'CASH'));
+  assert.deepEqual(
+    closed.map((o) => o.sale_number).sort((a, b) => a - b),
+    Array.from({ length: closed.length }, (_, i) => i + 1),
+  );
+  for (const p of s.products.filter((p) => p.trackInventory === true)) {
+    const sum = s.tables.inventory_movements
+      .filter((m) => m.product_id === p.id)
+      .reduce((n, m) => n + m.quantity_delta, 0);
+    assert.equal(p.stockQuantity, sum);
+  }
+  return {
+    sales: closed.length,
+    revenueCents: revenue,
+    cashCents: s.report.cashCents,
+    coffeeStock: s.products.find((p) => p.id === 'KAFE-1').stockQuantity,
+    drinkStock: s.products.find((p) => p.id === 'PIJE-1').stockQuantity,
+  };
+}
+try {
+  await launch();
+  const fresh = observe();
+  check(
+    fresh.tables.cafe_tables.length === 27 &&
+      fresh.tables.products.length === 21 &&
+      fresh.tables.categories.length === 5,
+    'Fresh exact27/21/5',
+  );
+  zero(fresh);
+  check(
+    fresh.products.every(
+      (p) =>
+        p.sellingPriceCents === null &&
+        p.purchaseCostCents === null &&
+        p.trackInventory === null &&
+        p.stockQuantity === null,
+    ),
+    'Fresh unknown owner values',
+  );
+  await ui.readiness(false);
+  await ui.capture('cutover-fresh');
+  // Simulated values exist only in marked temporary QA data, never seeds/owner userData.
+  for (const p of await ui.products()) {
+    const tracked = ['KAFE-1', 'PIJE-1'].includes(p.id);
+    await ui.edit(p.id, {
+      sellingPriceCents: p.id === 'PIJE-1' ? '1,50' : '1,00',
+      purchaseCostCents: p.id === 'CAJ-1' ? '' : '0,50',
+      trackInventory: tracked ? 'yes' : 'no',
+      lowStockThreshold: tracked ? '5' : '',
+    });
+  }
+  await ui.readiness(false);
+  check(observe().summary.blockerCount === 2, 'Tracked unknown opening stock blocks');
+  await ui.supply('KAFE-1', '100');
+  await ui.supply('PIJE-1', '100');
+  await ui.readiness(true);
+  await ui.capture('cutover-ready');
+  await ui.edit('KAFE-1', { sellingPriceCents: '' });
+  await ui.readiness(false);
+  await ui.edit('KAFE-1', { sellingPriceCents: '1,00' });
+  await ui.readiness(true);
+  await ui.edit('KAFE-1', { purchaseCostCents: '' });
+  await ui.readiness(true);
+  check(observe().summary.missingCosts === 2, 'Unknown cost warning remains nonblocking');
+  await ui.edit('KAFE-1', { purchaseCostCents: '0,50' });
+  await ui.openEditor('KAFE-1');
+  await ui.field('trackInventory', '');
+  await ui.js('document.querySelector("button[form=product-form]").click()');
+  await ui.until('Boolean(document.querySelector("#trackInventory[aria-invalid=true]"))');
+  check(
+    observe().products.find((p) => p.id === 'KAFE-1').trackInventory === true,
+    'Priced active product cannot save NULL tracking',
+  );
+  await ui.field('sellingPriceCents', '');
+  await ui.js('document.querySelector("button[form=product-form]").click()');
+  await ui.until('!document.querySelector("dialog[open]")');
+  await ui.readiness(false);
+  await ui.edit('KAFE-1', { active: 'no' });
+  await ui.readiness(true);
+  await ui.edit('KAFE-1', { active: 'yes', sellingPriceCents: '1,00', trackInventory: 'yes' });
+  await ui.readiness(true);
+  await ui.openEditor('KAFE-1');
+  await ui.field('sellingPriceCents', 'abc');
+  await ui.js('document.querySelector("button[form=product-form]").click()');
+  await ui.until('Boolean(document.querySelector("#sellingPriceCents[aria-invalid=true]"))');
+  await ui.field('sellingPriceCents', '1,00');
+  await ui.js('document.querySelector("button[form=product-form]").click()');
+  await ui.until('!document.querySelector("dialog[open]")');
+  const beforeFailedFiles = observe();
+  await fileChoice(
+    'backup',
+    installer ? 'application/forbidden.sqlite' : 'missing-parent/failure.sqlite',
+  );
+  await ui.until(
+    'document.querySelector(".data-protection").textContent.includes("Veprimi nuk u përfundua")',
+  );
+  assert.deepEqual(observe().tables, beforeFailedFiles.tables);
+  fs.writeFileSync(path.join(activeDirectory, 'invalid.sqlite'), 'Not a FOX backup');
+  await fileChoice('restore', 'invalid.sqlite', false);
+  await ui.until(
+    'document.querySelector(".data-protection").textContent.includes("Veprimi nuk u përfundua")',
+  );
+  assert.deepEqual(observe().tables, beforeFailedFiles.tables);
+  check(true, 'Failed backup and invalid restore preserve state with human-readable errors');
+  evidence.readinessTransitions = {
+    initialNotReady: true,
+    configuredReady: true,
+    missingPriceBlocks: true,
+    missingCostWarns: true,
+    nullTrackingBlocks: true,
+    inactiveExcluded: true,
+    unknownStockBlocks: true,
+    malformedMoneyRejected: true,
+  };
+  const configured = observe();
+  zero(configured, true);
+  await restart(configured);
+  const pre = await backup('FOX-PRE-GO-LIVE.sqlite');
+  zero(pre, true);
+  evidence.configurationSnapshot = observe().summary;
+  fs.writeFileSync(
+    path.join(directory, 'configuration-summary.json'),
+    JSON.stringify(evidence.configurationSnapshot, null, 2),
+  );
+  // Prove pre-go-live recovery in a different fresh, isolated installation state.
+  await close();
+  for (const ext of ['', '.json'])
+    fs.copyFileSync(
+      path.join(directory, 'FOX-PRE-GO-LIVE.sqlite' + ext),
+      path.join(recoveryDirectory, 'FOX-PRE-GO-LIVE.sqlite' + ext),
+    );
+  await launch(recoveryDirectory);
+  await restore('FOX-PRE-GO-LIVE.sqlite');
+  assert.deepEqual(observe().tables, pre.tables);
+  zero(observe(), true);
+  evidence.preGoLiveRestoreExact = true;
+  const beforeSale = observe();
+  await ui.select('M5');
+  check(observe().tables.orders.length === 0, 'Selecting free table does not create order');
+  await ui.add('KAFE-1');
+  await ui.add('PIJE-1');
+  await ui.quantity(true);
+  await ui.quantity(false);
+  const open = observe();
+  await ui.select('M6');
+  await ui.select('M5');
+  assert.deepEqual(observe().tables.order_items, open.tables.order_items);
+  await ui.pay();
+  const first = observe();
+  assert.deepEqual(config(first), config(beforeSale));
+  evidence.firstSale = await reconcile();
+  check(
+    evidence.firstSale.sales === 1 &&
+      evidence.firstSale.revenueCents === 250 &&
+      evidence.firstSale.coffeeStock === 99 &&
+      evidence.firstSale.drinkStock === 99,
+    'First sale one CASH payment/exact stock',
+  );
+  check(first.tables.orders[0].sale_number === 1, 'First sequence derived from MAX+1');
+  check(first.tables.receipt_documents.length === 1, 'Immutable receipt created');
+  await ui.nav('reports');
+  await ui.capture('cutover-first-sale');
+  await restart(first);
+  for (let i = 0; i < 24; i++) {
+    await ui.select(['M1', 'M5', 'SH2', 'T3'][i % 4]);
+    await ui.add('KAFE-1');
+    await ui.add(i % 2 ? 'CAJ-1' : 'PIJE-1');
+    await ui.quantity(true);
+    await ui.quantity(false);
+    await ui.pay();
+    if (i === 11) await restart(observe());
+  }
+  evidence.session = await reconcile();
+  check(
+    evidence.session.sales === 25 &&
+      evidence.session.revenueCents === 5650 &&
+      evidence.session.coffeeStock === 75 &&
+      evidence.session.drinkStock === 87,
+    '25-sale session financial/stock reconciliation',
+  );
+  await ui.select('M5');
+  await ui.add('KAFE-1');
+  for (let i = 1; i < 76; i++) await ui.quantity(true);
+  await ui.js('document.querySelector("[data-open-checkout]").click()');
+  await ui.until('Boolean(document.querySelector("dialog[open]"))');
+  await ui.js('document.querySelector("[data-confirm-payment]").click()');
+  await ui.until('Boolean(document.querySelector(".checkout-dialog [role=alert]"))');
+  check(
+    (await ui.js('document.querySelector(".checkout-dialog [role=alert]").textContent')).includes(
+      'stok',
+    ),
+    'Insufficient stock error is human-readable',
+  );
+  assert.deepEqual(await reconcile(), evidence.session);
+  await ui.js('document.querySelector("[data-cancel-payment]").click()');
+  await ui.until('!document.querySelector("dialog[open]")');
+  await ui.js('document.querySelector("button[aria-label^=Hiq]").click()');
+  await ui.until('!document.querySelector("[data-order-item]")');
+  const post = await backup('FOX-POST-SALES.sqlite');
+  await ui.capture('cutover-post-sales-backup');
+  await restore('FOX-PRE-GO-LIVE.sqlite');
+  assert.deepEqual(observe().tables, pre.tables);
+  zero(observe(), true);
+  await restore('FOX-POST-SALES.sqlite');
+  assert.deepEqual(observe().tables, post.tables);
+  assert.deepEqual(await reconcile(), evidence.session);
+  await ui.select('M5');
+  await ui.add('KAFE-1');
+  await ui.pay();
+  evidence.continuation = await reconcile();
+  check(
+    evidence.continuation.sales === 26 && evidence.continuation.revenueCents === 5750,
+    'Operation/sequence continues after restore',
+  );
+  await restart(observe());
+  evidence.backupRestoreExact = true;
+  evidence.ownerConfigurationPersisted = true;
+  evidence.passed = true;
+  await close();
+  fs.writeFileSync(path.join(directory, 'cutover-result.json'), JSON.stringify(evidence, null, 2));
+  console.log(JSON.stringify({ passed: true, directory, recoveryDirectory, ...evidence }));
+} catch (error) {
+  try {
+    console.error(
+      'Isolated cutover failure observation',
+      JSON.stringify(
+        await ui.js(
+          '(async()=>({status:document.querySelector(".data-protection")?.textContent,diagnostics:await window.fox.data.diagnostics()}))()',
+        ),
+      ),
+    );
+  } catch {}
+  if (processId && alive())
+    spawnSync('taskkill', ['/PID', String(processId), '/T', '/F'], { windowsHide: true });
+  ws?.close();
+  throw error;
+}

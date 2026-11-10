@@ -1,0 +1,105 @@
+.order-draft {
+  display: grid;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  min-width: 0;
+}
+.order-draft .draft-categories {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0;
+  border: 0;
+  background: transparent;
+}
+[data-page='tables'] .order-draft .draft-categories .button {
+  height: auto;
+  padding-inline: var(--space-2);
+  border-color: var(--border);
+  overflow-wrap: anywhere;
+}
+.order-draft .draft-categories .button:not([aria-pressed='true']) {
+  background: var(--surface-muted);
+}
+.draft-search {
+  background: var(--surface-muted);
+}
+.ops-products {
+  display: grid;
+  gap: var(--space-2);
+  max-height: 15rem;
+  overflow-y: auto;
+}
+.ops-product {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-half) var(--space-2) var(--space-half) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface-muted);
+}
+.ops-product > div:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ops-product p {
+  margin: var(--space-1) 0 0;
+  color: var(--secondary);
+  font-size: var(--font-table);
+}
+.draft-product-issue {
+  display: block;
+}
+.ops-product .quantity-control {
+  flex: none;
+}
+[data-order-draft] :is(.ops-product, .draft-line) .quantity-control .button {
+  width: max(44px, var(--control-height));
+  height: max(44px, var(--control-height));
+  min-height: max(44px, var(--control-height));
+}
+.draft-summary {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+}
+.draft-summary h3 {
+  margin: 0;
+}
+.draft-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding-block: var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+.draft-line-label {
+  min-width: 0;
+  flex: 1 1 7rem;
+  overflow-wrap: anywhere;
+}
+.draft-line-label small {
+  display: block;
+  color: var(--secondary);
+}
+.draft-summary-total {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+[data-page='tables'] [data-order-draft] .current-order {
+  flex: none;
+  min-height: 0;
+  overflow: visible;
+}
+[data-page='tables'] [data-order-draft] .order-footer[data-order-state='empty'] > div {
+  color: var(--text);
+}
+[data-page='tables'] [data-order-draft] .order-footer[data-order-state='empty'] [data-order-total] {
+  font-size: var(--font-value);
+}
