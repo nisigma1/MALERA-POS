@@ -3,6 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import type Database from 'better-sqlite3';
 import { openDatabase } from '../database/connection';
+import { isDuoCatalogTerminal } from '../database/duoCatalog';
 import { createRepositories } from '../database/repositories';
 import { createConfigurationService } from '../database/configuration';
 import { createCheckoutService } from '../database/checkout';
@@ -37,7 +38,11 @@ async function start() {
   const identityFile = path.join(userData, 'fox-data-identity.json');
   if (fs.existsSync(identityFile) && !fs.existsSync(path.join(userData, 'fox.sqlite')))
     throw Error('FOX_DB_MISSING_EXISTING');
-  database = openDatabase(path.join(userData, 'fox.sqlite'), app.getVersion());
+  database = openDatabase(
+    path.join(userData, 'fox.sqlite'),
+    app.getVersion(),
+    app.isPackaged && !qaDirectory && isDuoCatalogTerminal(),
+  );
   if (!fs.existsSync(identityFile))
     durableWrite(
       identityFile,

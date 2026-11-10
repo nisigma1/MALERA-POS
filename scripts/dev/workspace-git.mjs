@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import path from 'node:path';
+import { realpathSync } from 'node:fs';
 
 const expectedUrls = new Set([
   'https://github.com/nisigma1/MALERA-POS.git',
@@ -13,7 +13,11 @@ export function git(root, args) {
 
 export function validateCheckout(root, allowedUrls = expectedUrls) {
   const top = git(root, ['rev-parse', '--show-toplevel']);
-  if (path.resolve(top).toLowerCase() !== path.resolve(root).toLowerCase())
+  const canonical = (directory) => {
+    const resolved = realpathSync.native(directory);
+    return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+  };
+  if (canonical(top) !== canonical(root))
     throw Error('Run workspace commands from the MALERA repository root.');
   if (!allowedUrls.has(git(root, ['remote', 'get-url', 'origin'])))
     throw Error('origin is not the expected MALERA repository; no settings or files were changed.');

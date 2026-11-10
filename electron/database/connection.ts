@@ -9,6 +9,7 @@ import { createMigrationBackup } from './backups';
 export function openDatabase(
   filename: string,
   applicationVersion = process.env.npm_package_version ?? '0.5.0-qa.1',
+  includeDuoCatalog = false,
 ): Database.Database {
   if (process.env.NODE_ENV === 'test' || process.env.VITEST) assertTestDatabasePath(filename);
   const existing = filename !== ':memory:' && fs.existsSync(filename);
@@ -39,7 +40,7 @@ export function openDatabase(
           }
         : undefined,
     );
-    seed(db);
+    seed(db, includeDuoCatalog && oldVersion === currentSchemaVersion());
     inspectDatabase(db);
     return db;
   } catch (error) {
