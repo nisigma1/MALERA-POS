@@ -281,7 +281,11 @@ try {
   await close();const uninstaller=fs.readdirSync(install).find(n=>/^Uninstall.*\.exe$/i.test(n));assert.ok(uninstaller);
   const uninstalled=spawnSync(path.join(install,uninstaller),['/S'],{windowsHide:true,timeout:120000});assert.equal(uninstalled.status,0);
   okay(fs.existsSync(path.join(directory,'fox.sqlite')),'uninstall preserves userData');
-  for(let i=0;i<100&&fs.existsSync(exe);i++)await pause(100);
+  // NSIS can return before its temporary cleanup process releases the executable.
+  // On the 4 GB Engage Go this exceeds 10 seconds; use the installer's existing
+  // two-minute bound and still require actual removal before reinstalling.
+  const removalDeadline=Date.now()+120000;
+  while(fs.existsSync(exe)&&Date.now()<removalDeadline)await pause(100);
   okay(!fs.existsSync(exe),'uninstall removes application executable');shortcuts(false);
   installVersion(installerB);session=await launch();assert.deepEqual(snapshot(),beforeReinstall);evidence.checks.push('actual reinstall preserves all business rows and receipt history');await close();
   // Remove QA installation and its shortcuts/registration, retaining test evidence.
