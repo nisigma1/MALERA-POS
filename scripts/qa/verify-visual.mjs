@@ -37,7 +37,7 @@ try{
  const escape=async()=>{await command('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});await command('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});};
  await viewport(1366,768);await ui.nav('settings');await record('readiness-blockers-1366');await ui.nav('reports');await record('reports-empty-1366');
  // All artificial values are created through existing validated services in this marked QA directory.
- const names=['Kafe speciale e lokalit','Makiato e madhe me qumÃ«sht tÃ« ngrohtÃ«','Pije freskuese e pÃ«rgatitur me shije limoni dhe mente'];
+ const names=['Kafe speciale e lokalit','Makiato e madhe me qumësht të ngrohtë','Pije freskuese e përgatitur me shije limoni dhe mente'];
  await api(`for(const [i,p] of (await fox.products.list()).entries()){const r=await fox.products.update({...p,name:names[i]??p.name,sellingPriceCents:100,purchaseCostCents:50,trackInventory:false,lowStockThreshold:null,active:true});if(!r.ok)throw Error(JSON.stringify(r));}`.replace('names[i]',JSON.stringify(names)+'[i]'));
  for(const [w,h] of [[1366,768],[1440,900],[1920,1080]]){await viewport(w,h);await ui.nav('settings');await record('settings-ready-'+w);await js('document.querySelector(".data-protection").scrollIntoView({block:"end"})');await record('settings-data-'+w);}
  await viewport(1366,768);
@@ -52,7 +52,7 @@ try{
   const key=`${w}-${s}${h===428?"-taskbar":h===422?"-minimum":""}`;await viewport(w,h,s);await ui.select('M5');await record('tavolinat-large-order-'+key);await js('document.querySelector(".order-body").scrollTo(0,document.querySelector(".order-body").scrollHeight);document.querySelector(".current-order").scrollTo(0,document.querySelector(".current-order").scrollHeight)');await record('order-bottom-'+key);
   await click('[data-open-checkout]');await ui.until('Boolean(document.querySelector(".checkout-dialog[open]"))');await record('checkout-20-items-'+key);await escape();await ui.until('!document.querySelector("dialog[open]")');
   await ui.select('M7');await record('tavolinat-active-'+key);await click('[data-open-checkout]');await ui.until('Boolean(document.querySelector(".checkout-dialog[open]"))');await record('checkout-one-item-'+key);await escape();await ui.until('!document.querySelector("dialog[open]")');
-  await ui.select('M13');await record('tavolinat-free-'+key);await click('button[aria-label="Mbyll panelin e tavolinÃ«s"]');await record('tavolinat-unselected-'+key);
+  await ui.select('M13');await record('tavolinat-free-'+key);await click('button[aria-label="Mbyll panelin e tavolinës"]');await record('tavolinat-unselected-'+key);
   await ui.nav('inventory');await record('inventory-'+key);
   await js('document.querySelector(".inventory-surface").scrollIntoView({block:"end"});document.querySelector(".catalog-scroll").scrollTop=0');await record('inventory-list-'+key);
   if(phase==='after')assert.equal(await js('(()=>{const row=document.querySelector(".catalog tbody tr"),r=row.getBoundingClientRect(),c=document.querySelector(".catalog-scroll").getBoundingClientRect();return r.bottom>c.top&&r.top<c.bottom&&Math.min(r.bottom,c.bottom,innerHeight)-Math.max(r.top,c.top)>20;})()'),true,'Inventory must expose a usable product row at '+key);

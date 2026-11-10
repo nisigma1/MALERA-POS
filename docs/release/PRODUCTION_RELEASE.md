@@ -14,7 +14,7 @@ Builder requires signing for official artifacts and includes `.dll`/`.node` sign
 
 ## Release sequence
 
-Committed clean source â†’ npm ci â†’ tests/typecheck/build â†’ protection/crash/runtime regression â†’ source secret/forbidden scan â†’ package/sign â†’ independently verify signatures â†’ generate CycloneDX SBOM (production npm components plus Electron runtime) â†’ hash final installer/SBOM â†’ manifest v2 â†’ verify ASAR/native x64/identity/data exclusion â†’ actual installed acceptance â†’ private draft RC.
+Committed clean source → npm ci → tests/typecheck/build → protection/crash/runtime regression → source secret/forbidden scan → package/sign → independently verify signatures → generate CycloneDX SBOM (production npm components plus Electron runtime) → hash final installer/SBOM → manifest v2 → verify ASAR/native x64/identity/data exclusion → actual installed acceptance → private draft RC.
 
 No draft/tag is created while required acceptance remains incomplete. Version must match package/lockfile, installer, manifest, diagnostics and immutable tag. Signed RC/production requires exact tag; explicitly unsigned QA build records `tag:null` when untagged and cannot be promoted by renaming files or editing metadata. Signing changes the binary hash, so checksum generation always follows signing.
 
@@ -28,6 +28,6 @@ Baseline: runtime npm audit has zero findings; full audit has eight moderate dev
 
 ## Acceptance and operating limits
 
-Use normal Windows security. Actual installers must pass fresh data (27 positions/21 products/no invented prices or QA transactions), old0.4.2 and QAâ†’RC upgrade, open-order preservation, CASH/stock/reports/receipt invariants, single instance, uninstall/reinstall, backup/restore, offline and restart. Hosted clean Windows CI can test unsigned software but does not substitute for trusted signing/Smart App Control on the owner's laptop, physical thermal printer, physical second laptop or actual Windows reboot. No developer tools are runtime requirements; the test controller's tools are not application dependencies.
+Use normal Windows security. Actual installers must pass fresh data (27 positions/21 products/no invented prices or QA transactions), old0.4.2 and QA→RC upgrade, open-order preservation, CASH/stock/reports/receipt invariants, single instance, uninstall/reinstall, backup/restore, offline and restart. Hosted clean Windows CI can test unsigned software but does not substitute for trusted signing/Smart App Control on the owner's laptop, physical thermal printer, physical second laptop or actual Windows reboot. No developer tools are runtime requirements; the test controller's tools are not application dependencies.
 
 Retain complete installed/crash/large-data evidence and exact artifact hashes. If signing is absent, finish unrelated hardening, retain explicit QA artifacts and do not label them trusted production RC. Rollback after migration requires earlier installer plus compatible database backup. No auto-update, telemetry, cloud backup, roles, card UI or new POS features are introduced.

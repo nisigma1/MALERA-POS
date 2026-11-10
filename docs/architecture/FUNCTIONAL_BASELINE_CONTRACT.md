@@ -4,15 +4,15 @@ The certification candidate is 0.7.1-rc.2 / schema 6. The request named rc.1, bu
 
 ## Operational identities and physical mapping
 
-The approved set is exactly M1â€“M13, SH1â€“SH4, T1â€“T10. `src/domain/definitions.ts` is the authoritative runtime definition. Database seeding, canonical DB validation, and the presentation map consume it. `src/presentation/floorPlan.ts` contains geometry only. B01â€“B13 / S01â€“S04 / R01â€“R10 are internal physical review annotations, never operational table codes, order identifiers or reservation references. Certification expectations are explicitly copied from the owner's contract, not generated from this implementation.
+The approved set is exactly M1–M13, SH1–SH4, T1–T10. `src/domain/definitions.ts` is the authoritative runtime definition. Database seeding, canonical DB validation, and the presentation map consume it. `src/presentation/floorPlan.ts` contains geometry only. B01–B13 / S01–S04 / R01–R10 are internal physical review annotations, never operational table codes, order identifiers or reservation references. Certification expectations are explicitly copied from the owner's contract, not generated from this implementation.
 
-The physical reference is `docs/references/fox-original-floor-plan.png`, with the previously confirmed numbering. M13 is the diagonal indoor lower-left position; T1 is the small terrace table alongside the indoor opening. SH1â€“SH4 and T5â€“T10 run left to right. T2â€“T4 are the upper round terrace row. Coordinates belong exclusively to presentation.
+The physical reference is `docs/references/fox-original-floor-plan.png`, with the previously confirmed numbering. M13 is the diagonal indoor lower-left position; T1 is the small terrace table alongside the indoor opening. SH1–SH4 and T5–T10 run left to right. T2–T4 are the upper round terrace row. Coordinates belong exclusively to presentation.
 
 ## Actual reservation semantics
 
 `table_reservations` stores UUID intent/identity, canonical table FK, customer name, optional phone, scheduled UTC ISO instant, guests, optional note, BOOKED/ARRIVED/CANCELLED, created_at and resolved_at. There is no updated_at or supported edit API: detail rows are immutable. Corrections use explicit cancellation and a new booking identity. No table-changing edit is supported.
 
-BOOKED â†’ ARRIVED or BOOKED â†’ CANCELLED is the complete lifecycle. A retry of the same resolved action does not touch a subsequent order/booking. Creation immediately holds a FREE enabled table; one BOOKED hold is permitted per table. Past creation is rejected. Existing holds do not auto-expire; the form/documentation explicitly requires arrival/cancellation. An overdue hold can be resolved at any time and is not an OPEN order. No automatic time-triggered state is being invented in certification.
+BOOKED → ARRIVED or BOOKED → CANCELLED is the complete lifecycle. A retry of the same resolved action does not touch a subsequent order/booking. Creation immediately holds a FREE enabled table; one BOOKED hold is permitted per table. Past creation is rejected. Existing holds do not auto-expire; the form/documentation explicitly requires arrival/cancellation. An overdue hold can be resolved at any time and is not an OPEN order. No automatic time-triggered state is being invented in certification.
 
 Arrival resolves the hold and frees the table without creating an order. A separately selected product opens an order, makes ACTIVE authoritative, and retains the ARRIVED historical metadata. Checkout uses the existing CASH/inventory/financial lifecycle. SELECTED is renderer context (`aria-pressed`), not a stored financial state.
 
@@ -24,7 +24,7 @@ Migration 6 is additive reservation infrastructure and guards. It does not updat
 
 ## Certification oracles and evidence
 
-- `tests/baselineCertification.test.ts`: independent exact-set/physical anchors, zero fresh history, integer-cent finance oracle, reservation isolation, duplicate intents, unsupported edit rejection, time/input boundaries, receipt/log privacy, coherent mixed backup/restore and exact schema5â†’6 historical row hashes.
+- `tests/baselineCertification.test.ts`: independent exact-set/physical anchors, zero fresh history, integer-cent finance oracle, reservation isolation, duplicate intents, unsupported edit rejection, time/input boundaries, receipt/log privacy, coherent mixed backup/restore and exact schema5→6 historical row hashes.
 - `scripts/qa/verify-reservation-atomicity.mjs`: marked isolated temp profiles, process termination before commit at a transaction barrier and after commit; no owner data.
 - `scripts/qa/certify-reservations.mjs` with `FOX_CERTIFY_BASELINE=1`: real Electron and installed NSIS parity, six canonical bookings, rapid IPC/navigation, keyboard/modal behavior, contact sink/package scans, committed-process crash and native coherent backup/restore.
 - Production DB verifier independently asserts the approved set and zero reservation/finance/receipt/transaction history.
@@ -38,4 +38,4 @@ Windows run 38268258088 stopped on the existing schema5 file-migration integrati
 
 ## Freeze rule
 
-Only the exact commit and installer hash named in the successful `outputs/fox-phase9-3-freeze-manifest.json` are frozen. The final certificate is `outputs/fox-phase9-3-functional-baseline-certification.md`. Until Phase 11, no new features are permitted. Phase 10 may reproduce/fix defects, add reliability tests, and strengthen existing safety/invariants only. A trusted signing certificate, physical thermal printer and second cafÃ© laptop must be reported as pending until actually verified; software certification does not imply those hardware/external checks passed.
+Only the exact commit and installer hash named in the successful `outputs/fox-phase9-3-freeze-manifest.json` are frozen. The final certificate is `outputs/fox-phase9-3-functional-baseline-certification.md`. Until Phase 11, no new features are permitted. Phase 10 may reproduce/fix defects, add reliability tests, and strengthen existing safety/invariants only. A trusted signing certificate, physical thermal printer and second café laptop must be reported as pending until actually verified; software certification does not imply those hardware/external checks passed.

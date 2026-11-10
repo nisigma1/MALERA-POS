@@ -74,7 +74,7 @@ if(mode==='latency'){
  recoverInterruptedRestore(directory!);const db=openDatabase(file);assertAll(db);const before=digest(snapshot(db));
  if(stage==='postcommit'&&!['backup','restore'].includes(action!)){
   const s=services(db),command=JSON.parse(fs.readFileSync(path.join(directory!,'commands.json'),'utf8'))[action!];const r=action==='checkout'?s.checkout.completeOrder(command):action==='expense'?s.finance.saveExpense(command):action==='loss'?s.finance.recordLoss(command):action==='supply'?s.configuration.addSupply(command):action==='movement'?s.finance.recordCashMovement(command):action==='reservation'?s.reservations.reserve(command):s.finance.closeCash(command);
-  if(action==='checkout')assert.deepEqual(r,{ok:false,code:'ALREADY_COMPLETED',message:'Kjo porosi Ã«shtÃ« paguar tashmÃ«. Rifresko gjendjen.'});else accepted(r);assert.equal(digest(snapshot(db)),before);
+  if(action==='checkout')assert.deepEqual(r,{ok:false,code:'ALREADY_COMPLETED',message:'Kjo porosi është paguar tashmë. Rifresko gjendjen.'});else accepted(r);assert.equal(digest(snapshot(db)),before);
  }
  if(action==='backup'&&stage==='postcommit')await validateBackup(path.join(directory!,'master.sqlite'));
  if(['backup','restore'].includes(action!)){const s=services(db);for(const row of db.prepare("SELECT id FROM orders WHERE status='OPEN'").all() as {id:string}[])accepted(s.checkout.completeOrder({orderId:row.id}));sale(db,'M6');accepted(s.finance.saveExpense(expense()));assertAll(db);}

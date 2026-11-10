@@ -1,31 +1,31 @@
-# Mbrojtja e tÃ« dhÃ«nave tÃ« FOX
+# Mbrojtja e të dhënave të FOX
 
-FOX i ruan tÃ« dhÃ«nat nÃ« kÃ«tÃ« llogari Windows, veÃ§mas nga skedarÃ«t e aplikacionit. Ã‡instalimi heq programin, por ruan historikun. Riinstalimi e hap sÃ«rish tÃ« njÃ«jtÃ«n gjendje; nuk krijon automatikisht njÃ« fillim bosh.
+FOX i ruan të dhënat në këtë llogari Windows, veçmas nga skedarët e aplikacionit. Çinstalimi heq programin, por ruan historikun. Riinstalimi e hap sërish të njëjtën gjendje; nuk krijon automatikisht një fillim bosh.
 
 ## Krijimi i backup-it
 
-Te **CilÃ«simet â†’ TÃ« dhÃ«nat â†’ Krijo backup**, zgjidh njÃ« emÃ«r tÃ« ri `.sqlite`. Prit **Backup u krijua dhe u verifikua**. Ruaj sÃ« bashku skedarin dhe shoqÃ«ruesin `.sqlite.json`. FOX nuk mbishkruan backup ekzistues.
+Te **Cilësimet → Të dhënat → Krijo backup**, zgjidh një emër të ri `.sqlite`. Prit **Backup u krijua dhe u verifikua**. Ruaj së bashku skedarin dhe shoqëruesin `.sqlite.json`. FOX nuk mbishkruan backup ekzistues.
 
-Krijo backup para pÃ«rditÃ«simit, pas ndryshimeve tÃ« rÃ«ndÃ«sishme nÃ« produkte/stok dhe rregullisht, praktikisht nÃ« fund tÃ« Ã§do dite. Para klientit tÃ« parÃ« ruaj **FOX-PRE-GO-LIVE-data-ora.sqlite**, me konfigurimin e kontrolluar dhe pa shitje prove. Ruaj njÃ« kopje jashtÃ« laptopit, pÃ«r shembull nÃ« USB tÃ« mbrojtur. Backup-i pÃ«rmban historikun e biznesit; mos e shpÃ«rndaj pa nevojÃ«. FOX nuk e ngarkon nÃ« internet.
+Krijo backup para përditësimit, pas ndryshimeve të rëndësishme në produkte/stok dhe rregullisht, praktikisht në fund të çdo dite. Para klientit të parë ruaj **FOX-PRE-GO-LIVE-data-ora.sqlite**, me konfigurimin e kontrolluar dhe pa shitje prove. Ruaj një kopje jashtë laptopit, për shembull në USB të mbrojtur. Backup-i përmban historikun e biznesit; mos e shpërndaj pa nevojë. FOX nuk e ngarkon në internet.
 
 ## Rikthimi nga backup-i
 
-Rikthimi e zÃ«vendÃ«son gjendjen aktuale me atÃ« tÃ« backup-it. Shitjet pas datÃ«s sÃ« backup-it nuk shfaqen nÃ« gjendjen e rikthyer. Mos e pÃ«rdor si provÃ« gjatÃ« punÃ«s me klientÃ«.
+Rikthimi e zëvendëson gjendjen aktuale me atë të backup-it. Shitjet pas datës së backup-it nuk shfaqen në gjendjen e rikthyer. Mos e përdor si provë gjatë punës me klientë.
 
-PÃ«rfundo porositÃ« e hapura. Zgjidh **Rikthe nga backup**, kontrollo skedarin dhe datÃ«n. FOX verifikon backup-in, kÃ«rkon konfirmim dhe krijon backup sigurie tÃ« gjendjes aktuale. **Anulo** Ã«shtÃ« zgjedhja fillestare. Pas rikthimit FOX riniset. Kontrollo produktet, stokun, shitjet dhe printerin pÃ«rpara rifillimit.
+Përfundo porositë e hapura. Zgjidh **Rikthe nga backup**, kontrollo skedarin dhe datën. FOX verifikon backup-in, kërkon konfirmim dhe krijon backup sigurie të gjendjes aktuale. **Anulo** është zgjedhja fillestare. Pas rikthimit FOX riniset. Kontrollo produktet, stokun, shitjet dhe printerin përpara rifillimit.
 
-Backup-i i dÃ«mtuar, i paplotÃ« ose i njÃ« programi tjetÃ«r refuzohet. NÃ«se rikthimi dÃ«shton, mos fshi apo ndrysho skedarÃ« pÃ«r ta detyruar; ruaj gjendjen dhe kÃ«rko ndihmÃ«. Mos printo kuponÃ« tÃ« vjetÃ«r pa kontrolluar nÃ«se janÃ« printuar mÃ« parÃ«.
+Backup-i i dëmtuar, i paplotë ose i një programi tjetër refuzohet. Nëse rikthimi dështon, mos fshi apo ndrysho skedarë për ta detyruar; ruaj gjendjen dhe kërko ndihmë. Mos printo kuponë të vjetër pa kontrolluar nëse janë printuar më parë.
 
-## Ã‡farÃ« nuk duhet fshirÃ«
+## Çfarë nuk duhet fshirë
 
-Mos fshi skedarÃ«t e tÃ« dhÃ«nave, skedarÃ«t shoqÃ«rues, dosjen e rikuperimit ose backup-et pÃ«r tÃ« zgjidhur problem nisjeje. Mos kopjo tÃ« dhÃ«nat e zhvillimit/provave te pajisja e lokalit. Instalimi i ri pÃ«r punÃ« kÃ«rkon gjendje tÃ« pastÃ«r, tÃ« verifikuar; instalimi me histori kÃ«rkon kontroll dhe ruajtje, jo pastrim automatik.
+Mos fshi skedarët e të dhënave, skedarët shoqërues, dosjen e rikuperimit ose backup-et për të zgjidhur problem nisjeje. Mos kopjo të dhënat e zhvillimit/provave te pajisja e lokalit. Instalimi i ri për punë kërkon gjendje të pastër, të verifikuar; instalimi me histori kërkon kontroll dhe ruajtje, jo pastrim automatik.
 
-PÃ«r mbÃ«shtetje teknike, tÃ« dhÃ«nat zakonisht janÃ« te `%APPDATA%\FOX Kafeteri`; vendndodhja e saktÃ« shfaqet te **Gjendja dhe diagnostika**. [Dokumentacioni teknik](../architecture/DATA_PROTECTION_TECHNICAL.md) Ã«shtÃ« pÃ«r personin qÃ« ofron mbÃ«shtetje.
+Për mbështetje teknike, të dhënat zakonisht janë te `%APPDATA%\FOX Kafeteri`; vendndodhja e saktë shfaqet te **Gjendja dhe diagnostika**. [Dokumentacioni teknik](../architecture/DATA_PROTECTION_TECHNICAL.md) është për personin që ofron mbështetje.
 
-## HapÃ«sira dhe privatÃ«sia
+## Hapësira dhe privatësia
 
-Backup-et qÃ« zgjedh tÃ« krijosh nuk fshihen automatikisht. Kontrollo hapÃ«sirÃ«n e diskut dhe mbaj disa kopje tÃ« verifikuara, pÃ«rfshirÃ« njÃ« kopje jashtÃ« laptopit. Mos fshi kopjen e fundit tÃ« mirÃ«. Para pastrimit, verifiko kopjen qÃ« do tÃ« mbash.
+Backup-et që zgjedh të krijosh nuk fshihen automatikisht. Kontrollo hapësirën e diskut dhe mbaj disa kopje të verifikuara, përfshirë një kopje jashtë laptopit. Mos fshi kopjen e fundit të mirë. Para pastrimit, verifiko kopjen që do të mbash.
 
-NÃ«se backup-i nuk krijohet nÃ« njÃ« dosje shumÃ« tÃ« thellÃ« ose me emÃ«r shumÃ« tÃ« gjatÃ«, provo njÃ« dosje tÃ« shkurtÃ«r me emÃ«r tÃ« thjeshtÃ«, pÃ«r shembull nÃ« USB. Prit gjithmonÃ« mesazhin e verifikimit; vetÃ«m mbyllja e dritares sÃ« zgjedhjes nuk do tÃ« thotÃ« se backup-i u krijua.
+Nëse backup-i nuk krijohet në një dosje shumë të thellë ose me emër shumë të gjatë, provo një dosje të shkurtër me emër të thjeshtë, për shembull në USB. Prit gjithmonë mesazhin e verifikimit; vetëm mbyllja e dritares së zgjedhjes nuk do të thotë se backup-i u krijua.
 
-Backup-i pÃ«rmban edhe kontaktet e rezervimeve. Ruaje nÃ« vend tÃ« mbrojtur dhe jepja vetÃ«m personit tÃ« autorizuar. Diagnostika e zakonshme kufizohet dhe rrotullohet automatikisht; nuk kÃ«rkohet pastrim me komanda.
+Backup-i përmban edhe kontaktet e rezervimeve. Ruaje në vend të mbrojtur dhe jepja vetëm personit të autorizuar. Diagnostika e zakonshme kufizohet dhe rrotullohet automatikisht; nuk kërkohet pastrim me komanda.

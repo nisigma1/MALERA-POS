@@ -22,7 +22,7 @@
 - npm run package:win; ./scripts/release/verify-release.ps1.
 - Confirm final SHA-256, manifest commit/version/x64 and Authenticode status.
 - Fresh installed smoke, offline network-disabled renderer, crash/restart.
-- Actual Aâ†’B installed upgrade; uninstall/reinstall preserves all business rows.
+- Actual A→B installed upgrade; uninstall/reinstall preserves all business rows.
 - Confirm single instance and native SQLite; record second-laptop/clean-machine limits.
 
 ## Release

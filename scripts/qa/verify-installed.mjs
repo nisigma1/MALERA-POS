@@ -218,7 +218,7 @@ try {
       okay(failedJob.status==='FAILED'&&failedJob.errorCode==='PRINTER_NOT_FOUND','installed removed printer detected without default fallback');
       const failedSnapshot=snapshot(),failedReport=await api("return fox.reports.getSalesReport('ALL');");
       okay(failedSnapshot.tables.cafe_tables.find(t=>t.code==='M7').status==='FREE'&&failedSnapshot.tables.inventory_balances.find(b=>b.product_id==='KAFE-1').quantity===16,'installed failed receipt still frees table and deducts sale stock once');
-      for(let i=0;i<100;i++){if(await evaluate('Boolean(document.querySelector(".print-notice"))'))break;await pause(50);}okay(await evaluate('document.querySelector(".print-notice")?.textContent.includes("Shitja #000003 u pÃ«rfundua")'),'installed failure UI distinguishes completed sale');
+      for(let i=0;i<100;i++){if(await evaluate('Boolean(document.querySelector(".print-notice"))'))break;await pause(50);}okay(await evaluate('document.querySelector(".print-notice")?.textContent.includes("Shitja #000003 u përfundua")'),'installed failure UI distinguishes completed sale');
       controlPrinter('Add');printerRemoved=false;
       const retry=await api(`return fox.receipts.retry(${JSON.stringify(failedJob.id)});`);assert.ok(retry.ok);await submitted(retry.data.id);await keepOutput('installed-retried-receipt');
       const retried=snapshot();for(const table of ['orders','order_items','order_payments','inventory_balances','inventory_movements','cafe_tables','products','expenses'])assert.deepEqual(retried.tables[table],failedSnapshot.tables[table]);assert.deepEqual(await api("return fox.reports.getSalesReport('ALL');"),failedReport);okay(true,'installed intentional retry after reconnection preserves financial state');

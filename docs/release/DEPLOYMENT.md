@@ -26,7 +26,7 @@ No autoupdate, telemetry, Windows startup task, file association, firewall rule 
 
 ## Private release administration
 
-Development uses Node 24.13.1 from .nvmrc and the committed npm lockfile. Run `npm ci`, `npm test`, `npm run typecheck`, `npm run build`. Choose a reviewed version with `npm version patch --no-git-tag-version`; commit package.json and package-lock.json. Build with `npm run package:win` and verify with `./scripts/release/verify-release.ps1`. Perform installed smoke, crash/restart, Aâ†’B upgrade and reinstall tests before deploying.
+Development uses Node 24.13.1 from .nvmrc and the committed npm lockfile. Run `npm ci`, `npm test`, `npm run typecheck`, `npm run build`. Choose a reviewed version with `npm version patch --no-git-tag-version`; commit package.json and package-lock.json. Build with `npm run package:win` and verify with `./scripts/release/verify-release.ps1`. Perform installed smoke, crash/restart, A→B upgrade and reinstall tests before deploying.
 
 Push main, then create an immutable `vX.Y.Z` tag matching package version. The Windows workflow validates the exact tag, private repository, native rebuild, all tests and verified package before creating a **draft** release. Review the three assets, commit, checksum, signing and release notes manually before publication. Never replace artifacts on an existing tag. Do not publish QA versions.
 

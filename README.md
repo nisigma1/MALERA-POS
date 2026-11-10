@@ -5,10 +5,10 @@ Offline Windows x64 POS for FOX. Current application: **0.7.2-rc.4**, database s
 ## Application
 
 - Table floor plan with 27 service positions, persistent active orders and telephone reservations.
-- Owner-facing labels: B1â€“B12 inside, J1â€“J11 outside, SH1â€“SH4 at the counter. J11 is the diagonal entrance position. Persisted canonical IDs remain M1â€“M13, T1â€“T10 and SH1â€“SH4.
+- Owner-facing labels: B1–B12 inside, J1–J11 outside, SH1–SH4 at the counter. J11 is the diagonal entrance position. Persisted canonical IDs remain M1–M13, T1–T10 and SH1–SH4.
 - Cash-only checkout with an item summary, atomic sale finalization, stock deduction and protection against duplicate completion.
 - Product prices, purchase costs, inventory supplies and recorded stock losses.
-- Business reports: sales, recorded expenses, stock losses and operating profit. Profit = sales âˆ’ historical product costs âˆ’ recorded expenses âˆ’ recorded stock losses. Unknown historical costs are never silently treated as zero; current catalog prices do not rewrite completed sales.
+- Business reports: sales, recorded expenses, stock losses and operating profit. Profit = sales − historical product costs − recorded expenses − recorded stock losses. Unknown historical costs are never silently treated as zero; current catalog prices do not rewrite completed sales.
 - Cash sessions, owner cash movements and reconciliation of expected and counted cash.
 - Receipt printing, print history and reprinting; backup/restore and editable business name in Settings.
 
