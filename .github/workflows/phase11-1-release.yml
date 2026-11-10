@@ -35,42 +35,42 @@ jobs:
           if ($env:REPOSITORY_PRIVATE -ne 'true') { throw 'Repository must remain private' }
       - run: npm ci
       - name: Five complete final suites; stop at first failure
-        run: node scripts/certify-phase11-1-suites.mjs
+        run: node scripts/qa/certify-phase11-1-suites.mjs
       - run: npm run typecheck
       - run: npm run build
       - run: npm run verify:production-db
       - run: npm run verify:cutover
       - run: npm run verify:product-day
-      - run: node scripts/verify-product-ui.mjs
-      - run: node scripts/verify-finance.mjs
+      - run: node scripts/qa/verify-product-ui.mjs
+      - run: node scripts/qa/verify-finance.mjs
       - run: npm run verify:reservations
-      - run: node scripts/verify-reservation-atomicity.mjs
+      - run: node scripts/qa/verify-reservation-atomicity.mjs
       - name: Phase 10 commit-before-response crash matrix
-        run: node scripts/verify-reliability.mjs
+        run: node scripts/qa/verify-reliability.mjs
       - name: Phase 10 coherent backup golden master
-        run: node scripts/verify-reliability.mjs --golden
+        run: node scripts/qa/verify-reliability.mjs --golden
       - name: Phase 10 actual native COMMIT latency baseline
-        run: node scripts/verify-reliability.mjs --latency
+        run: node scripts/qa/verify-reliability.mjs --latency
       - run: npm run verify:runtime
       - run: npm run verify:checkout
-      - run: node scripts/verify-receipt-crashes.mjs
+      - run: node scripts/qa/verify-receipt-crashes.mjs
       - run: npm run release:scan
       - run: npm run verify:protection
-      - run: node scripts/verify-hardening-runtime.mjs
-      - run: node scripts/verify-startup-failures.mjs --stress
+      - run: node scripts/qa/verify-hardening-runtime.mjs
+      - run: node scripts/qa/verify-startup-failures.mjs --stress
       - run: npm run package:win -- --qa
-      - run: ./scripts/verify-release.ps1
+      - run: ./scripts/release/verify-release.ps1
       - name: Final packaged cafe-day UI reconciliation and recovery
         shell: pwsh
         run: |
           $env:FOX_PHASE11_EXECUTABLE=[IO.Path]::GetFullPath('release/win-unpacked/FOX Kafeteri.exe')
-          node scripts/certify-phase11-day.mjs
+          node scripts/qa/certify-phase11-day.mjs
           if ($LASTEXITCODE -ne 0) { throw 'Final UI cafe-day failed; no retry' }
       - name: Packaged Phase 10 lifecycle and resource soak
         shell: pwsh
         run: |
           $version=(Get-Content package.json -Raw | ConvertFrom-Json).version
-          node scripts/verify-reliability-ui.mjs "release/FOX-Setup-$version-x64.exe"
+          node scripts/qa/verify-reliability-ui.mjs "release/FOX-Setup-$version-x64.exe"
           if ($LASTEXITCODE -ne 0) { throw 'Installed reliability lifecycle failed' }
       - name: Packaged visual acceptance and frozen visual baseline
         env:
@@ -82,12 +82,12 @@ jobs:
           $baseline=Get-Content work/phase7-visual-baseline/release/release-manifest.json -Raw | ConvertFrom-Json
           $oldInstaller='work/phase7-visual-baseline/release/FOX-Setup-0.6.0-rc.2-x64.exe'
           if ($baseline.commit -ne '418a9b2f50508d025168e3bda19e4f79aa03b904' -or (Get-FileHash $oldInstaller).Hash.ToLowerInvariant() -ne '40fb84f76e26b6fe14493092cb80d8c06184758eedb9c53e07414f3c51737975') { throw 'Visual baseline provenance mismatch' }
-          node scripts/verify-visual.mjs before $oldInstaller
+          node scripts/qa/verify-visual.mjs before $oldInstaller
           if ($LASTEXITCODE -ne 0) { throw 'Visual baseline capture failed' }
           $version=(Get-Content package.json -Raw | ConvertFrom-Json).version
-          node scripts/verify-visual.mjs after "release/FOX-Setup-$version-x64.exe"
+          node scripts/qa/verify-visual.mjs after "release/FOX-Setup-$version-x64.exe"
           if ($LASTEXITCODE -ne 0) { throw 'Packaged visual acceptance failed' }
-          node scripts/verify-workarea.mjs
+          node scripts/qa/verify-workarea.mjs
           if ($LASTEXITCODE -ne 0) { throw 'Actual visible window/taskbar acceptance failed' }
       - uses: actions/upload-artifact@v4
         if: always()
@@ -100,13 +100,13 @@ jobs:
         shell: pwsh
         run: |
           $version=(Get-Content package.json -Raw | ConvertFrom-Json).version
-          node scripts/verify-finance.mjs "release/FOX-Setup-$version-x64.exe"
+          node scripts/qa/verify-finance.mjs "release/FOX-Setup-$version-x64.exe"
           if ($LASTEXITCODE -ne 0) { throw 'Installed financial acceptance failed' }
       - name: Installed phone reservation acceptance
         shell: pwsh
         run: |
           $version=(Get-Content package.json -Raw | ConvertFrom-Json).version
-          node scripts/verify-reservations.mjs "release/FOX-Setup-$version-x64.exe"
+          node scripts/qa/verify-reservations.mjs "release/FOX-Setup-$version-x64.exe"
           if ($LASTEXITCODE -ne 0) { throw 'Installed reservation acceptance failed' }
       - uses: actions/upload-artifact@v4
         if: always()
@@ -126,13 +126,13 @@ jobs:
         shell: pwsh
         run: |
           $version=(Get-Content package.json -Raw | ConvertFrom-Json).version
-          node scripts/verify-cutover.mjs "release/FOX-Setup-$version-x64.exe"
+          node scripts/qa/verify-cutover.mjs "release/FOX-Setup-$version-x64.exe"
           if ($LASTEXITCODE -ne 0) { throw 'Installed owner cutover failed' }
       - name: Actual clean QA installer and reinstall acceptance
         shell: pwsh
         run: |
           $version=(Get-Content package.json -Raw | ConvertFrom-Json).version
-          node scripts/verify-installed.mjs "release/FOX-Setup-$version-x64.exe" "release/FOX-Setup-$version-x64.exe"
+          node scripts/qa/verify-installed.mjs "release/FOX-Setup-$version-x64.exe" "release/FOX-Setup-$version-x64.exe"
           if ($LASTEXITCODE -ne 0) { throw 'Installed QA acceptance failed' }
       - name: Frozen Phase 10 to final candidate upgrade
         env:
@@ -146,7 +146,7 @@ jobs:
           $oldHash=(Get-FileHash $oldInstaller).Hash.ToLowerInvariant()
           if ($baseline.commit -ne '152b135c6e862ba0c6cb56012f168c69027aa6a4' -or $oldHash -ne '123d527a4df30b5822b2b1c2a32c2361c22bb2d28820a54c7f13380e5db8cae9' -or $oldHash -ne $baseline.sha256) { throw 'Phase 10 provenance mismatch' }
           $version=(Get-Content package.json -Raw | ConvertFrom-Json).version
-          node scripts/verify-installed.mjs $oldInstaller "release/FOX-Setup-$version-x64.exe"
+          node scripts/qa/verify-installed.mjs $oldInstaller "release/FOX-Setup-$version-x64.exe"
           if ($LASTEXITCODE -ne 0) { throw 'Phase 10 upgrade invariance failed' }
 
       - name: Retain sanitized acceptance evidence

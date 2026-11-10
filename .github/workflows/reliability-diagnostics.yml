@@ -18,7 +18,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Path outputs -Force | Out-Null
           for ($diagnosticRun=1; $diagnosticRun -le 25; $diagnosticRun++) {
-            node scripts/test.mjs tests/reliabilityStress.test.ts 2>&1 | Tee-Object -FilePath "outputs/contention-diagnostic-$diagnosticRun.log"
+            node scripts/qa/test.mjs tests/reliabilityStress.test.ts 2>&1 | Tee-Object -FilePath "outputs/contention-diagnostic-$diagnosticRun.log"
             if ($LASTEXITCODE -ne 0) { throw "Diagnostic run $diagnosticRun failed; no retry" }
           }
       - uses: actions/upload-artifact@v4

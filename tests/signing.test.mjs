@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {signingConfiguration} from '../scripts/signing-config.mjs';
+import {signingConfiguration} from '../scripts/release/signing-config.mjs';
 describe('trusted release signing gates',()=>{
  it('missing credential fails official packaging',()=>{expect(()=>signingConfiguration({})).toThrow('SIGNING CREDENTIAL REQUIRED');});
  it('QA must be explicit and disables signing rather than falsely claiming trust',()=>{expect(signingConfiguration({},true)).toEqual({forceCodeSigning:false,win:{signExecutable:false}});});

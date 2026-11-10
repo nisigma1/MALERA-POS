@@ -30,7 +30,7 @@ jobs:
           $manifest=Get-Content work/lifecycle-candidate/release/release-manifest.json -Raw | ConvertFrom-Json
           $installer=Join-Path work/lifecycle-candidate/release $manifest.artifact
           if ((Get-FileHash -LiteralPath $installer).Hash.ToLowerInvariant() -ne $manifest.sha256) { throw 'Candidate hash mismatch' }
-          node scripts/verify-reliability-ui.mjs $installer
+          node scripts/qa/verify-reliability-ui.mjs $installer
           if ($LASTEXITCODE -ne 0) { throw 'Lifecycle failed; no retry' }
       - uses: actions/upload-artifact@v4
         if: always()

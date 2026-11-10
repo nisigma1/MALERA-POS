@@ -57,21 +57,21 @@ jobs:
       - run: npm run verify:production-db
       - run: npm run verify:cutover
       - run: npm run verify:product-day
-      - run: node scripts/verify-product-ui.mjs
+      - run: node scripts/qa/verify-product-ui.mjs
       - run: npm run verify:runtime
       - run: npm run verify:checkout
       - run: npm run release:scan
       - run: npm run verify:protection
-      - run: node scripts/verify-receipt-crashes.mjs
-      - run: node scripts/verify-hardening-runtime.mjs
-      - run: node scripts/verify-startup-failures.mjs --stress
+      - run: node scripts/qa/verify-receipt-crashes.mjs
+      - run: node scripts/qa/verify-hardening-runtime.mjs
+      - run: node scripts/qa/verify-startup-failures.mjs --stress
       - run: npm run package:win
-      - run: ./scripts/verify-release.ps1
+      - run: ./scripts/release/verify-release.ps1
       - name: Signed installed owner UI cutover
         shell: pwsh
         run: |
           $version=(Get-Content package.json -Raw | ConvertFrom-Json).version
-          node scripts/verify-cutover.mjs "release/FOX-Setup-$version-x64.exe"
+          node scripts/qa/verify-cutover.mjs "release/FOX-Setup-$version-x64.exe"
           if ($LASTEXITCODE -ne 0) { throw 'Signed installed owner cutover failed' }
       - name: Actual signed installer acceptance
         env:
@@ -79,7 +79,7 @@ jobs:
         shell: pwsh
         run: |
           $version=(Get-Content package.json -Raw | ConvertFrom-Json).version
-          node scripts/verify-installed.mjs "release/FOX-Setup-$version-x64.exe" "release/FOX-Setup-$version-x64.exe"
+          node scripts/qa/verify-installed.mjs "release/FOX-Setup-$version-x64.exe" "release/FOX-Setup-$version-x64.exe"
           if ($LASTEXITCODE -ne 0) { throw 'Installed acceptance failed' }
       - name: Actual signed upgrades from 0.4.2 and prior QA
         env:
@@ -97,9 +97,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Pinned prior QA download failed; acceptance prerequisite must be restored explicitly' }
           $prior=Get-Content work/prior-qa/release-manifest.json -Raw | ConvertFrom-Json
           if ($prior.commit -ne '4e39afddff9c03847f4cfb2556e5b28a5e1efec9' -or (Get-FileHash work/prior-qa/FOX-Setup-0.5.0-qa.1-x64.exe).Hash.ToLowerInvariant() -ne $prior.sha256) { throw 'Prior QA provenance mismatch' }
-          node scripts/verify-installed.mjs work/old-release/FOX-Setup-0.4.2-x64.exe "release/FOX-Setup-$version-x64.exe"
+          node scripts/qa/verify-installed.mjs work/old-release/FOX-Setup-0.4.2-x64.exe "release/FOX-Setup-$version-x64.exe"
           if ($LASTEXITCODE -ne 0) { throw 'Signed 0.4.2 upgrade failed' }
-          node scripts/verify-installed.mjs work/prior-qa/FOX-Setup-0.5.0-qa.1-x64.exe "release/FOX-Setup-$version-x64.exe"
+          node scripts/qa/verify-installed.mjs work/prior-qa/FOX-Setup-0.5.0-qa.1-x64.exe "release/FOX-Setup-$version-x64.exe"
           if ($LASTEXITCODE -ne 0) { throw 'Signed QA upgrade failed' }
       - uses: actions/upload-artifact@v4
         with:
@@ -120,5 +120,5 @@ jobs:
           gh release view $env:RELEASE_TAG *> $null
           if ($LASTEXITCODE -eq 0) { throw 'Release already exists; never replace immutable artifacts' }
           $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
-          gh release create $env:RELEASE_TAG --verify-tag --draft --title "FOX $env:RELEASE_TAG" --notes-file docs/RELEASE_NOTES.md "release/FOX-Setup-$version-x64.exe" "release/FOX-Setup-$version-x64.exe.sha256" release/release-manifest.json "release/FOX-$version-sbom.json" release/signature-verification.json
+          gh release create $env:RELEASE_TAG --verify-tag --draft --title "FOX $env:RELEASE_TAG" --notes-file docs/release/RELEASE_NOTES.md "release/FOX-Setup-$version-x64.exe" "release/FOX-Setup-$version-x64.exe.sha256" release/release-manifest.json "release/FOX-$version-sbom.json" release/signature-verification.json
           if ($LASTEXITCODE -ne 0) { throw 'Draft release creation failed' }
