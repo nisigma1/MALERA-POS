@@ -152,9 +152,9 @@ export async function verifyActiveOrders(window:BrowserWindow,directory:string,d
   await qa.click('[data-order-product="KAFE-4"]');
   await qa.click('[data-ops-save-order]:not(:disabled)');
   await qa.wait(`document.querySelector('.order-body [role="alert"]')?.textContent.includes('Produkti nuk është aktiv.')`);
-  await qa.assert(`!document.querySelector('[data-order-item]') && document.querySelector('[data-ops-quantity="KAFE-4"]').textContent==='1'`,'Rejected command changed the saved order or lost the draft');
+  await qa.assert(`!document.querySelector('[data-order-item]') && document.querySelector('[data-draft-line="KAFE-4"] [data-draft-quantity]')?.textContent==='1'`,'Rejected command changed the saved order or lost the draft');
   await qa.snapshot('order-rejected.png');
-  await qa.click('[data-ops-remove="KAFE-4"]');
+  await qa.click('[data-draft-line="KAFE-4"] [data-draft-remove]');
   db.prepare("UPDATE products SET active=1 WHERE id='KAFE-4'").run();
   await qa.select('M7');
   ipcMain.removeHandler(IPC.addProduct); ipcMain.handle(IPC.addProduct,(_event,input:unknown)=> {
