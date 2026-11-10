@@ -28,7 +28,7 @@ export async function verifyHardening(
     window.webContents.executeJavaScript(code) as Promise<T>;
   if (fs.existsSync(expectedFile)) {
     assert.deepEqual(snapshot(), JSON.parse(fs.readFileSync(expectedFile, 'utf8')));
-    assert.equal(inspectDatabase(db, true), 6);
+    assert.equal(inspectDatabase(db, true), 7);
     assert.equal(await js('typeof require'), 'undefined');
     fs.writeFileSync(
       path.join(directory, 'hardening-result.json'),

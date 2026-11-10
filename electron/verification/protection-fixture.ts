@@ -120,7 +120,7 @@ async function run() {
     db = openDatabase(filename);
     timing.coldOpenMs = performance.now() - started;
     assert.equal(digest(), a);
-    assert.equal(inspectDatabase(db, true), 6);
+    assert.equal(inspectDatabase(db, true), 7);
     complete(open.id);
     assert.equal(readSalesReport(db, 'ALL').summary.completedOrders, 10001);
     assert.equal(
@@ -158,7 +158,7 @@ async function run() {
     console.log('LARGE_PASS');
   } else if (mode?.startsWith('recover-')) {
     const phase = mode.slice(8);
-    assert.equal(inspectDatabase(db, true), 6);
+    assert.equal(inspectDatabase(db, true), 7);
     assert.equal(
       digest(),
       fs.readFileSync(path.join(directory!, phase + '-expected.sha256'), 'utf8'),

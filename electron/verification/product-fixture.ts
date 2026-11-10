@@ -67,8 +67,8 @@ async function run() {
           p.lowStockThreshold === null,
       ),
   );
-  assert.equal(inspectDatabase(db), 6);
-  assert.equal(inspectDatabase(db, true), 6);
+  assert.equal(inspectDatabase(db), 7);
+  assert.equal(inspectDatabase(db, true), 7);
   // Independent Phase 9.3 oracle; a seed bug must not redefine the expected domain.
   assert.deepEqual(
     createRepositories(db)
@@ -270,7 +270,7 @@ async function run() {
           assert.equal(p.stockQuantity, delta);
           return { product: p.id, opening: 0, movementSum: delta, closing: p.stockQuantity };
         });
-      assert.equal(inspectDatabase(db, true), 6);
+      assert.equal(inspectDatabase(db, true), 7);
       return {
         revenueCents: revenue,
         cashCents: report.cashCents,
