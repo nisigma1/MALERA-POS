@@ -1,3 +1,5 @@
+import type { MutationResult } from './configuration';
+
 export type Area = 'MAIN' | 'BAR' | 'TERRACE';
 export type TableStatus = 'FREE' | 'ACTIVE' | 'AWAITING_PAYMENT' | 'RESERVED';
 export type CategoryCode = 'KAFE' | 'CAJ' | 'PIJE' | 'UJE' | 'ALKOOL';
@@ -16,6 +18,14 @@ export interface ActiveOrder {
 }
 export interface OrderWorkspace { table: TableSummary; order: ActiveOrder | null; reservation: import('./reservations').TableReservation | null }
 export interface AddOrderProduct { tableId: string; productId: string }
+export interface OrderProductSnapshot {
+  name: string; categoryId: string; unitPriceCents: number;
+}
+export interface SubmitOrderDraft {
+  requestId: string; tableId: string; orderId: string | null; expectedRevision: string | null;
+  items: { productId: string; quantity: number; expectedProduct?: OrderProductSnapshot }[];
+}
+export type OrderDraftResult<T> = MutationResult<T> & {notCommitted?: true};
 export interface OrderItemCommand { tableId: string; itemId: string }
 export interface Category { id: CategoryCode; name: string; sortOrder: number }
 export interface Product {

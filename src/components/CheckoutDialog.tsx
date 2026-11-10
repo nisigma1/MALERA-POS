@@ -39,8 +39,8 @@ export function CheckoutDialog({ tableCode, items, totalCents, onClose, onConfir
       </div>
     </section>
     <div className="checkout-total"><span>Totali për pagesë</span><strong data-checkout-total>{formatMoney(totalCents)}</strong></div>
-    <p className="checkout-method">Pagesa: <strong>Cash</strong></p>
+    <p className="checkout-method">Mënyra e pagesës: <strong>Para të gatshme</strong></p>
     {error && <p className="form-error" role="alert">{error}</p>}
-    <footer><Button data-cancel-payment disabled={busy} onClick={onClose}>Anulo</Button><Button variant="primary" data-confirm-payment disabled={busy} onClick={confirm}>{busy ? 'Duke regjistruar…' : 'Mbyll llogarinë'}</Button></footer>
+    <footer><Button data-cancel-payment disabled={busy} onClick={onClose}>Anulo</Button><Button variant="primary" data-confirm-payment disabled={busy} onClick={confirm}>{busy ? 'Duke regjistruar…' : 'Konfirmo pagesën'}</Button></footer>
   </dialog>;
 }

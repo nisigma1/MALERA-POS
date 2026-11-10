@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3';
-import { randomUUID } from 'node:crypto';
-import type { ActiveOrder, ActiveOrderItem, OrderWorkspace } from '../../src/domain/types';
+import { createHash, randomUUID } from 'node:crypto';
+import type { ActiveOrder, ActiveOrderItem, OrderDraftResult, OrderProductSnapshot, OrderWorkspace, SubmitOrderDraft } from '../../src/domain/types';
 import type { MutationResult } from '../../src/domain/configuration';
 import type { createRepositories } from './repositories';
 import { bookedReservation } from './reservations';
@@ -17,6 +17,48 @@ function command(value: unknown, field: 'productId' | 'itemId') {
   const input = value as Record<string, unknown>;
   if (Object.keys(input).some(key => !['tableId',field].includes(key))) throw new OrderError('Kërkesa përmban të dhëna të palejuara.');
   return { tableId: id(input.tableId), targetId: id(input[field]) };
+}
+function draftCommand(value: unknown): SubmitOrderDraft {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new OrderError('Kërkesa nuk është e vlefshme.');
+  const input = value as Record<string, unknown>;
+  if (Object.keys(input).some(key => !['requestId','tableId','orderId','expectedRevision','items'].includes(key)))
+    throw new OrderError('Kërkesa përmban të dhëna të palejuara.');
+  if (typeof input.requestId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.requestId))
+    throw new OrderError('Identifikuesi i kërkesës nuk është i vlefshëm.');
+  const draftId = (value: unknown) => {
+    const identifier = id(value);
+    if (/[\u0000-\u001f]/.test(identifier)) throw new OrderError('Identifikuesi nuk është i vlefshëm.');
+    return identifier;
+  };
+  const tableId = draftId(input.tableId), orderId = input.orderId === null ? null : draftId(input.orderId);
+  const expectedRevision = input.expectedRevision;
+  if ((orderId === null) !== (expectedRevision === null) ||
+      (expectedRevision !== null && (typeof expectedRevision !== 'string' || expectedRevision.length > 1000000)))
+    throw new OrderError('Rifresko gjendjen e porosisë.');
+  if (!Array.isArray(input.items) || input.items.length < 1 || input.items.length > 100)
+    throw new OrderError('Zgjidh nga 1 deri në 100 produkte.');
+  const items = Array.from(input.items, (item: unknown): SubmitOrderDraft['items'][number] => {
+    if (!item || typeof item !== 'object' || Array.isArray(item) || Object.keys(item).some(key => !['productId','quantity','expectedProduct'].includes(key)))
+      throw new OrderError('Artikulli nuk është i vlefshëm.');
+    const { productId, quantity, expectedProduct } = item as Record<string, unknown>;
+    if (typeof quantity !== 'number' || !Number.isSafeInteger(quantity) || quantity < 1 || quantity > 999)
+      throw new OrderError('Sasia nuk është e vlefshme.');
+    const line = { productId: draftId(productId), quantity };
+    if (expectedProduct === undefined) return line;
+    if (!expectedProduct || typeof expectedProduct !== 'object' || Array.isArray(expectedProduct) ||
+        Object.keys(expectedProduct).some(key => !['name','categoryId','unitPriceCents'].includes(key)))
+      throw new OrderError('Kontrollo të dhënat e produktit.');
+    const { name, categoryId, unitPriceCents } = expectedProduct as Record<string, unknown>;
+    if (typeof unitPriceCents !== 'number' || !Number.isSafeInteger(unitPriceCents) || unitPriceCents < 0)
+      throw new OrderError('Çmimi nuk është i vlefshëm.');
+    const productName = id(name);
+    if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(productName))
+      throw new OrderError('Kontrollo të dhënat e produktit.');
+    return { ...line, expectedProduct: { name: productName, categoryId: draftId(categoryId), unitPriceCents } };
+  });
+  if (new Set(items.map(item => item.productId)).size !== items.length)
+    throw new OrderError('Secili produkt duhet të jetë vetëm një herë.');
+  return { requestId: input.requestId.toLowerCase(), tableId, orderId, expectedRevision, items };
 }
 function safe(value: bigint): number {
   if (value < 0n || value > BigInt(Number.MAX_SAFE_INTEGER)) throw new OrderError('Sasia ose totali tejkalon kufirin teknik të lejuar.');
@@ -77,9 +119,9 @@ export function createOrderService(db: Database.Database, repositories: ReturnTy
     }
     return read(tableId);
   });
-  return {
+  const service = {
     getForTable(input: unknown): OrderWorkspace { const tableId=id(input); return db.transaction(()=>read(tableId))(); },
-    addProduct(input: unknown): MutationResult<OrderWorkspace> {
+    addProduct(input: unknown, quantity = 1, expected?: OrderProductSnapshot): MutationResult<OrderWorkspace> {
       return mutate(() => {
         const { tableId,targetId } = command(input,'productId');
         const view=read(tableId); writable(view);
@@ -90,7 +132,10 @@ export function createOrderService(db: Database.Database, repositories: ReturnTy
         if (product.trackInventory === true && product.stockQuantity! <= 0) throw new OrderError('Pa stok. Shto furnizim te Inventari.');
         if (!product.active) throw new OrderError('Produkti nuk është aktiv.');
         if (product.sellingPriceCents===null) throw new OrderError('Ky produkt nuk ka çmim të vendosur. Vendos çmimin te Inventari.');
-        safe(BigInt(view.order?.totalCents ?? 0)+BigInt(product.sellingPriceCents));
+        if (expected && (expected.name !== product.name || expected.categoryId !== product.categoryId ||
+            expected.unitPriceCents !== product.sellingPriceCents))
+          throw new OrderError('Produkti ka ndryshuar. Hiqe dhe zgjidhe përsëri.');
+        safe(BigInt(view.order?.totalCents ?? 0) + BigInt(product.sellingPriceCents) * BigInt(quantity));
         const now=new Date().toISOString();
         let orderId=view.order?.id;
         if (!orderId) {
@@ -100,15 +145,41 @@ export function createOrderService(db: Database.Database, repositories: ReturnTy
         }
         const existing=db.prepare(`SELECT id,quantity FROM order_items WHERE order_id=? AND product_id=?
           AND product_name_snapshot=? AND unit_price_cents=? AND unit_cost_cents IS ? ORDER BY rowid LIMIT 1`).get(orderId,product.id,product.name,product.sellingPriceCents,product.purchaseCostCents) as {id:string;quantity:number} | undefined;
-        if (existing) db.prepare('UPDATE order_items SET quantity=? WHERE id=?').run(safe(BigInt(existing.quantity)+1n),existing.id);
+        if (existing) db.prepare('UPDATE order_items SET quantity=? WHERE id=?').run(safe(BigInt(existing.quantity)+BigInt(quantity)),existing.id);
         else db.prepare(`INSERT INTO order_items (id,order_id,product_id,product_name_snapshot,quantity,unit_price_cents,unit_cost_cents,created_at)
-          VALUES (?,?,?,?,1,?,?,?)`).run(randomUUID(),orderId,product.id,product.name,product.sellingPriceCents,product.purchaseCostCents,now);
+          VALUES (?,?,?,?,?,?,?,?)`).run(randomUUID(),orderId,product.id,product.name,quantity,product.sellingPriceCents,product.purchaseCostCents,now);
         touch(orderId,now);
         return read(tableId);
       });
+    },
+    submitDraft(input: unknown): OrderDraftResult<OrderWorkspace> {
+      let noPreviousCommit = false;
+      const result = mutate(() => {
+        const { requestId, tableId, orderId, expectedRevision, items } = draftCommand(input);
+        const key = 'fox_order_draft_v1:' + requestId;
+        const fingerprint = createHash('sha256').update(JSON.stringify([tableId, orderId, expectedRevision, items])).digest('hex');
+        const previous = db.prepare('SELECT value FROM settings WHERE key=?').get(key) as { value: string } | undefined;
+        if (previous) {
+          if (previous.value !== fingerprint) throw new OrderError('Kjo kërkesë është përdorur me të dhëna të tjera.');
+          return read(tableId);
+        }
+        noPreviousCommit = true;
+        let view = read(tableId);
+        if ((view.order?.id ?? null) !== orderId || (view.order?.revision ?? null) !== expectedRevision)
+          throw new OrderError('Porosia ka ndryshuar. Rifresko gjendjen.');
+        for (const { productId, quantity, expectedProduct } of items) {
+          const added = service.addProduct({ tableId, productId }, quantity, expectedProduct);
+          if (!added.ok) throw new OrderError(added.message);
+          view = added.data;
+        }
+        db.prepare('INSERT INTO settings (key,value) VALUES (?,?)').run(key, fingerprint);
+        return view;
+      });
+      return !result.ok && noPreviousCommit ? { ...result, notCommitted: true } : result;
     },
     incrementItem: (input: unknown) => changeItem(input,'increment'),
     decrementItem: (input: unknown) => changeItem(input,'decrement'),
     removeItem: (input: unknown) => changeItem(input,'remove'),
   };
+  return service;
 }

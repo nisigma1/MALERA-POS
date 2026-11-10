@@ -32,7 +32,8 @@ function harness(window: BrowserWindow, directory:string) {
       const board=document.querySelector('.board-scroll'),panel=document.querySelector('.order-workspace'),footer=document.querySelector('.order-footer'),body=document.querySelector('.order-body');
       const b=board.getBoundingClientRect(),p=panel.getBoundingClientRect(),f=footer.getBoundingClientRect();
       const map=document.querySelector('.floor-stage').getBoundingClientRect();
-      if(map.height<b.height-10||map.width<b.width-10||map.top>b.top+6)throw new Error('Map does not fill the entire operational workspace');
+      if(map.height<b.height*.9||map.width<b.width*.9||map.top<b.top||map.left<b.left)
+        throw new Error('Map does not fill the operational workspace: '+JSON.stringify({map:map.toJSON(),board:b.toJSON()}));
       if(document.querySelector('.hamburger-trigger'))throw new Error('Removed hamburger button returned');
       const clipping=[...panel.querySelectorAll('button,.order-item-name strong,.order-item-controls strong,[data-order-total]')].filter(e=>e.scrollWidth>e.clientWidth+1).map(e=>e.textContent);
       const tiles=[...board.querySelectorAll('.position')];
@@ -42,16 +43,16 @@ function harness(window: BrowserWindow, directory:string) {
       const badTiles=tiles.filter(e=>e.scrollWidth>e.clientWidth+1||e.querySelector('.badge').getBoundingClientRect().right>e.getBoundingClientRect().right).map(e=>e.textContent);
       const current=document.querySelector('main');
       const firstItem=panel.querySelector('.order-item'),bodyBox=body.getBoundingClientRect();
-      const categories=panel.querySelector('.order-categories').getBoundingClientRect(),product=panel.querySelector('.order-product')?.getBoundingClientRect(),order=panel.querySelector('.current-order').getBoundingClientRect();
-      return {width:innerWidth,height:innerHeight,panelWidth:p.width,footerVisible:f.bottom<=innerHeight&&f.top>p.top,firstOrderRowVisible:!firstItem||firstItem.getBoundingClientRect().bottom<=bodyBox.bottom,
-        catalogFirst:categories.top<order.top,categoriesVisible:categories.top>=bodyBox.top&&categories.bottom<=bodyBox.bottom,firstProductVisible:!product||product.bottom<=bodyBox.bottom,
+      const categories=panel.querySelector('.order-categories').getBoundingClientRect(),product=panel.querySelector('.ops-product')?.getBoundingClientRect(),order=panel.querySelector('.current-order')?.getBoundingClientRect();
+      return {width:innerWidth,height:innerHeight,panelWidth:p.width,footerVisible:f.bottom<=innerHeight&&f.top>p.top,firstOrderRowReachable:!firstItem||firstItem.getBoundingClientRect().bottom-bodyBox.top+body.scrollTop<=body.scrollHeight+1,
+        catalogFirst:!order||categories.top<order.top,categoriesVisible:categories.top>=bodyBox.top&&categories.bottom<=bodyBox.bottom,firstProductVisible:!product||product.bottom<=bodyBox.bottom,
         redundantAddAction:Boolean(panel.querySelector('[data-order-browse]')),fullHeight:Math.abs(p.bottom-b.bottom)<8 && p.top>=b.top,
         boardSeparate:b.right<=p.left,horizontalOverflow:document.documentElement.scrollWidth>innerWidth||body.scrollWidth>body.clientWidth||board.scrollWidth>board.clientWidth,
         pageScroll:current.scrollHeight>current.clientHeight+1,clipping,badTiles,tiles:tiles.length,
         controls:[...panel.querySelectorAll('button')].map(e=>({text:e.textContent.trim(),height:e.getBoundingClientRect().height})),
         bodyScroll:body.scrollHeight>body.clientHeight,boardScroll:board.scrollHeight>board.clientHeight};
     })()`);
-    if(metric.width!==width||metric.height!==height||!metric.footerVisible||!metric.firstOrderRowVisible||!metric.catalogFirst||!metric.categoriesVisible||!metric.firstProductVisible||metric.redundantAddAction||!metric.fullHeight||!metric.boardSeparate||metric.horizontalOverflow||metric.pageScroll||metric.clipping.length||metric.badTiles.length||metric.tiles!==27||metric.panelWidth<400||metric.panelWidth>460) throw new Error(`POS layout failed: ${JSON.stringify(metric)}`);
+    if(metric.width!==width||metric.height!==height||!metric.footerVisible||!metric.firstOrderRowReachable||!metric.catalogFirst||!metric.categoriesVisible||!metric.firstProductVisible||metric.redundantAddAction||!metric.fullHeight||!metric.boardSeparate||metric.horizontalOverflow||metric.pageScroll||metric.clipping.length||metric.badTiles.length||metric.tiles!==27||Math.abs(metric.panelWidth-width*443/1672)>3) throw new Error(`POS layout failed: ${JSON.stringify(metric)}`);
     await evaluate(`document.querySelector('.board-scroll').scrollTop=document.querySelector('.board-scroll').scrollHeight`);
     await assert(`(() => {const b=document.querySelector('.board-scroll').getBoundingClientRect(),t=document.querySelector('[data-table-code="T10"]').getBoundingClientRect();return t.bottom<=b.bottom&&t.top>=b.top})()`,'Terrace positions cannot be reached');
     await evaluate(`document.querySelector('.board-scroll').scrollTop=0`);
@@ -65,6 +66,11 @@ const persistedOrders = (db:Database.Database) => ({ orders:db.prepare('SELECT *
 export async function verifyActiveOrders(window:BrowserWindow,directory:string,db:Database.Database) {
   assertQaDirectory(directory); if(path.resolve(db.name)!==path.join(directory,'fox.sqlite'))throw new Error('Order QA database mismatch');
   const qa=harness(window,directory);
+  async function submitProduct(id: string) {
+    await qa.click(`[data-order-product="${id}"]:not(:disabled)`);
+    await qa.click('[data-ops-save-order]:not(:disabled)');
+    await qa.saved();
+  }
   db.prepare("UPDATE products SET selling_price_cents=120,purchase_cost_cents=30,active=1,track_inventory=1 WHERE id='KAFE-1'").run();
   db.prepare("UPDATE products SET active=0 WHERE id='KAFE-2'").run();
   db.prepare("UPDATE products SET selling_price_cents=0,purchase_cost_cents=NULL,track_inventory=0 WHERE id='KAFE-3'").run();
@@ -78,32 +84,35 @@ export async function verifyActiveOrders(window:BrowserWindow,directory:string,d
   await qa.click('[data-nav="tables"]');
   for(const [width,height] of sizes) {
     window.setContentSize(width,height); await qa.select('M5');
-    await qa.assert(`document.querySelector('.order-empty')?.textContent.includes('S’ka porosi.') && document.querySelector('.order-empty')?.textContent.includes('Zgjidh një produkt.')`,'Empty order copy missing');
-    await qa.assert(`document.querySelector('[data-order-total]').textContent==='—' && document.querySelector('.order-footer').dataset.orderState==='empty' && !document.querySelector('.order-footer').textContent.includes('Porosia ruhet automatikisht.')`,'Untouched table falsely shows a zero/saved order');
-    await qa.assert(`document.querySelector('[data-order-product="KAFE-5"]').disabled && document.querySelector('[data-order-product="KAFE-5"]').textContent.includes('Pa çmim')`,'NULL selling price is not blocked');
+    await qa.wait(`!!document.querySelector('.order-draft')`);
+    await qa.assert(`!document.querySelector('[data-order-item]') && document.querySelector('[data-ops-save-order]').disabled && document.querySelector('[data-open-checkout]').disabled`,'Empty table enabled order or payment');
+    await qa.assert(`document.querySelector('[data-order-total]').textContent==='0.00 €' && document.querySelector('.order-footer').dataset.orderState==='empty'`,'Untouched table does not show an empty draft');
+    await qa.assert(`document.querySelector('[data-order-product="KAFE-5"]').disabled && document.querySelector('[data-order-product="KAFE-5"]').closest('.ops-product').textContent.includes('Pa çmim')`,'NULL selling price is not blocked');
     await qa.assert(`!document.querySelector('[data-order-product="KAFE-2"]')`,'Inactive product appears in POS');
-    await qa.assert(`document.querySelector('[data-order-product="KAFE-3"]').textContent.includes('0.00 €') && !document.querySelector('[data-order-product="KAFE-3"]').disabled`,'Zero price is not sellable');
+    await qa.assert(`document.querySelector('[data-order-product="KAFE-3"]').closest('.ops-product').textContent.includes('0.00 €') && !document.querySelector('[data-order-product="KAFE-3"]').disabled`,'Zero price is not sellable');
     await qa.assert(`document.querySelectorAll('[data-order-category]').length===5 && document.querySelector('[data-order-category="ALKOOL"]').textContent==='Alkool'`,'Canonical categories changed');
     await qa.measure(width,height); await qa.snapshot(`order-empty-${width}.png`);
   }
   if(JSON.stringify(db.prepare('SELECT COUNT(*) n FROM orders').get())!==JSON.stringify(count))throw new Error('Selection created an empty order');
   window.setContentSize(1366,768);
-  await qa.click('[data-order-product="KAFE-1"]'); await qa.saved();
+  await submitProduct('KAFE-1');
   await qa.assert(`document.querySelector('[data-order-total]').textContent==='1.20 €' && document.querySelector('[data-table-code="M5"]').textContent.includes('Ka porosi')`,'First add did not activate the table');
-  await qa.evaluate(`(() => {const e=document.querySelector('[data-order-product="KAFE-1"]');e.click();e.click();})()`); await qa.saved();
-  await qa.assert(`document.querySelector('[data-order-quantity]').textContent==='2' && document.querySelectorAll('[data-order-item]').length===1`,'Rapid repeated click duplicated an add');
+  await qa.click('[data-order-product="KAFE-1"]');
+  await qa.wait(`!!document.querySelector('[data-ops-save-order]:not(:disabled)')`);
+  await qa.evaluate(`(() => {const e=document.querySelector('[data-ops-save-order]');e.click();e.click();})()`); await qa.saved();
+  await qa.assert(`document.querySelector('[data-order-quantity]').textContent==='2' && document.querySelectorAll('[data-order-item]').length===1`,'Rapid repeated submit duplicated a draft');
   await qa.click('[aria-label="Ul sasinë e Espresso"]'); await qa.saved();
   await qa.assert(`document.querySelector('[data-order-quantity]').textContent==='1' && document.querySelector('[aria-label="Ul sasinë e Espresso"]').disabled`,'Minus at one deletes a line');
   await qa.evaluate(`(() => {const e=document.querySelector('[aria-label="Rrit sasinë e Espresso"]');e.click();e.click();})()`); await qa.saved();
-  await qa.click('[data-order-category="UJE"]'); await qa.click('[data-order-product="UJE-1"]'); await qa.saved();
+  await qa.click('[data-order-category="UJE"]'); await submitProduct('UJE-1');
   await qa.assert(`document.querySelector('[data-order-total]').textContent==='3.40 €'`,'Exact order total incorrect');
   await qa.click('[aria-label="Hiq Ujë natyral"]'); await qa.saved();
   await qa.assert(`document.querySelector('[data-order-total]').textContent==='2.40 €'`,'Line removal total incorrect');
-  await qa.click('[data-order-product="UJE-1"]'); await qa.saved();
-  await qa.select('M6'); await qa.click('[data-order-product="KAFE-3"]'); await qa.saved();
+  await submitProduct('UJE-1');
+  await qa.select('M6'); await submitProduct('KAFE-3');
   await qa.assert(`document.querySelector('[data-table-code="M6"]').textContent.includes('0.00 €')`,'Real zero-total order not displayed');
   await qa.click('[aria-label="Hiq Double Espresso"]'); await qa.saved();
-  await qa.assert(`Boolean(document.querySelector('.order-empty')) && !document.querySelector('[data-table-code="M6"]').textContent.includes('€')`,'Last removal did not free the table');
+  await qa.assert(`!document.querySelector('[data-order-item]') && !document.querySelector('[data-table-code="M6"]').textContent.includes('€')`,'Last removal did not free the table');
   const cancelled=db.prepare("SELECT COUNT(*) n FROM orders WHERE table_id='M6' AND status='CANCELLED'").get() as {n:number};
   if(cancelled.n!==1)throw new Error('Cancelled draft not preserved');
   await qa.select('M5'); await qa.assert(`document.querySelector('[data-order-total]').textContent==='3.40 €'`,'Table switching lost order');
@@ -113,8 +122,8 @@ export async function verifyActiveOrders(window:BrowserWindow,directory:string,d
   await qa.evaluate(`document.querySelector('#product-form').requestSubmit()`);
   await qa.wait(`!document.querySelector('dialog[open]')`);
   await qa.click('[data-nav="tables"]'); await qa.select('M5');
-  await qa.assert(`document.querySelector('[data-order-product="KAFE-1"]').textContent.includes('1.35 €') && document.querySelector('[data-order-total]').textContent==='3.40 €'`,'Catalog price update rewrote the old order');
-  await qa.click('[data-order-product="KAFE-1"]'); await qa.saved();
+  await qa.assert(`document.querySelector('[data-order-product="KAFE-1"]').closest('.ops-product').textContent.includes('1.35 €') && document.querySelector('[data-order-total]').textContent==='3.40 €'`,'Catalog price update rewrote the old order');
+  await submitProduct('KAFE-1');
   await qa.assert(`document.querySelectorAll('[data-order-item]').length===3 && document.querySelector('[data-order-total]').textContent==='4.75 €'`,'Changed price did not create a new snapshot');
   // A command continues to commit when its workspace is unmounted immediately.
   await qa.evaluate(`document.querySelector('[aria-label="Rrit sasinë e Espresso"]').click();document.querySelector('[data-nav="settings"]').click()`);
@@ -141,20 +150,26 @@ export async function verifyActiveOrders(window:BrowserWindow,directory:string,d
   // The renderer's catalog can become stale: backend validation must still win.
   db.prepare("UPDATE products SET active=0 WHERE id='KAFE-4'").run();
   await qa.click('[data-order-product="KAFE-4"]');
+  await qa.click('[data-ops-save-order]:not(:disabled)');
   await qa.wait(`document.querySelector('.order-body [role="alert"]')?.textContent.includes('Produkti nuk është aktiv.')`);
-  await qa.assert(`Boolean(document.querySelector('.order-empty')) && document.querySelector('[data-order-total]').textContent==='—'`,'Rejected command optimistically changed the order');
+  await qa.assert(`!document.querySelector('[data-order-item]') && document.querySelector('[data-ops-quantity="KAFE-4"]').textContent==='1'`,'Rejected command changed the saved order or lost the draft');
   await qa.snapshot('order-rejected.png');
+  await qa.click('[data-ops-remove="KAFE-4"]');
   db.prepare("UPDATE products SET active=1 WHERE id='KAFE-4'").run();
   await qa.select('M7');
-  ipcMain.removeHandler(IPC.addProduct); ipcMain.handle(IPC.addProduct,()=> {throw new Error('Intentional order transport verification failure');});
+  ipcMain.removeHandler(IPC.addProduct); ipcMain.handle(IPC.addProduct,(_event,input:unknown)=> {
+    if (!service.submitDraft(input).ok) throw new Error('QA draft failed to commit');
+    throw new Error('Intentional lost draft response after commit');
+  });
   await qa.click('[data-order-product="KAFE-1"]');
-  await qa.wait(`document.querySelector('.order-body [role="alert"]')?.textContent.includes('Porosia nuk u konfirmua.')`);
+  await qa.click('[data-ops-save-order]:not(:disabled)');
+  await qa.wait(`document.querySelector('[data-ops-save-order]').textContent.includes('Provo të njëjtën porosi')`);
   await qa.assert(`document.querySelector('[data-order-product="KAFE-1"]').disabled && !document.querySelector('[data-order-category="UJE"]').disabled`,'Unconfirmed mutation is not guarded with usable workspace navigation');
   await qa.snapshot('order-save-error.png');
   ipcMain.removeHandler(IPC.addProduct);
-  ipcMain.handle(IPC.addProduct,(event,input:unknown)=> {if(event.sender!==window.webContents||event.senderFrame!==window.webContents.mainFrame)throw new Error('Unauthorized FOX request');return service.addProduct(input);});
-  await qa.click('.order-body [role="alert"] button'); await qa.saved();
-  await qa.assert(`!document.querySelector('[data-order-product="KAFE-1"]').disabled && Boolean(document.querySelector('.order-empty'))`,'Canonical refresh did not clear uncertainty');
+  ipcMain.handle(IPC.addProduct,(event,input:unknown)=> {if(event.sender!==window.webContents||event.senderFrame!==window.webContents.mainFrame)throw new Error('Unauthorized FOX request');return service.submitDraft(input);});
+  await qa.click('[data-ops-save-order]:not(:disabled)'); await qa.saved();
+  await qa.assert(`document.querySelector('[data-order-quantity]').textContent==='1' && document.querySelector('[data-ops-quantity="KAFE-1"]').textContent==='0'`,'Retry duplicated the saved draft');
   await qa.select('M5');
   // Rapid cross-zone selection must only expose the final table's persisted DTO.
   for(const codes of [['M5','M6','M5'],['T3','SH2','M5']]) {

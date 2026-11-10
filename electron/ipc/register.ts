@@ -76,7 +76,9 @@ export function registerIpc(window: BrowserWindow, repositories: ReturnType<type
     try { return orders.getForTable(args[0]); }
     catch (error) { logError('ORDER_IPC',error); throw new Error('Porosia nuk mund të lexohet. Provo përsëri.'); }
   });
-  for (const [channel, handler] of [[IPC.updateProduct, configuration.updateProduct], [IPC.addSupply, configuration.addSupply], [IPC.addProduct, orders.addProduct], [IPC.incrementItem, orders.incrementItem], [IPC.decrementItem, orders.decrementItem], [IPC.removeItem, orders.removeItem]] as const) {
+  const addToOrder = (input: unknown) => input !== null && typeof input === "object" && Object.hasOwn(input, "requestId")
+    ? orders.submitDraft(input) : orders.addProduct(input);
+  for (const [channel, handler] of [[IPC.updateProduct, configuration.updateProduct], [IPC.addSupply, configuration.addSupply], [IPC.addProduct, addToOrder], [IPC.incrementItem, orders.incrementItem], [IPC.decrementItem, orders.decrementItem], [IPC.removeItem, orders.removeItem]] as const) {
     handle(channel, (event, ...args: unknown[]) => {
       if (event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame || args.length !== 1) throw new Error('Unauthorized FOX request');
       try { return handler(args[0]); }

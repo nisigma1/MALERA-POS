@@ -18,6 +18,23 @@ beforeEach(()=> { db=openDatabase(':memory:'); configure(); });
 afterEach(()=> { if(db.open)db.close(); });
 
 describe('active table order commands',()=> {
+  it('rolls back a rejected draft and saves a retry exactly once', () => {
+    const request = {
+      requestId: crypto.randomUUID(), tableId: 'M5', orderId: null, expectedRevision: null,
+      items: [{ productId: 'KAFE-1', quantity: 2 }, { productId: 'KAFE-2', quantity: 1 }],
+    };
+    const before = dump();
+    expect(context().service.submitDraft(request)).toMatchObject({ ok: false, notCommitted: true });
+    expect(dump()).toEqual(before);
+
+    db.prepare("UPDATE products SET active=1,selling_price_cents=130,track_inventory=0 WHERE id='KAFE-2'").run();
+    const saved = unwrap(context().service.submitDraft(request));
+    expect(saved.order?.totalCents).toBe(370);
+    expect(saved.order?.items.map(item => item.quantity)).toEqual([2, 1]);
+    const committed = dump();
+    expect(unwrap(context().service.submitDraft(request))).toEqual(saved);
+    expect(dump()).toEqual(committed);
+  });
   it('selects a free table without writing any row',()=> {
     const before=dump(); expect(context().service.getForTable('M5')).toMatchObject({table:{status:'FREE',activeOrderTotalCents:null},order:null}); expect(dump()).toEqual(before);
   });

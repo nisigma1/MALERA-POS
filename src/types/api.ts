@@ -1,4 +1,4 @@
-import type { CompleteOrderRequest, CheckoutResult, ReportPeriod, SalesReport, TableSummary, OrderWorkspace, AddOrderProduct, OrderItemCommand, CatalogProduct, ReportSummary, Settings } from '../domain/types';
+import type { CompleteOrderRequest, CheckoutResult, ReportPeriod, SalesReport, TableSummary, OrderWorkspace, OrderDraftResult, SubmitOrderDraft, AddOrderProduct, OrderItemCommand, CatalogProduct, ReportSummary, Settings } from '../domain/types';
 import type { MutationResult, ProductUpdate, SupplyRequest } from '../domain/configuration';
 import type { Printer, ReceiptSettings, ReceiptSettingsInput, ReceiptSettingsResult, ReceiptAction, ReceiptResult, PrintJob, ReceiptState } from '../domain/receipts';
 import type {DataDiagnostics,DataActionResult} from '../domain/protection';
@@ -15,6 +15,7 @@ export interface FoxApi {
   orders: {
     completeOrder(input: CompleteOrderRequest): Promise<CheckoutResult>;
     getForTable(tableId: string): Promise<OrderWorkspace>;
+    submitDraft(input: SubmitOrderDraft): Promise<OrderDraftResult<OrderWorkspace>>;
     addProduct(input: AddOrderProduct): Promise<MutationResult<OrderWorkspace>>;
     incrementItem(input: OrderItemCommand): Promise<MutationResult<OrderWorkspace>>;
     decrementItem(input: OrderItemCommand): Promise<MutationResult<OrderWorkspace>>;

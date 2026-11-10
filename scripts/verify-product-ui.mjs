@@ -21,7 +21,7 @@ try{
  result.initial=await api('return {products:await fox.products.list(),tables:await fox.tables.list(),report:await fox.reports.getSalesReport("ALL")};');
  for(const id of ['KAFE-1','CAJ-1','PIJE-1','UJE-1','ALKOOL-1']){assert.ok((await api(`const p=(await fox.products.list()).find(p=>p.id===${JSON.stringify(id)});return fox.products.update({...p,sellingPriceCents:100,purchaseCostCents:id==='CAJ-1'?null:50,trackInventory:true,lowStockThreshold:5,active:true});`.replace("id==='CAJ-1'",JSON.stringify(id)+"==='CAJ-1'"))).ok);assert.ok((await api(`return fox.inventory.addSupply({requestId:crypto.randomUUID(),productId:${JSON.stringify(id)},quantity:200});`)).ok);}
  await js('location.reload()');await until('Boolean(document.querySelector("[data-order-product=KAFE-1]:not(:disabled)"))');
- await js('document.querySelector("[data-order-product=KAFE-1]").click()');await until('Boolean(document.querySelector("[data-order-item]"))');
+ await js('document.querySelector("[data-order-product=KAFE-1]").click()');await until('!!document.querySelector("[data-ops-save-order]:not(:disabled)")');await js('document.querySelector("[data-ops-save-order]").click()');await until('Boolean(document.querySelector("[data-order-item]"))');
  await api('const w=await fox.orders.addProduct({tableId:"M1",productId:"CAJ-1"});return fox.orders.completeOrder({orderId:w.data.order.id});');
  const capture=async name=>fs.writeFileSync(path.join(directory,name+'.png'),Buffer.from((await command('Page.captureScreenshot',{format:'png'})).data,'base64'));
  const nav=async name=>{await js(`document.querySelector('[data-nav=${name}]').click()`);await until(`Boolean(document.querySelector('[data-page=${name}]'))`);await pause(180);};

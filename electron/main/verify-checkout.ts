@@ -57,34 +57,72 @@ export async function verifyCheckout(window: BrowserWindow, directory: string, d
   };
   const selected = async (code: string) => { await click(`[data-table-code="${code}"]`); await wait(`document.querySelector('#order-heading')?.textContent==='Tavolina ${code==='M13'?'J11':code.startsWith('M')?'B'+code.slice(1):code.startsWith('T')?'J'+code.slice(1):code}' && ['saved','empty'].includes(document.querySelector('.order-footer')?.dataset.orderState)`); };
   const saved = () => wait(`document.querySelector('.order-footer')?.dataset.orderState==='saved'`);
+  const submitProduct = async (id: string) => {
+    await click(`[data-order-product="${id}"]:not(:disabled)`);
+    await click('[data-ops-save-order]:not(:disabled)');
+    await saved();
+  };
   const expectedFile = path.join(directory,'checkout-expected.json');
   if (restart) {
     const expected = JSON.parse(fs.readFileSync(expectedFile,'utf8'));
     if (JSON.stringify(snapshot(db))!==JSON.stringify(expected.database) || JSON.stringify(readSalesReport(db,'ALL'))!==JSON.stringify(expected.report))throw new Error('Checkout restart changed persisted sale/stock/report');
     await wait(`Boolean(document.querySelector('[data-table-code="M5"]'))`); await selected('M5');
-    await assert(`document.querySelector('[data-table-code="M5"]').dataset.status==='FREE' && document.querySelector('[data-open-checkout]').disabled && document.querySelector('.order-empty')`,'Restart did not keep paid table free');
+    await assert(`document.querySelector('[data-table-code="M5"]').dataset.status==='FREE' && document.querySelector('[data-open-checkout]').disabled && !document.querySelector('[data-order-item]')`,'Restart did not keep paid table free');
     await click('[data-nav="reports"]'); await wait(`document.querySelectorAll('[data-sale-id]').length===${expected.report.summary.completedOrders}`);
     await capture('checkout-restart-reports');
     if(errors.length)throw new Error('Renderer errors on checkout restart: '+errors.join(';'));
     fs.writeFileSync(path.join(directory,'checkout-restart.json'),JSON.stringify({passed:true,sales:expected.report.summary.completedOrders,identicalDatabase:true,identicalReport:true},null,2));
     console.log('FOX checkout real Electron process restart PASS'); return;
   }
+  const catalogBefore = db.prepare('SELECT id, category_id, active, selling_price_cents FROM products').all() as
+    { id: string; category_id: string; active: number; selling_price_cents: number | null }[];
+  db.exec("UPDATE products SET active=1, selling_price_cents=NULL; UPDATE products SET category_id='PIJE' WHERE category_id IN ('KAFE','CAJ')");
+  await click('[data-nav="inventory"]');
+  await click('[data-nav="tables"]');
+  await selected('M10');
+  await wait('!!document.querySelector(".order-draft")');
+  await click('[data-order-all-products]');
+  await assert(`document.querySelectorAll('[data-order-product]').length===${catalogBefore.length} &&
+    [...document.querySelectorAll('[data-order-product]')].every(b=>b.disabled&&b.closest('.ops-product').textContent.includes('Pa çmim')) &&
+    document.querySelector('[data-ops-save-order]').disabled`,'Unpriced catalog is hidden or orderable');
+  await click('[data-order-category="CAJ"]');
+  await assert(`!document.querySelector('[data-order-product]') && document.querySelector('.order-category-empty').textContent.includes('Kjo kategori është bosh.')`,'Empty category lost its recovery action');
+  await click('.order-category-empty button');
+  await wait(`document.querySelectorAll('[data-order-product]').length===${catalogBefore.length}`);
+  await capture('catalog-pa-cmim');
+  db.transaction(() => {
+    const restore = db.prepare('UPDATE products SET category_id=?, active=?, selling_price_cents=? WHERE id=?');
+    for (const product of catalogBefore) restore.run(product.category_id, product.active, product.selling_price_cents, product.id);
+  })();
   db.prepare("UPDATE products SET selling_price_cents=100,purchase_cost_cents=30,track_inventory=1 WHERE id='KAFE-1'").run();
-  db.prepare("UPDATE products SET selling_price_cents=100,purchase_cost_cents=40,track_inventory=1 WHERE id='KAFE-2'").run();
+  db.prepare("UPDATE products SET selling_price_cents=100,purchase_cost_cents=40,track_inventory=1,active=1 WHERE id='KAFE-2'").run();
   db.prepare("UPDATE inventory_balances SET quantity=10 WHERE product_id IN ('KAFE-1','KAFE-2')").run();
   db.prepare("UPDATE products SET selling_price_cents=150,purchase_cost_cents=NULL,track_inventory=0 WHERE id='UJE-1'").run();
   db.prepare("UPDATE products SET selling_price_cents=100,track_inventory=1 WHERE id IN ('KAFE-3','KAFE-4')").run();
   db.prepare("UPDATE inventory_balances SET quantity=0 WHERE product_id='KAFE-4'").run();
   await click('[data-nav="inventory"]'); await wait(`Boolean(document.querySelector('[data-page="inventory"]'))`);
   await click('[data-nav="tables"]'); await selected('M5');
-  await assert(`document.querySelector('[data-order-product="KAFE-3"]').disabled && document.querySelector('[data-order-product="KAFE-3"]').textContent.includes('Stok pa vendosur') && document.querySelector('[data-order-product="KAFE-4"]').disabled && document.querySelector('[data-order-product="KAFE-4"]').textContent.includes('Pa stok')`,'Stock catalog affordances failed');
+  await assert(`document.querySelector('[data-order-product="KAFE-3"]').disabled && document.querySelector('[data-order-product="KAFE-3"]').closest('.ops-product').textContent.includes('Stok pa vendosur') && document.querySelector('[data-order-product="KAFE-4"]').disabled && document.querySelector('[data-order-product="KAFE-4"]').closest('.ops-product').textContent.includes('Pa stok')`,'Stock catalog affordances failed');
   const codes = (db.prepare('SELECT code FROM cafe_tables ORDER BY sort_order').all() as {code: string}[]).map(t=>t.code);
   for(const code of codes)await selected(code);
-  await selected('M5'); await click('[data-order-product="KAFE-1"]'); await saved();
+  await selected('M5');
+  const beforeDraft = JSON.stringify(snapshot(db));
+  await click('[data-order-product="KAFE-1"]:not(:disabled)');
+  await assert(`document.querySelector('[data-ops-quantity="KAFE-1"]').textContent==='1' &&
+    document.querySelector('[data-order-total]').textContent==='1.00 €' && !document.querySelector('[data-open-checkout]').disabled`,'Draft preview or checkout affordance failed');
+  if (JSON.stringify(snapshot(db)) !== beforeDraft) throw new Error('Selecting draft items changed the database');
+  await click('[data-open-checkout]');
+  await wait(`document.querySelector('.checkout-dialog[open] [data-checkout-total]')?.textContent==='1.00 €'`);
+  await click('[data-cancel-payment]');
+  await wait(`!document.querySelector('.checkout-dialog') && document.querySelector('[data-draft-quantity]')?.textContent==='1'`);
+  if (JSON.stringify(snapshot(db)) !== beforeDraft) throw new Error('Opening or canceling draft checkout changed the database');
+  await click('[data-ops-save-order]:not(:disabled)', 2);
+  await saved();
+  await assert(`document.querySelector('[data-order-quantity]').textContent==='1' && document.querySelector('[data-ops-quantity="KAFE-1"]').textContent==='0'`,'Draft submission was duplicated or left in the editor');
   await click('[aria-label="Rrit sasinë e Espresso"]'); await saved();
   await click('[data-open-checkout]'); await wait(`Boolean(document.querySelector('.checkout-dialog[open]'))`);
   await assert(`document.querySelectorAll('[data-checkout-item]').length===1 && (() => { const cells=document.querySelector('[data-checkout-item]').cells; return cells[0].querySelector('strong').textContent==='Espresso' && cells[0].querySelector('small').textContent==='1.00 € / njësi' && cells[1].textContent==='2' && cells[2].textContent==='2.00 €'; })()`,'Checkout summary does not match saved order snapshots');
-  await assert(`!document.querySelector('[data-confirm-payment]').disabled && document.querySelectorAll('[data-payment]').length===0 && document.querySelector('.checkout-method').textContent.includes('Cash')`,'Removed payment selector is still present');
+  await assert(`!document.querySelector('[data-confirm-payment]').disabled && document.querySelectorAll('[data-payment]').length===0 && document.querySelector('.checkout-method').textContent.includes('Para të gatshme')`,'Expected a single payment method labelled Para të gatshme');
   window.webContents.sendInputEvent({type:'keyDown',keyCode:'Escape'}); window.webContents.sendInputEvent({type:'keyUp',keyCode:'Escape'});
   await wait(`!document.querySelector('.checkout-dialog')`);
   await assert(`document.querySelector('#order-heading').textContent==='Tavolina B5' && document.querySelector('[data-order-total]').textContent==='2.00 €'`,'Escape mutated order or closed table');
@@ -104,7 +142,7 @@ export async function verifyCheckout(window: BrowserWindow, directory: string, d
   await assert(`document.querySelector('.order-footer').textContent.includes('Shitja u regjistrua.') && document.querySelector('[data-open-checkout]').disabled`,'Cash completion UI failed');
   const paidCash = readSalesReport(db,'ALL');
   if(paidCash.cashCents!==200||paidCash.summary.completedOrders!==1)throw new Error('Double-click created duplicate sale');
-  await selected('M6'); await click('[data-order-product="KAFE-2"]'); await saved(); await click('[data-open-checkout]'); await click('[data-confirm-payment]');
+  await selected('M6'); await submitProduct('KAFE-2'); await click('[data-open-checkout]'); await click('[data-confirm-payment]');
   await wait(`!document.querySelector('.checkout-dialog') && document.querySelector('[data-table-code="M6"]').dataset.status==='FREE'`);
   const history = readSalesReport(db,'ALL');
   await click('[data-nav="inventory"]'); await click('[aria-label="Edito Espresso"]');
@@ -112,14 +150,14 @@ export async function verifyCheckout(window: BrowserWindow, directory: string, d
   await wait(`!document.querySelector('dialog[open]')`);
   if(JSON.stringify(history)!==JSON.stringify(readSalesReport(db,'ALL')))throw new Error('Catalog edit changed paid history');
   await click('[data-nav="tables"]');
-  await selected('M7'); await click('[data-order-product="KAFE-1"]'); await saved(); await click('[aria-label="Rrit sasinë e Espresso"]'); await saved();
+  await selected('M7'); await submitProduct('KAFE-1'); await click('[aria-label="Rrit sasinë e Espresso"]'); await saved();
   db.prepare("UPDATE inventory_balances SET quantity=1 WHERE product_id='KAFE-1'").run();
   const beforeFailure=JSON.stringify(snapshot(db)); await click('[data-open-checkout]'); await click('[data-confirm-payment]');
   await wait(`document.querySelector('.checkout-dialog [role="alert"]')?.textContent.includes('stok i pamjaftueshëm')`);
   if(JSON.stringify(snapshot(db))!==beforeFailure)throw new Error('Failed native checkout partially wrote');
   await capture('checkout-insufficient'); await click('.checkout-dialog footer .button-secondary');
   await click('[aria-label="Hiq Espresso"]'); await wait(`document.querySelector('.order-footer')?.dataset.orderState==='empty'`);
-  await selected('M8'); await click('[data-order-category="UJE"]'); await click('[data-order-product="UJE-1"]'); await saved();
+  await selected('M8'); await click('[data-order-category="UJE"]'); await submitProduct('UJE-1');
   // Lose the IPC response AFTER a successful commit; UI must require an authoritative refresh.
   ipcMain.removeHandler(IPC.completeOrder);
   const checkout = createCheckoutService(db,createOrderService(db,createRepositories(db)));
@@ -168,15 +206,15 @@ export async function verifyCheckout(window: BrowserWindow, directory: string, d
   await chooseTracking('End');await assert(`document.querySelector('#trackInventory').value==='no'`,'Native Jo choice failed');
   await click('[form="product-form"]');await wait(`!document.querySelector('dialog[open]')`);
   await click('[data-nav="tables"]');await selected('M10');
-  await click('[data-order-product="KAFE-5"]');await saved();
+  await submitProduct('KAFE-5');
   const untrackedBalances=JSON.stringify(db.prepare('SELECT * FROM inventory_balances ORDER BY rowid').all());
   await click('[data-open-checkout]');await click('[data-confirm-payment]');await wait(`document.querySelector('[data-table-code="M10"]').dataset.status==='FREE' && !document.querySelector('.checkout-dialog')`);
   if(JSON.stringify(db.prepare('SELECT * FROM inventory_balances ORDER BY rowid').all())!==untrackedBalances || db.prepare("SELECT * FROM inventory_movements WHERE type='SALE'").all().length!==2)throw new Error('Jo sale touched unit inventory');
-  await selected('M11');await click('[data-order-product="KAFE-5"]');await saved();
+  await selected('M11');await submitProduct('KAFE-5');
   db.prepare("UPDATE products SET track_inventory=NULL WHERE id='KAFE-5'").run();
   db.prepare("UPDATE inventory_balances SET quantity=1 WHERE product_id='KAFE-5'").run();
   await click('[data-nav="inventory"]');await click('[data-nav="tables"]');await selected('M11');
-  await assert(`document.querySelector('[data-order-product="KAFE-5"]').disabled && document.querySelector('[data-order-product="KAFE-5"]').textContent.includes('Konfiguro stokun')`,'NULL product can be newly ordered');
+  await assert(`document.querySelector('[data-order-product="KAFE-5"]').disabled && document.querySelector('[data-order-product="KAFE-5"]').closest('.ops-product').textContent.includes('Konfiguro stokun')`,'NULL product can be newly ordered');
   const ambiguousBefore=JSON.stringify(snapshot(db));
   const malicious=await evaluate(`window.fox.orders.completeOrder({orderId:${JSON.stringify((db.prepare("SELECT id FROM orders WHERE table_id='M11' AND status='OPEN'").get() as {id:string}).id)},paymentMethod:'CARD'})`);
   if(malicious.ok||malicious.code!=='INVALID_REQUEST'||JSON.stringify(snapshot(db))!==ambiguousBefore)throw new Error('Stale renderer created CARD or wrote state');
@@ -194,8 +232,16 @@ export async function verifyCheckout(window: BrowserWindow, directory: string, d
   await click('[data-nav="reports"]');await wait(`document.querySelectorAll('[data-sale-id]').length===7`);
   await assert(`document.querySelector('[data-cash-total]').textContent==='7.00 €' && !document.querySelector('[data-card-total]') && document.querySelector('[data-historical-payments]').textContent==='3.00 €' && [...document.querySelectorAll('[data-sale-id]')].some(row=>row.textContent.includes('Kartelë historike')) && [...document.querySelectorAll('[data-sale-id]')].some(row=>row.textContent.includes('Pa metodë të regjistruar'))`,'Legacy reporting relabeled or omitted money');
   for(const [width,height] of [[1366,768],[1440,900],[1920,1080]]){await resize(width!,height!);await assert(`document.documentElement.scrollWidth<=innerWidth && [...document.querySelectorAll('[data-sale-id]')].every(row=>/^#[0-9]{6}$/.test(row.cells[0].textContent) && !row.textContent.includes(row.dataset.saleId))`,'Legacy report overflow/raw UUID');await capture(`phase41-legacy-${width}`);}
-  fs.writeFileSync(expectedFile,JSON.stringify({database:snapshot(db),report:auditedReport},null,2));
+  await click('[data-nav="tables"]');await selected('M12');
+  await click('[data-order-category="UJE"]');await click('[data-order-product="UJE-1"]:not(:disabled)');
+  await click('[data-open-checkout]');
+  await wait(`document.querySelector('.checkout-dialog[open] [data-checkout-total]')?.textContent==='1.50 €'`);
+  await click('[data-confirm-payment]',2);
+  await wait(`!document.querySelector('.checkout-dialog') && !document.querySelector('[data-draft-line]') && document.querySelector('[data-table-code="M12"]').dataset.status==='FREE'`);
+  const directCheckoutReport=readSalesReport(db,'ALL');
+  if(directCheckoutReport.cashCents!==850||directCheckoutReport.summary.completedOrders!==8)throw new Error('Draft checkout did not record exactly one payment');
+  fs.writeFileSync(expectedFile,JSON.stringify({database:snapshot(db),report:directCheckoutReport},null,2));
   if(errors.length)throw new Error('Checkout renderer errors: '+errors.join(';'));
-  fs.writeFileSync(path.join(directory,'checkout-result.json'),JSON.stringify({passed:true,nativeConfirm:true,noPaymentSelector:true,cashOnly:true,saleNumber:true,localDate:true,inventoryNull:true,explicitPoJo:true,legacyPaymentRead:true,cardCommandRejected:true,doubleClick:true,escape:true,focusTrap:true,lostResponseRecovery:true,all27NativeSelections:true,insufficientRollback:true,unknownStockCatalog:true,historicalSnapshots:true,nullCost:true,metrics,reportMetrics,inventoryMetrics},null,2));
+  fs.writeFileSync(path.join(directory,'checkout-result.json'),JSON.stringify({passed:true,nativeConfirm:true,noPaymentSelector:true,cashOnly:true,saleNumber:true,localDate:true,inventoryNull:true,explicitPoJo:true,legacyPaymentRead:true,cardCommandRejected:true,doubleClick:true,escape:true,focusTrap:true,lostResponseRecovery:true,all27NativeSelections:true,insufficientRollback:true,unknownStockCatalog:true,historicalSnapshots:true,nullCost:true,draftSubmission:true,unpricedCatalog:true,metrics,reportMetrics,inventoryMetrics},null,2));
   console.log('FOX native checkout/payment/inventory/report QA PASS');
 }

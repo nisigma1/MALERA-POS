@@ -43,7 +43,7 @@ async function start() {
     ? process.env.FOX_DEV_URL : undefined;
   const window = new BrowserWindow({
     width: 1366, height: 768, minWidth: 900, minHeight: 460,
-    title: 'FOX Kafeteri', show: !process.env.FOX_VERIFY_DIR,
+    title: 'MALERA POS', show: !process.env.FOX_VERIFY_DIR,
     backgroundColor: '#f4f3ef', autoHideMenuBar: true,
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, devTools: !app.isPackaged, offscreen: Boolean(process.env.FOX_VERIFY_DIR), backgroundThrottling: !process.env.FOX_VERIFY_DIR },
   });

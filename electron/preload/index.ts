@@ -8,6 +8,7 @@ const api: FoxApi = {
   orders: {
     completeOrder: input => ipcRenderer.invoke(IPC.completeOrder, input),
     getForTable: tableId => ipcRenderer.invoke(IPC.getOrder, tableId),
+    submitDraft: input => ipcRenderer.invoke(IPC.addProduct, input),
     addProduct: input => ipcRenderer.invoke(IPC.addProduct, input),
     incrementItem: input => ipcRenderer.invoke(IPC.incrementItem, input),
     decrementItem: input => ipcRenderer.invoke(IPC.decrementItem, input),
