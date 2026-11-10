@@ -8,6 +8,7 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 import { validateDescriptor, validateAssetUrl, selectRelease } from './core.mjs';
+import { withBrokerLock } from './launch-control.mjs';
 
 const home = path.dirname(fileURLToPath(import.meta.url));
 const config = JSON.parse(
@@ -27,7 +28,7 @@ const write = (file, value) => {
   fs.writeFileSync(next, JSON.stringify(value, null, 2) + '\n');
   fs.renameSync(next, file);
 };
-const state = read(stateFile, {});
+const state = {};
 const status = (phase, extra = {}) =>
   write(path.join(home, 'status.json'), {
     phase,
@@ -35,7 +36,6 @@ const status = (phase, extra = {}) =>
     branch: config.branch,
     ...extra,
   });
-const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const launch = process.argv.includes('--launch');
 if (process.argv.includes('--status')) {
   console.log(JSON.stringify(read(path.join(home, 'status.json'), {}), null, 2));
@@ -97,6 +97,8 @@ async function verifyFile(file, descriptor) {
     throw Error('Installer integrity check failed');
 }
 async function stage() {
+  const previousStage = read(pendingFile, null);
+  if (previousStage?.descriptor?.commit === state.commit) fs.unlinkSync(pendingFile);
   const releases = selectRelease(
     await json(`https://api.github.com/repos/${config.repository}/releases?per_page=30`),
     state,
@@ -233,6 +235,18 @@ async function apply() {
     return;
   }
   status('installing', { commit: descriptor.commit, backupPath });
+  const notice = spawn(
+    'powershell.exe',
+    [
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      "$shell=New-Object -ComObject WScript.Shell; $null=$shell.Popup('MALERA POS po perditesohet. Do te hapet automatikisht; ju lutem prisni.',5,'MALERA POS',64)",
+    ],
+    { windowsHide: true, stdio: 'ignore' },
+  );
+  notice.on('error', () => {});
+  notice.unref();
   const result = spawnSync(installer, ['/currentuser', '/S'], {
     windowsHide: true,
     encoding: 'utf8',
@@ -291,51 +305,32 @@ function startApp() {
   child.unref();
 }
 const lockFile = path.join(home, 'update.lock');
-let locked = false;
 try {
-  const deadline = Date.now() + (launch ? 240000 : 0);
-  do {
-    try {
-      const handle = fs.openSync(lockFile, 'wx');
-      fs.writeFileSync(handle, String(process.pid));
-      fs.closeSync(handle);
-      locked = true;
-      break;
-    } catch (error) {
-      if (error.code !== 'EEXIST') throw error;
-      const owner = Number(fs.readFileSync(lockFile, 'utf8'));
-      let alive = true;
-      if (!Number.isSafeInteger(owner) || owner < 1) {
-        alive = Date.now() - fs.statSync(lockFile).mtimeMs < 30000;
-      } else
+  await withBrokerLock({
+    lockFile,
+    stateFile,
+    mode: launch ? 'launch' : 'check',
+    onBusy: (owner) => {
+      if (launch && owner.mode === 'check') startApp();
+    },
+    work: async (currentState) => {
+      Object.assign(state, currentState);
+      if (!launch) {
         try {
-          process.kill(owner, 0);
-        } catch (e) {
-          if (e.code === 'ESRCH') alive = false;
+          await stage();
+        } catch (error) {
+          status('check-failed', { message: error.message, currentVersion: state.version ?? null });
         }
-      if (!alive) {
-        fs.unlinkSync(lockFile);
-        continue;
+        return;
       }
-      if (!launch) process.exit(0);
-      if (Date.now() > deadline)
-        throw Error('Another update check is still running; try again shortly');
-      await pause(500);
-    }
-  } while (!locked);
-  try {
-    await stage();
-  } catch (error) {
-    status('check-failed', { message: error.message, currentVersion: state.version ?? null });
-  }
-  if (launch) {
-    await apply();
-    startApp();
-  }
+      // Opening the POS never waits for network calls or downloads. Only the
+      // scheduled checker stages new releases; launch applies an existing stage.
+      if (!appRunning()) await apply();
+      startApp();
+    },
+  });
 } catch (error) {
   status('error', { message: error.message });
   console.error(error.message);
   process.exitCode = 1;
-} finally {
-  if (locked) fs.unlinkSync(lockFile);
 }

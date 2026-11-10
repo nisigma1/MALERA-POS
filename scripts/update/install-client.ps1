@@ -16,7 +16,7 @@ New-Item -ItemType Directory -Path $homeDir -Force | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $homeDir 'runtime') -Force | Out-Null
 $runtime=Join-Path $homeDir 'runtime\node.exe'
 if(!(Test-Path -LiteralPath $runtime) -or (Get-FileHash -LiteralPath $NodePath).Hash -ne (Get-FileHash -LiteralPath $runtime).Hash){Copy-Item -LiteralPath $NodePath -Destination $runtime -Force}
-foreach($name in @('client.mjs','core.mjs')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $homeDir $name) -Force}
+foreach($name in @('client.mjs','core.mjs','launch-control.mjs')){Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $homeDir $name) -Force}
 @{repository=$Repository;branch=$Branch;allowUnsignedQA=$true} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $homeDir 'config.json') -Encoding UTF8
 $state=Join-Path $homeDir 'state.json'
 if(!(Test-Path -LiteralPath $state)){@{commit=$InstalledCommit;version=$InstalledVersion;releaseId=0} | ConvertTo-Json | Set-Content -LiteralPath $state -Encoding UTF8}

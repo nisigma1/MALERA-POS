@@ -12,6 +12,8 @@ This terminal follows `main` in `nisigma1/MALERA-POS`. Pushes to other branches 
 
 An update takes build time plus the terminal's polling interval; pushing does not immediately change the running app. Failed builds leave the previous version in place. When offline, the current app can launch; previously downloaded, verified updates can still be installed at launch.
 
+Opening the app does not perform network checks or downloads. Repeated clicks do not queue launches or repeat an installation: one launcher owns the operation and reads the latest installed state under its lock. A background download can continue while the existing app opens. When a staged update is actually installed, a short notice explains the wait before the app opens.
+
 The client checks repository, branch, workflow path, successful push run, source commit ancestry, release author, artifact name, platform, architecture and SHA-256 before installation. HTTPS and repository permissions form the trust boundary for this unsigned QA channel. No GitHub token is saved on the terminal. Keep push access limited to trusted developers. Public downloads stop working if the repository becomes private; provision a scoped authentication strategy before changing visibility.
 
 ## This PC
