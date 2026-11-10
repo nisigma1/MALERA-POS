@@ -1,6 +1,6 @@
 import { ipcMain, type BrowserWindow } from 'electron';
 import type { createCheckoutService } from '../database/checkout';
-import { IPC, DATA_IPC, FINANCE_IPC, RESERVATION_IPC } from '../../src/types/api';
+import { IPC, DATA_IPC, FINANCE_IPC, RESERVATION_IPC, OPERATOR_IPC } from '../../src/types/api';
 import type { createReservationService } from '../database/reservations';
 import type { createFinanceService } from '../database/finance';
 import type { DataProtectionService } from '../main/dataProtection';
@@ -9,6 +9,15 @@ import type { createRepositories } from '../database/repositories';
 import type { createConfigurationService } from '../database/configuration';
 import type { createOrderService } from '../database/orders';
 import type { ReceiptService, PrintManager } from '../receipts/manager';
+import type { OperatorAccess } from '../main/operatorSession';
+import type { ShiftSales } from '../../src/domain/operators';
+
+const employeeChannels = new Set<string>([
+  IPC.tables,
+  OPERATOR_IPC.catalog,
+  IPC.getOrder,
+  IPC.addProduct,
+]);
 export function registerIpc(
   window: BrowserWindow,
   repositories: ReturnType<typeof createRepositories>,
@@ -20,11 +29,51 @@ export function registerIpc(
   data?: DataProtectionService,
   finance?: ReturnType<typeof createFinanceService>,
   reservations?: ReturnType<typeof createReservationService>,
+  access?: OperatorAccess,
+  shiftReport?: (input: unknown) => ShiftSales,
 ): void {
   const handle: typeof ipcMain.handle = (channel, listener) =>
     ipcMain.handle(channel, (event, ...args: unknown[]) => {
       if (data?.isMaintenance()) throw Error('FOX_DATA_MAINTENANCE');
+      if (access?.required) {
+        const operator = access.current();
+        if (operator !== 'OWNER' && !(operator && employeeChannels.has(channel)))
+          throw Error('Ky veprim nuk lejohet për këtë përdorues.');
+        if (
+          operator !== 'OWNER' &&
+          channel === IPC.addProduct &&
+          (!args[0] || typeof args[0] !== 'object' || !Object.hasOwn(args[0], 'requestId'))
+        )
+          throw Error('Përdor POROSIT për të konfirmuar porosinë.');
+      }
       return listener(event, ...args);
+    });
+  if (access) {
+    for (const [channel, count, action] of [
+      [OPERATOR_IPC.status, 0, () => access.status()],
+      [OPERATOR_IPC.login, 1, (input: unknown) => access.login(input)],
+      [OPERATOR_IPC.logout, 0, () => access.logout()],
+    ] as const)
+      ipcMain.handle(channel, (event, ...args: unknown[]) => {
+        if (
+          event.sender !== window.webContents ||
+          event.senderFrame !== window.webContents.mainFrame ||
+          args.length !== count
+        )
+          throw Error('Unauthorized FOX request');
+        if (data?.isMaintenance()) throw Error('FOX_DATA_MAINTENANCE');
+        return action(args[0]);
+      });
+  }
+  if (shiftReport)
+    handle(OPERATOR_IPC.report, (event, ...args: unknown[]) => {
+      if (
+        event.sender !== window.webContents ||
+        event.senderFrame !== window.webContents.mainFrame ||
+        args.length !== 1
+      )
+        throw Error('Unauthorized FOX request');
+      return shiftReport(args[0]);
     });
   if (reservations)
     for (const [channel, action] of [
@@ -126,6 +175,17 @@ export function registerIpc(
   const handlers = [
     [IPC.tables, () => repositories.listTables()],
     [IPC.products, () => repositories.listProducts()],
+    [
+      OPERATOR_IPC.catalog,
+      () =>
+        repositories
+          .listProducts(true)
+          .map((product) =>
+            access?.required && access.current() !== 'OWNER'
+              ? { ...product, purchaseCostCents: null, lowStockThreshold: null }
+              : product,
+          ),
+    ],
     [IPC.settings, () => repositories.getSettings()],
     [IPC.reports, () => repositories.getSummary()],
   ] as const;
@@ -197,7 +257,13 @@ export function registerIpc(
     )
       throw new Error('Unauthorized FOX request');
     try {
-      return orders.getForTable(args[0]);
+      const workspace = orders.getForTable(args[0]);
+      return access?.required && access.current() !== 'OWNER' && workspace.reservation
+        ? {
+            ...workspace,
+            reservation: { ...workspace.reservation, customerName: '', phone: '', note: '' },
+          }
+        : workspace;
     } catch (error) {
       logError('ORDER_IPC', error);
       throw new Error('Porosia nuk mund të lexohet. Provo përsëri.');

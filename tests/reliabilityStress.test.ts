@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { openDatabase } from '../electron/database/connection';
+import { currentSchemaVersion } from '../electron/database/health';
 import { assertAll, accepted, configure, services, sale, snapshot } from './support/reliability';
 import { parseEuro } from '../src/domain/money';
 import { createBackup, validateBackup, fileHash } from '../electron/database/backups';
@@ -76,7 +77,7 @@ it.each([10, 50, 100, 250, 500])(
       mark('backup-start');
       await createBackup(db, backup, '0.7.1-rc.2');
       mark('backup-created');
-      expect((await validateBackup(backup)).schemaVersion).toBe(6);
+      expect((await validateBackup(backup)).schemaVersion).toBe(7);
       expect(booked.reservation?.status).toBe('BOOKED');
       assertAll(db);
       mark('backup-reconciled');
@@ -341,7 +342,9 @@ it('corrupt backup rejection matrix preserves the operational state exactly', as
             other.prepare("INSERT INTO inventory_balances VALUES ('missing',1,'QA')").run();
           }
           if (kind === 'future')
-            other.prepare("INSERT INTO schema_migrations VALUES (7,'QA')").run();
+            other
+              .prepare("INSERT INTO schema_migrations VALUES (?,'QA')")
+              .run(currentSchemaVersion() + 1);
           other.pragma('wal_checkpoint(TRUNCATE)');
         } finally {
           other.close();

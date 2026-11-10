@@ -590,7 +590,7 @@ try {
   );
   const backed = observe('FINANCE.sqlite');
   assert.deepEqual(backed.tables, observe().tables);
-  check(backed.manifest.schemaVersion === 6, 'Finance backup exact schema/rows');
+  check(backed.manifest.schemaVersion === 7, 'Finance backup exact schema/rows');
   await expense('1');
   const old = processId;
   await fileAction('restore', 'FINANCE.sqlite');

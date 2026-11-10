@@ -40,7 +40,7 @@ export function openDatabase(
           }
         : undefined,
     );
-    seed(db, includeDuoCatalog && oldVersion === currentSchemaVersion());
+    seed(db, includeDuoCatalog && oldVersion >= 6);
     inspectDatabase(db);
     return db;
   } catch (error) {

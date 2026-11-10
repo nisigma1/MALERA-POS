@@ -60,7 +60,24 @@ export const DATA_IPC = {
   restore: 'fox:data:restore',
   error: 'fox:data:renderer-error',
 } as const;
+import type { OperatorId, OperatorSession, ShiftPeriod, ShiftSales } from '../domain/operators';
+
+export const OPERATOR_IPC = {
+  status: 'fox:operators:status',
+  login: 'fox:operators:login',
+  logout: 'fox:operators:logout',
+  report: 'fox:operators:report',
+  catalog: 'fox:operators:catalog',
+} as const;
+
 export interface FoxApi {
+  operators: {
+    status(): Promise<OperatorSession>;
+    login(input: { id: OperatorId; pin: string }): Promise<OperatorSession>;
+    logout(): Promise<OperatorSession>;
+    report(period: ShiftPeriod): Promise<ShiftSales>;
+    catalog(): Promise<CatalogProduct[]>;
+  };
   reservations: {
     reserve(input: ReserveTableInput): Promise<MutationResult<OrderWorkspace>>;
     arrive(input: ResolveReservationInput): Promise<MutationResult<OrderWorkspace>>;

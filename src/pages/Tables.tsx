@@ -18,10 +18,12 @@ import type {
 import type { MutationResult } from '../domain/configuration';
 import type { OrderDraft, TableDraft } from '../domain/orderDraft';
 import { Button, Icon, PageHeader, StatusBadge } from '../components/common/Controls';
+import { OperatorContext } from '../app/operatorContext';
 import { OrderDraftContext } from '../app/orderDraftContext';
 import { draftLineIssue, OrderDraftEditor } from '../components/orders/OrderDraftEditor';
 const load = () => window.fox.tables.list();
 const loadProducts = () => window.fox.products.list();
+const loadDuoProducts = () => window.fox.operators.catalog();
 const tone = (status: TableStatus) =>
   status === 'FREE'
     ? 'neutral'
@@ -39,7 +41,9 @@ type Checkout = { code: string } & (
 export function Tables() {
   const { drafts, setDrafts } = useContext(OrderDraftContext);
   const { data, error, retry, setData } = useData(load);
-  const catalog = useData(loadProducts);
+  const session = useContext(OperatorContext);
+  const employee = session.required && session.operator !== 'OWNER';
+  const catalog = useData(session.required ? loadDuoProducts : loadProducts);
   const [checkout, setCheckout] = useState<Checkout>();
   const checkoutLock = useRef(false);
   const [reservationDialog, setReservationDialog] = useState<{ id: string; code: string }>();
@@ -463,7 +467,7 @@ export function Tables() {
                 <Icon name="close" />
               </Button>
             </header>
-            {canOrder && !view?.order && (
+            {!employee && canOrder && !view?.order && (
               <div className="reservation-toolbar">
                 <Button
                   data-open-reservation
@@ -501,7 +505,7 @@ export function Tables() {
                       data-reservation-details
                     >
                       <span className="eyebrow">Rezervimi</span>
-                      <h3>{view.reservation.customerName}</h3>
+                      <h3>{employee ? 'Tavolinë e rezervuar' : view.reservation.customerName}</h3>
                       <dl>
                         <div>
                           <dt>Data / ora</dt>
@@ -524,40 +528,44 @@ export function Tables() {
                           </div>
                         )}
                       </dl>
-                      <p className="order-help">
-                        Kur klienti të vijë, shëno mbërritjen dhe shto produktet në porosi.
-                      </p>
-                      <div className="reservation-actions">
-                        <Button
-                          variant="primary"
-                          data-reservation-arrive
-                          disabled={tablePending || uncertain.current.has(table.id)}
-                          onClick={() =>
-                            run(`${table.id}:reservation`, () =>
-                              window.fox.reservations.arrive({
-                                tableId: table.id,
-                                reservationId: view.reservation!.id,
-                              }),
-                            )
-                          }
-                        >
-                          Klienti mbërriti
-                        </Button>
-                        <Button
-                          data-reservation-cancel
-                          disabled={tablePending || uncertain.current.has(table.id)}
-                          onClick={() =>
-                            run(`${table.id}:reservation`, () =>
-                              window.fox.reservations.cancel({
-                                tableId: table.id,
-                                reservationId: view.reservation!.id,
-                              }),
-                            )
-                          }
-                        >
-                          Anulo rezervimin
-                        </Button>
-                      </div>
+                      {!employee && (
+                        <>
+                          <p className="order-help">
+                            Kur klienti të vijë, shëno mbërritjen dhe shto produktet në porosi.
+                          </p>
+                          <div className="reservation-actions">
+                            <Button
+                              variant="primary"
+                              data-reservation-arrive
+                              disabled={tablePending || uncertain.current.has(table.id)}
+                              onClick={() =>
+                                run(`${table.id}:reservation`, () =>
+                                  window.fox.reservations.arrive({
+                                    tableId: table.id,
+                                    reservationId: view.reservation!.id,
+                                  }),
+                                )
+                              }
+                            >
+                              Klienti mbërriti
+                            </Button>
+                            <Button
+                              data-reservation-cancel
+                              disabled={tablePending || uncertain.current.has(table.id)}
+                              onClick={() =>
+                                run(`${table.id}:reservation`, () =>
+                                  window.fox.reservations.cancel({
+                                    tableId: table.id,
+                                    reservationId: view.reservation!.id,
+                                  }),
+                                )
+                              }
+                            >
+                              Anulo rezervimin
+                            </Button>
+                          </div>
+                        </>
+                      )}
                     </section>
                   ) : (
                     <>
@@ -598,41 +606,47 @@ export function Tables() {
                                   <small>{formatMoney(item.unitPriceCents)} / njësi</small>
                                 </div>
                                 <div className="order-item-controls">
-                                  <div className="quantity-control">
-                                    <Button
-                                      className="icon-button"
-                                      disabled={disabled || item.quantity === 1}
-                                      aria-label={`Ul sasinë e ${item.name}`}
-                                      onClick={() =>
-                                        run(key, () => window.fox.orders.decrementItem(input))
-                                      }
-                                    >
-                                      <Icon name="minus" />
-                                    </Button>
+                                  {!employee ? (
+                                    <div className="quantity-control">
+                                      <Button
+                                        className="icon-button"
+                                        disabled={disabled || item.quantity === 1}
+                                        aria-label={`Ul sasinë e ${item.name}`}
+                                        onClick={() =>
+                                          run(key, () => window.fox.orders.decrementItem(input))
+                                        }
+                                      >
+                                        <Icon name="minus" />
+                                      </Button>
+                                      <span data-order-quantity>{item.quantity}</span>
+                                      <Button
+                                        className="icon-button"
+                                        disabled={disabled}
+                                        aria-label={`Rrit sasinë e ${item.name}`}
+                                        onClick={() =>
+                                          run(key, () => window.fox.orders.incrementItem(input))
+                                        }
+                                      >
+                                        <Icon name="plus" />
+                                      </Button>
+                                    </div>
+                                  ) : (
                                     <span data-order-quantity>{item.quantity}</span>
+                                  )}
+                                  <strong>{formatMoney(item.lineTotalCents)}</strong>
+                                  {!employee && (
                                     <Button
-                                      className="icon-button"
+                                      variant="ghost"
+                                      className="icon-button remove-item"
                                       disabled={disabled}
-                                      aria-label={`Rrit sasinë e ${item.name}`}
+                                      aria-label={`Hiq ${item.name}`}
                                       onClick={() =>
-                                        run(key, () => window.fox.orders.incrementItem(input))
+                                        run(key, () => window.fox.orders.removeItem(input))
                                       }
                                     >
-                                      <Icon name="plus" />
+                                      <Icon name="trash" />
                                     </Button>
-                                  </div>
-                                  <strong>{formatMoney(item.lineTotalCents)}</strong>
-                                  <Button
-                                    variant="ghost"
-                                    className="icon-button remove-item"
-                                    disabled={disabled}
-                                    aria-label={`Hiq ${item.name}`}
-                                    onClick={() =>
-                                      run(key, () => window.fox.orders.removeItem(input))
-                                    }
-                                  >
-                                    <Icon name="trash" />
-                                  </Button>
+                                  )}
                                 </div>
                               </div>
                             );
@@ -659,7 +673,9 @@ export function Tables() {
                     : hasDraft && !message && !tablePending
                       ? !validDraft
                         ? 'Kontrollo produktet e shënuara në draft.'
-                        : 'Zgjidh POROSIT ose Mbyll llogarinë.'
+                        : employee
+                          ? 'Zgjidh POROSIT.'
+                          : 'Zgjidh POROSIT ose Mbyll llogarinë.'
                       : success || saveMessage}
               </p>
               {(!view?.reservation || draft.retry) && (
@@ -682,7 +698,7 @@ export function Tables() {
                       : 'POROSIT'}
                 </Button>
               )}
-              {!view?.reservation && (
+              {!employee && !view?.reservation && (
                 <Button
                   className="checkout-open"
                   data-open-checkout

@@ -9,6 +9,8 @@ export default defineConfig(({ command }) => ({
           : html,
     },
   ],
+  // Styles are plain CSS. Do not discover personal PostCSS settings outside the project.
+  css: { postcss: { plugins: [] } },
   base: './',
   server: { host: '127.0.0.1', port: 5173, strictPort: false },
 }));

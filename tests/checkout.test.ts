@@ -416,6 +416,7 @@ describe('completed sales reports', () => {
       { version: 4 },
       { version: 5 },
       { version: 6 },
+      { version: 7 },
     ]);
     expect(services().orders.getForTable('M5').order?.id).toBe(open.id);
   });

@@ -19,6 +19,7 @@ import {
 } from '../../src/domain/finance';
 import type { MutationResult } from '../../src/domain/configuration';
 import { readSalesReport } from './salesReports';
+import { COFFEE_STOCK_ID, coffeePortions, isCoffee } from '../../src/domain/operators';
 import { effectiveExpenses, mapExpense, safeMoney } from './financeQueries';
 import { logError } from '../main/logging';
 import { exactQuantity, exactQuantityCost, assertCashTotals } from './numericSafety';
@@ -66,7 +67,11 @@ function result<T>(action: () => T): MutationResult<T> {
 const cashSelect = `SELECT id,session_id AS sessionId,business_date AS businessDate,opening_cents AS openingCents,cash_sales_cents AS cashSalesCents,cash_expenses_cents AS cashExpensesCents,supply_cents AS supplyCents,manual_in_cents AS manualInCents,manual_out_cents AS manualOutCents,expected_cents AS expectedCents,counted_cents AS countedCents,difference_cents AS differenceCents,status,created_at AS createdAt,note,fingerprint FROM cash_closes`;
 const eventSelect = `SELECT id,kind,amount_cents AS amountCents,reason,note,created_at AS createdAt FROM cash_events`;
 const lossSelect = `SELECT id,product_id AS productId,product_name_snapshot AS name,quantity,reason,note,unit_cost_cents AS unitCostCents,total_cost_cents AS totalCostCents,occurred_at AS occurredAt FROM stock_losses`;
-export function createFinanceService(db: Database.Database, clock: () => Date = () => new Date()) {
+export function createFinanceService(
+  db: Database.Database,
+  clock: () => Date = () => new Date(),
+  duo = false,
+) {
   const expense = (id: string) =>
     mapExpense(
       db.prepare(`SELECT * FROM (${effectiveExpenses}) WHERE id=?`).get(id) as ExpenseRecord,
@@ -376,8 +381,14 @@ export function createFinanceService(db: Database.Database, clock: () => Date = 
           v.quantity > Number.MAX_SAFE_INTEGER
         )
           throw Error('Sasia duhet të jetë më e madhe se zero.');
-        const value = v as unknown as LossInput,
-          request = JSON.stringify(v);
+        const inputValue = v as unknown as LossInput;
+        const coffee = duo && isCoffee(inputValue.productId);
+        if (coffee && inputValue.productId !== COFFEE_STOCK_ID)
+          throw Error('Përdor stokun e përbashkët të kafesë.');
+        const value = coffee
+          ? { ...inputValue, quantity: coffeePortions(inputValue.quantity) }
+          : inputValue;
+        const request = JSON.stringify(v);
         let capacity: FinancialCapacity | undefined;
         const saved = db
           .transaction(() => {
@@ -405,8 +416,15 @@ export function createFinanceService(db: Database.Database, clock: () => Date = 
             if (p.quantity === null) throw Error('Stoku është pa vendosur.');
             if (p.quantity < value.quantity || p.quantity - value.quantity === p.quantity)
               throw Error('Stok i pamjaftueshëm ose sasi jashtë kufirit.');
-            const balance = exactQuantity(p.quantity, value.quantity, true),
-              total = p.cost === null ? null : exactQuantityCost(value.quantity, p.cost);
+            const balance = exactQuantity(p.quantity, value.quantity, true);
+            const total =
+              p.cost === null
+                ? null
+                : coffee
+                  ? Number((BigInt(Math.round(value.quantity * 100)) * BigInt(p.cost) + 50n) / 100n)
+                  : exactQuantityCost(value.quantity, p.cost);
+            if (total !== null && !Number.isSafeInteger(total))
+              throw Error('Kostoja është jashtë kufirit të lejuar.');
             capacity = prepareFinancialCapacity(db, {
               loss: BigInt(total ?? 0),
               missingLoss: total === null ? 1n : 0n,

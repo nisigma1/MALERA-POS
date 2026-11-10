@@ -6,6 +6,7 @@ import { openDatabase } from '../electron/database/connection';
 import { createRepositories } from '../electron/database/repositories';
 import { createOrderService } from '../electron/database/orders';
 import { createCheckoutService } from '../electron/database/checkout';
+import { inspectDatabase } from '../electron/database/health';
 
 let directory: string;
 let file: string;
@@ -48,12 +49,19 @@ it('adds 19 drafts once to the existing DUO catalog without changing history or 
     ).toBe(true);
     products = repo.listProducts();
     history = readHistory(original);
+    // An empty v7-only table can be removed here to represent the exact v6 fixture.
+    original.exec('DROP TABLE duo_order_lines; DELETE FROM schema_migrations WHERE version=7');
+    expect(inspectDatabase(original, true)).toBe(6);
   } finally {
     original.close();
   }
 
   const updated = openDatabase(file, '0.7.2-rc.4', true);
   try {
+    expect(inspectDatabase(updated, true)).toBe(7);
+    expect(
+      fs.readdirSync(path.join(directory, 'backups')).some((name) => name.endsWith('.sqlite')),
+    ).toBe(true);
     const all = createRepositories(updated).listProducts();
     const imported = all.filter(({ id }) => id.startsWith('duo-drinks-v1-'));
     expect(all.filter(({ id }) => !id.startsWith('duo-drinks-v1-'))).toEqual(products);

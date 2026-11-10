@@ -129,7 +129,7 @@ const manifest = {
   tag,
   ciRun: process.env.GITHUB_RUN_ID ?? null,
   builtAt: new Date().toISOString(),
-  schemaVersion: 6,
+  schemaVersion: 7,
   signing,
   signer: signing === 'SIGNED' ? signatures.find((s) => s.file === artifact)?.signer : null,
   sbom,

@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import type Database from 'better-sqlite3';
 import { openDatabase } from '../database/connection';
 import { isDuoCatalogTerminal } from '../database/duoCatalog';
+import { createOperatorSession, requiresOperatorLogin } from './operatorSession';
+import { readShiftSales } from '../database/duoReports';
 import { createRepositories } from '../database/repositories';
 import { createConfigurationService } from '../database/configuration';
 import { createCheckoutService } from '../database/checkout';
@@ -88,8 +90,19 @@ async function start() {
   window.webContents.session.webRequest.onBeforeRequest((details, callback) => {
     callback({ cancel: !allowedResource(details.url, path.resolve(__dirname, '../dist'), devUrl) });
   });
-  const repositories = createRepositories(database);
-  const orders = createOrderService(database, repositories);
+  const duo = app.isPackaged && !qaDirectory && requiresOperatorLogin(userData);
+  const setupPending = app.isPackaged && !qaDirectory && isDuoCatalogTerminal() && !duo;
+  const access = createOperatorSession(userData, duo, Date.now, setupPending);
+  window.webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
+    if (isMainFrame && !isInPlace) access.logout();
+  });
+  window.webContents.on('render-process-gone', () => access.logout());
+  const repositories = createRepositories(database, duo);
+  const orders = createOrderService(
+    database,
+    repositories,
+    duo ? { operator: access.current } : undefined,
+  );
   const receiptRepository = createReceiptRepository(database),
     printerAdapter = new WindowsPrinterAdapter(window);
   printManager = new PrintManager(receiptRepository, printerAdapter);
@@ -97,14 +110,16 @@ async function start() {
   registerIpc(
     window,
     repositories,
-    createConfigurationService(database, repositories),
+    createConfigurationService(database, repositories, duo),
     orders,
-    createCheckoutService(database, orders),
+    createCheckoutService(database, orders, duo),
     createReceiptService(receiptRepository, printerAdapter, printManager),
     printManager,
     protection,
-    createFinanceService(database),
+    createFinanceService(database, undefined, duo),
     createReservationService(database, orders),
+    access,
+    duo ? (input) => readShiftSales(database!, input) : undefined,
   );
   printManager.start();
   const rendererErrors: string[] = [];

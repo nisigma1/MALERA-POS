@@ -1,9 +1,16 @@
 import { amountError } from '../../domain/operatorInput';
-import { useRef, useState } from 'react';
+import { useContext, useRef, useState } from 'react';
 import type { CatalogProduct } from '../../domain/types';
 import { parseEuro } from '../../domain/money';
 import { parseQuantity, type FieldErrors } from '../../domain/configuration';
 import { Button, EmptyState, Field, SidePanel, useFieldErrorFocus } from '../common/Controls';
+import { OperatorContext } from '../../app/operatorContext';
+import {
+  COFFEE_STOCK_ID,
+  coffeePortions,
+  coffeeStockLabel,
+  isCoffee,
+} from '../../domain/operators';
 export function SupplyPanel({
   products,
   onClose,
@@ -13,7 +20,13 @@ export function SupplyPanel({
   onClose: () => void;
   onSaved: (product: CatalogProduct) => void;
 }) {
-  const eligible = products.filter((p) => p.active && p.trackInventory === true);
+  const duo = useContext(OperatorContext).required;
+  const eligible = products.filter(
+    (p) =>
+      p.active &&
+      p.trackInventory === true &&
+      (!duo || !isCoffee(p.id) || p.id === COFFEE_STOCK_ID),
+  );
   const [productId, setProductId] = useState('');
   const [drawer, setDrawer] = useState(false),
     [paid, setPaid] = useState('');
@@ -30,11 +43,12 @@ export function SupplyPanel({
       return next;
     });
   const selected = eligible.find((p) => p.id === productId);
+  const coffee = duo && selected?.id === COFFEE_STOCK_ID;
   useFieldErrorFocus(errors, busy, 'supply-form');
   let amountPreview: number | null = null;
   try {
     const value = parseQuantity(quantity);
-    if (value !== null && value > 0) amountPreview = value;
+    if (value !== null && value > 0) amountPreview = coffee ? coffeePortions(value) : value;
   } catch {
     /* Show no result for invalid input. */
   }
@@ -52,10 +66,13 @@ export function SupplyPanel({
     let amount: number | null = null;
     try {
       amount = parseQuantity(quantity);
+      if (coffee && amount !== null) coffeePortions(amount);
       if (amount === null || amount <= 0)
         nextErrors.quantity = 'Sasia duhet të jetë më e madhe se zero.';
     } catch {
-      nextErrors.quantity = 'Vendos një sasi të vlefshme, më të madhe se zero.';
+      nextErrors.quantity = coffee
+        ? 'Shkruaj kilogramët me deri në tri shifra pas presjes.'
+        : 'Vendos një sasi të vlefshme, më të madhe se zero.';
     }
     if (!selected) nextErrors.productId = 'Zgjidh produktin.';
     let drawerPaymentCents: number | undefined;
@@ -135,12 +152,12 @@ export function SupplyPanel({
                 <option value="">Zgjidh produktin</option>
                 {eligible.map((p) => (
                   <option value={p.id} key={p.id}>
-                    {p.name}
+                    {duo && p.id === COFFEE_STOCK_ID ? 'Kafe (stok i përbashkët)' : p.name}
                   </option>
                 ))}
               </select>
             </Field>
-            <Field id="quantity" label="Sasia" error={errors.quantity}>
+            <Field id="quantity" label={coffee ? 'Sasia (kg)' : 'Sasia'} error={errors.quantity}>
               <input
                 id="quantity"
                 inputMode="decimal"
@@ -184,15 +201,31 @@ export function SupplyPanel({
                 </div>
                 <div>
                   <dt>Stoku tani</dt>
-                  <dd>{selected ? (selected.stockQuantity ?? 'Pa vendosur') : '—'}</dd>
+                  <dd>
+                    {selected
+                      ? selected.stockQuantity === null
+                        ? 'Pa vendosur'
+                        : coffee
+                          ? coffeeStockLabel(selected.stockQuantity)
+                          : selected.stockQuantity
+                      : '—'}
+                  </dd>
                 </div>
                 <div>
                   <dt>Sasia që shtohet</dt>
-                  <dd>{amountPreview ?? '—'}</dd>
+                  <dd>
+                    {amountPreview === null
+                      ? '—'
+                      : coffee
+                        ? coffeeStockLabel(amountPreview)
+                        : amountPreview}
+                  </dd>
                 </div>
                 <div className="supply-result">
                   <dt>Stoku pas shtimit</dt>
-                  <dd aria-live="polite">{validPreview ? nextStock : '—'}</dd>
+                  <dd aria-live="polite">
+                    {validPreview ? (coffee ? coffeeStockLabel(nextStock!) : nextStock) : '—'}
+                  </dd>
                 </div>
               </dl>
             </section>

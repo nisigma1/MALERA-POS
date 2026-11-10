@@ -8,10 +8,12 @@ import {
 } from '../../src/domain/configuration';
 import type { CatalogProduct, Settings } from '../../src/domain/types';
 import type { createRepositories } from './repositories';
+import { COFFEE_STOCK_ID, coffeePortions, isCoffee } from '../../src/domain/operators';
 import { exactQuantity, assertCashTotals } from './numericSafety';
 export function createConfigurationService(
   db: Database.Database,
   repositories: ReturnType<typeof createRepositories>,
+  duo = false,
 ) {
   const find = (id: string) => repositories.listProducts().find((product) => product.id === id);
   const failure = (errors: Record<string, string>): MutationResult<CatalogProduct> => ({
@@ -52,6 +54,8 @@ export function createConfigurationService(
       const errors = validateProductUpdate(input);
       if (Object.keys(errors).length) return failure(errors);
       const value = input as ProductUpdate;
+      if (duo && value.id === COFFEE_STOCK_ID && value.trackInventory !== true)
+        return failure({ trackInventory: 'Stoku i përbashkët i kafesë duhet të ndiqet.' });
       return db
         .transaction(() => {
           if (!find(value.id)) return failure({ form: 'Produkti nuk u gjet.' });
@@ -79,6 +83,16 @@ export function createConfigurationService(
       const errors = validateSupply(input);
       if (Object.keys(errors).length) return failure(errors);
       const value = input as SupplyRequest;
+      let incoming = value.quantity;
+      if (duo && isCoffee(value.productId)) {
+        if (value.productId !== COFFEE_STOCK_ID)
+          return failure({ productId: 'Përdor stokun e përbashkët të kafesë.' });
+        try {
+          incoming = coffeePortions(value.quantity);
+        } catch {
+          return failure({ quantity: 'Shkruaj kilogramët me deri në tri shifra pas presjes.' });
+        }
+      }
       return db
         .transaction(() => {
           const product = find(value.productId);
@@ -98,7 +112,7 @@ export function createConfigurationService(
             if (
               existing.product_id !== value.productId ||
               existing.type !== 'SUPPLY' ||
-              existing.quantity_delta !== value.quantity
+              existing.quantity_delta !== incoming
             )
               return failure({
                 form: 'Ky furnizim është regjistruar me të dhëna të tjera. Hap një furnizim të ri.',
@@ -112,7 +126,7 @@ export function createConfigurationService(
             });
           let quantity: number;
           try {
-            quantity = exactQuantity(product.stockQuantity ?? 0, value.quantity);
+            quantity = exactQuantity(product.stockQuantity ?? 0, incoming);
           } catch {
             return failure({ quantity: 'Sasia nuk mund të ruhet saktë.' });
           }
@@ -129,7 +143,7 @@ export function createConfigurationService(
           ).run(
             value.requestId,
             product.id,
-            value.quantity,
+            incoming,
             product.stockQuantity === null
               ? 'Vendosja fillestare e stokut përmes furnizimit'
               : null,

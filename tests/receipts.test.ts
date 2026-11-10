@@ -90,8 +90,8 @@ afterEach(() => {
 });
 
 describe('receipt snapshots and migration', () => {
-  it('fresh migration is v6 with clean documents, jobs and safe printer defaults', () => {
-    expect(db.prepare('SELECT MAX(version) AS v FROM schema_migrations').get()).toEqual({ v: 6 });
+  it('fresh migration is v7 with clean documents, jobs and safe printer defaults', () => {
+    expect(db.prepare('SELECT MAX(version) AS v FROM schema_migrations').get()).toEqual({ v: 7 });
     expect(repo().settings()).toEqual({
       deviceName: null,
       displayName: null,

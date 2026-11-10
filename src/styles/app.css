@@ -65,6 +65,22 @@ h3 {
 .shell[data-sidebar-compact='true'] {
   --sidebar-width: var(--sidebar-compact-width);
 }
+.operator-login {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 1rem;
+}
+.operator-login form {
+  display: grid;
+  gap: 1rem;
+  width: min(100%, 26rem);
+}
+.operator-login label {
+  display: grid;
+  gap: 0.35rem;
+}
+
 .sidebar {
   height: 100vh;
   padding: 20px 12px 14px;
@@ -175,7 +191,23 @@ h3 {
   font-weight: 600;
   color: var(--secondary);
 }
-[data-sidebar-compact='true'] .sidebar {
+[data-sidebar-compact='true'] .operator-login {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 1rem;
+}
+.operator-login form {
+  display: grid;
+  gap: 1rem;
+  width: min(100%, 26rem);
+}
+.operator-login label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.sidebar {
   padding-inline: 9px;
 }
 [data-sidebar-compact='true'] .sidebar-head {
@@ -2301,6 +2333,22 @@ select[aria-invalid='true'] {
     flex-basis: 32px;
     height: 32px;
   }
+  .operator-login {
+    display: grid;
+    place-items: center;
+    min-height: 100vh;
+    padding: 1rem;
+  }
+  .operator-login form {
+    display: grid;
+    gap: 1rem;
+    width: min(100%, 26rem);
+  }
+  .operator-login label {
+    display: grid;
+    gap: 0.35rem;
+  }
+
   .sidebar {
     padding-top: 8px;
     gap: 9px;
@@ -2358,6 +2406,22 @@ select[aria-invalid='true'] {
   :root {
     --sidebar-width: 96px;
   }
+  .operator-login {
+    display: grid;
+    place-items: center;
+    min-height: 100vh;
+    padding: 1rem;
+  }
+  .operator-login form {
+    display: grid;
+    gap: 1rem;
+    width: min(100%, 26rem);
+  }
+  .operator-login label {
+    display: grid;
+    gap: 0.35rem;
+  }
+
   .sidebar {
     padding-inline: 6px;
   }
@@ -2555,6 +2619,22 @@ select[aria-invalid='true'] {
   :root {
     --sidebar-width: 88px;
   }
+  .operator-login {
+    display: grid;
+    place-items: center;
+    min-height: 100vh;
+    padding: 1rem;
+  }
+  .operator-login form {
+    display: grid;
+    gap: 1rem;
+    width: min(100%, 26rem);
+  }
+  .operator-login label {
+    display: grid;
+    gap: 0.35rem;
+  }
+
   .sidebar {
     padding-inline: 2px;
   }

@@ -3,7 +3,7 @@ export { exactQuantity, exactQuantityCost } from '../../src/domain/quantity';
 
 export function assertCashTotals(db: Database.Database): void {
   // Legacy migration fixtures predate the cash domain. Operational connections
-  // are always inspected/migrated before commands and must have schema 6.
+  // are always inspected/migrated before commands and must have the current schema.
   if (!db.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name='cash_events'").get())
     return;
   const groups = db

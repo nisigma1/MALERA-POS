@@ -1,9 +1,16 @@
-import { useRef, useState } from 'react';
+import { useContext, useRef, useState } from 'react';
 import type { CatalogProduct } from '../../domain/types';
 import { LOSS_REASONS, type LossReason } from '../../domain/finance';
 import { parseQuantity } from '../../domain/configuration';
 import { formatMoney } from '../../domain/money';
 import { Button, Field, SidePanel, useFieldErrorFocus } from '../common/Controls';
+import { OperatorContext } from '../../app/operatorContext';
+import {
+  COFFEE_STOCK_ID,
+  coffeePortions,
+  coffeeStockLabel,
+  isCoffee,
+} from '../../domain/operators';
 export function StockLossPanel({
   products,
   onClose,
@@ -13,7 +20,10 @@ export function StockLossPanel({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const eligible = products.filter((p) => p.trackInventory === true),
+  const duo = useContext(OperatorContext).required;
+  const eligible = products.filter(
+      (p) => p.trackInventory === true && (!duo || !isCoffee(p.id) || p.id === COFFEE_STOCK_ID),
+    ),
     [productId, setProduct] = useState(''),
     [quantity, setQuantity] = useState(''),
     [reason, setReason] = useState<LossReason>('DAMAGED'),
@@ -23,6 +33,7 @@ export function StockLossPanel({
     [requestId] = useState(() => crypto.randomUUID());
   const submitting = useRef(false),
     selected = eligible.find((p) => p.id === productId);
+  const coffee = duo && selected?.id === COFFEE_STOCK_ID;
   useFieldErrorFocus(errors, busy, 'loss-form');
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -31,8 +42,13 @@ export function StockLossPanel({
     try {
       value = parseQuantity(quantity)!;
       if (value === null || value <= 0) throw Error();
+      if (coffee) coffeePortions(value);
     } catch {
-      setErrors({ quantity: 'Vendos një sasi më të madhe se zero.' });
+      setErrors({
+        quantity: coffee
+          ? 'Shkruaj kilogramët me deri në tri shifra pas presjes.'
+          : 'Vendos një sasi më të madhe se zero.',
+      });
       return;
     }
     if (!selected) {
@@ -100,20 +116,26 @@ export function StockLossPanel({
               <option value="">Zgjidh produktin</option>
               {eligible.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name}
+                  {duo && p.id === COFFEE_STOCK_ID ? 'Kafe (stok i përbashkët)' : p.name}
                 </option>
               ))}
             </select>
           </Field>
           {selected && (
             <p className="notice">
-              Stoku: {selected.stockQuantity ?? 'Pa vendosur'} · Kosto/copë:{' '}
+              Stoku:{' '}
+              {selected.stockQuantity === null
+                ? 'Pa vendosur'
+                : coffee
+                  ? coffeeStockLabel(selected.stockQuantity)
+                  : selected.stockQuantity}{' '}
+              · Kosto/copë:{' '}
               {selected.purchaseCostCents === null
                 ? 'Mungon'
                 : formatMoney(selected.purchaseCostCents)}
             </p>
           )}
-          <Field id="loss-quantity" label="Sasia" error={errors.quantity}>
+          <Field id="loss-quantity" label={coffee ? 'Sasia (kg)' : 'Sasia'} error={errors.quantity}>
             <input
               id="loss-quantity"
               inputMode="decimal"

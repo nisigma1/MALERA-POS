@@ -255,7 +255,7 @@ describe('permanent canonical service-position contract', () => {
         saleNumber: 1,
         totalCents: 100,
       });
-      expect(inspectDatabase(db, true)).toBe(6);
+      expect(inspectDatabase(db, true)).toBe(7);
     },
   );
   it('retains an immutable rc.1 B/J receipt byte-for-byte while new sales use canonical codes', () => {
@@ -342,7 +342,7 @@ describe('permanent canonical service-position contract', () => {
       db.close();
       db = track(openDatabase(file, '0.7.0-rc.2'));
       expect(snapshot(db)).toEqual(corrected);
-      expect(inspectDatabase(db, true)).toBe(6);
+      expect(inspectDatabase(db, true)).toBe(7);
       expect(fs.existsSync(path.join(path.dirname(file), 'backups'))).toBe(true);
     },
   );
@@ -368,11 +368,11 @@ describe('permanent canonical service-position contract', () => {
       cash = s.finance.cashPreview({ openingCents: 50 });
     const backup = path.join(root, 'BEFORE.sqlite');
     await createBackup(db, backup, '0.7.0-rc.1');
-    expect((await validateBackup(backup)).schemaVersion).toBe(6);
+    expect((await validateBackup(backup)).schemaVersion).toBe(7);
     const restored = track(openDatabase(backup, '0.7.0-rc.2'));
     expect(snapshot(restored)).toEqual(before);
     expect(services(restored).finance.report({ period: 'ALL' })).toEqual(report);
     expect(services(restored).finance.cashPreview({ openingCents: 50 })).toEqual(cash);
-    expect(inspectDatabase(restored, true)).toBe(6);
+    expect(inspectDatabase(restored, true)).toBe(7);
   });
 });

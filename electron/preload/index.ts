@@ -1,6 +1,20 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { IPC, DATA_IPC, FINANCE_IPC, RESERVATION_IPC, type FoxApi } from '../../src/types/api';
+import {
+  IPC,
+  DATA_IPC,
+  FINANCE_IPC,
+  RESERVATION_IPC,
+  OPERATOR_IPC,
+  type FoxApi,
+} from '../../src/types/api';
 const api: FoxApi = {
+  operators: {
+    status: () => ipcRenderer.invoke(OPERATOR_IPC.status),
+    login: (input) => ipcRenderer.invoke(OPERATOR_IPC.login, input),
+    logout: () => ipcRenderer.invoke(OPERATOR_IPC.logout),
+    report: (period) => ipcRenderer.invoke(OPERATOR_IPC.report, period),
+    catalog: () => ipcRenderer.invoke(OPERATOR_IPC.catalog),
+  },
   reservations: {
     reserve: (input) => ipcRenderer.invoke(RESERVATION_IPC.reserve, input),
     arrive: (input) => ipcRenderer.invoke(RESERVATION_IPC.arrive, input),

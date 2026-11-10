@@ -4,7 +4,7 @@ An offline touchscreen point-of-sale application for a single Windows x64 termin
 
 The app manages a 27-position floor plan, persistent orders, cash checkout, stock, reservations, receipts, expenses and cash reconciliation. Money is stored in integer cents. Checkout effects are recorded transactionally.
 
-**Status:** `0.7.2-rc.4`, database schema `6`, QA release candidate. Desktop builds are unsigned. Real prices, stock settings and a receipt printer must be configured before service.
+**Status:** `0.7.2-rc.4`, database schema `7`, QA release candidate. Desktop builds are unsigned. Real prices, stock settings and a receipt printer must be configured before service.
 
 ## Start here
 
@@ -78,3 +78,19 @@ Live business data stays in `%APPDATA%\FOX Kafeteri`, outside the checkout and i
 Do not rename/delete the data directory, change persisted table IDs, rewrite historical sale costs from current prices, or remove recovery checks as a cleanup shortcut. Read [contribution rules](CONTRIBUTING.md) before changing financial or storage behavior.
 
 This repository begins with one consolidated source commit. Earlier history was archived outside the repository before consolidation. [Historical notes](docs/history/PHASE_HISTORY.md) provide context and do not override current guides or checks.
+
+## Përgatitja e llogarive në terminalin DUO
+
+Përditësimi e lë terminalin të përdorshëm derisa të konfigurohen PIN-et.
+Për të aktivizuar llogaritë, raportet e turneve dhe kafenë në kg, krijo një
+kopje rezervë përmes MALERA POS. Pastaj mbylle aplikacionin dhe, nga
+llogaria e zakonshme e Windows-it në HP, ekzekuto `scripts/release/provision-duo-pins.ps1`
+me Windows PowerShell. Fut PIN-et vetëm në kërkesat e maskuara në terminal.
+Verifikuesit ruhen në profilin e Windows-it dhe mbrohen me DPAPI. Mbaje PIN-in
+e pronarit privat. Punonjësi zgjedh llogarinë e vet para hyrjes dhe del nga
+llogaria kur ia dorëzon terminalin turnit tjetër.
+
+Te Stoku, furnizimi i përbashkët i kafesë futet në kg. Një kg jep 110 porcione.
+Porositë e konfirmuara e zbresin stokun menjëherë. Raportet e turnit ia
+atribuojnë artikujt e paguar përdoruesit që i ka konfirmuar. Pagesat e vjetra
+pa përdorues mbeten në totalin e ditës pa emër punonjësi.

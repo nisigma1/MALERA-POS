@@ -6,7 +6,7 @@ import Database from 'better-sqlite3';
 import { openDatabase } from '../electron/database/connection';
 import { migrations } from '../electron/database/migrations';
 import { seed } from '../electron/database/seed';
-import { inspectDatabase } from '../electron/database/health';
+import { currentSchemaVersion, inspectDatabase } from '../electron/database/health';
 import {
   assertDestination,
   createBackup,
@@ -75,12 +75,12 @@ describe('consistent backup and integrity', () => {
       file = path.join(directory, 'manual.sqlite');
     const manifest = await createBackup(db, file, version);
     expect(manifest.sha256).toBe(await fileHash(file));
-    expect(manifest.schemaVersion).toBe(6);
+    expect(manifest.schemaVersion).toBe(7);
     const copy = new Database(file, { readonly: true });
     try {
       expect(dump(copy)).toEqual(before);
       expect(readSalesReport(copy, 'ALL')).toEqual(report);
-      expect(inspectDatabase(copy, true)).toBe(6);
+      expect(inspectDatabase(copy, true)).toBe(7);
     } finally {
       copy.close();
     }
@@ -227,7 +227,7 @@ describe('safe restore', () => {
       ).rejects.toThrow('injected');
       if (!db.open) db = openDatabase(filename);
       expect(dump()).toEqual(before);
-      expect(inspectDatabase(db, true)).toBe(6);
+      expect(inspectDatabase(db, true)).toBe(7);
       expect(
         fs
           .readdirSync(path.join(directory, 'backups'))
@@ -312,7 +312,7 @@ describe('safe restore', () => {
       vi.fn(),
     );
     db = openDatabase(filename);
-    expect(inspectDatabase(db)).toBe(6);
+    expect(inspectDatabase(db)).toBe(7);
     expect(db.prepare('SELECT COUNT(*) AS n FROM receipt_documents').get()).toEqual({ n: 0 });
   });
 });
@@ -348,7 +348,10 @@ describe('migration and bounded diagnostics', () => {
   it('failed migration leaves verified safety backup and transaction rollback', () => {
     const before = dump();
     db.close();
-    migrations.push({ version: 7, sql: 'CREATE TABLE temporary_failure(id TEXT); INVALID SQL;' });
+    migrations.push({
+      version: currentSchemaVersion() + 1,
+      sql: 'CREATE TABLE temporary_failure(id TEXT); INVALID SQL;',
+    });
     try {
       expect(() => openDatabase(filename)).toThrow();
       const copy = new Database(filename, { readonly: true });
@@ -369,7 +372,10 @@ describe('migration and bounded diagnostics', () => {
   it('backup failure prevents future migration from starting', () => {
     db.close();
     fs.writeFileSync(path.join(directory, 'backups'), 'not a directory');
-    migrations.push({ version: 7, sql: 'CREATE TABLE future_table(id TEXT);' });
+    migrations.push({
+      version: currentSchemaVersion() + 1,
+      sql: 'CREATE TABLE future_table(id TEXT);',
+    });
     try {
       expect(() => openDatabase(filename)).toThrow();
     } finally {

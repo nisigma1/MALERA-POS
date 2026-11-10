@@ -687,7 +687,7 @@ describe('owner finance and immutable daily control', () => {
       rows = db.prepare('SELECT * FROM expenses').all();
     migrate(db);
     migrate(db);
-    expect(inspectDatabase(db, true)).toBe(6);
+    expect(inspectDatabase(db, true)).toBe(7);
     expect(db.prepare('SELECT * FROM expenses').all()).toEqual(rows);
     expect(readSalesReport(db, 'ALL')).toEqual(before);
     expect(all().expenses[0]!.paidFromTill).toBeNull();
@@ -715,7 +715,7 @@ describe('owner finance and immutable daily control', () => {
       service().closeCash(cash());
       const before = all();
       await createBackup(db, path.join(folder, 'backup.sqlite'), '0.7.0-rc.1');
-      expect((await validateBackup(path.join(folder, 'backup.sqlite'))).schemaVersion).toBe(6);
+      expect((await validateBackup(path.join(folder, 'backup.sqlite'))).schemaVersion).toBe(7);
       db.close();
       db = openDatabase(file);
       expect(all()).toEqual(before);

@@ -11,6 +11,8 @@ import type {
 import type { MutationResult } from '../../src/domain/configuration';
 import type { createRepositories } from './repositories';
 import { bookedReservation } from './reservations';
+import { isCoffee, type OperatorId } from '../../src/domain/operators';
+import { changeCoffeeStock, coffeeBalance } from './duoCoffee';
 
 // Includes quantities and immutable snapshots; timestamps alone can collide within a millisecond.
 export const orderRevision = (lines: ActiveOrderItem[]) =>
@@ -115,6 +117,7 @@ function safe(value: bigint): number {
 export function createOrderService(
   db: Database.Database,
   repositories: ReturnType<typeof createRepositories>,
+  duo?: { operator: () => OperatorId | null },
 ) {
   const activeRow = (tableId: string) =>
     db
@@ -186,7 +189,20 @@ export function createOrderService(
       if (!view.order || !line)
         throw new OrderError('Artikulli nuk i përket porosisë aktive të kësaj tavoline.');
       const now = new Date().toISOString();
+      const coffee = Boolean(duo && isCoffee(line.productId));
+      const reserved = coffee
+        ? ((db
+            .prepare('SELECT coffee_portions FROM duo_order_lines WHERE item_id=?')
+            .pluck()
+            .get(line.id) as number | undefined) ?? 0)
+        : 0;
+      const changeCoffee = (delta: number) => {
+        if (!delta) return;
+        const issue = changeCoffeeStock(db, view.order!.id, delta, now);
+        if (issue) throw new OrderError(issue);
+      };
       if (action === 'remove') {
+        changeCoffee(reserved);
         db.prepare('DELETE FROM order_items WHERE id=? AND order_id=?').run(line.id, view.order.id);
         if (view.order.items.length === 1) {
           db.prepare(
@@ -209,6 +225,17 @@ export function createOrderService(
             line.id,
             view.order.id,
           );
+          if (coffee) {
+            const delta = quantity > line.quantity ? 1 : reserved > 0 ? -1 : 0;
+            changeCoffee(-delta);
+            if (delta) {
+              const actor = duo?.operator();
+              if (!actor) throw new OrderError('Hyr me PIN për të ruajtur porosinë.');
+              db.prepare(
+                'INSERT INTO duo_order_lines VALUES (?,?,?) ON CONFLICT(item_id) DO UPDATE SET coffee_portions=excluded.coffee_portions',
+              ).run(line.id, actor, reserved + delta);
+            }
+          }
           touch(view.order.id, now);
         }
       }
@@ -230,11 +257,17 @@ export function createOrderService(
         writable(view);
         const product = repositories.listProducts().find((p) => p.id === targetId);
         if (!product) throw new OrderError('Produkti nuk u gjet.');
-        if (product.trackInventory === null)
+        const actor = duo?.operator();
+        if (duo && !actor) throw new OrderError('Hyr me PIN për të ruajtur porosinë.');
+        const coffee = Boolean(duo && isCoffee(product.id));
+        const stock = coffee ? coffeeBalance(db) : null;
+        if (coffee && (stock === null || stock < quantity))
+          throw new OrderError('Stoku i kafesë nuk është i mjaftueshëm ose nuk është vendosur.');
+        if (!coffee && product.trackInventory === null)
           throw new OrderError('Stoku pa konfiguruar. Zgjidh Po ose Jo te Inventari.');
-        if (product.trackInventory === true && product.stockQuantity === null)
+        if (!coffee && product.trackInventory === true && product.stockQuantity === null)
           throw new OrderError('Stok pa vendosur. Vendos stokun te Inventari.');
-        if (product.trackInventory === true && product.stockQuantity! <= 0)
+        if (!coffee && product.trackInventory === true && product.stockQuantity! <= 0)
           throw new OrderError('Pa stok. Shto furnizim te Inventari.');
         if (!product.active) throw new OrderError('Produkti nuk është aktiv.');
         if (product.sellingPriceCents === null)
@@ -262,7 +295,9 @@ export function createOrderService(
         const existing = db
           .prepare(
             `SELECT id,quantity FROM order_items WHERE order_id=? AND product_id=?
-          AND product_name_snapshot=? AND unit_price_cents=? AND unit_cost_cents IS ? ORDER BY rowid LIMIT 1`,
+          AND product_name_snapshot=? AND unit_price_cents=? AND unit_cost_cents IS ?
+          ${duo ? 'AND (SELECT operator_id FROM duo_order_lines WHERE item_id=order_items.id)=?' : ''}
+          ORDER BY rowid LIMIT 1`,
           )
           .get(
             orderId,
@@ -270,7 +305,9 @@ export function createOrderService(
             product.name,
             product.sellingPriceCents,
             product.purchaseCostCents,
+            ...(duo ? [actor] : []),
           ) as { id: string; quantity: number } | undefined;
+        const itemId = existing?.id ?? randomUUID();
         if (existing)
           db.prepare('UPDATE order_items SET quantity=? WHERE id=?').run(
             safe(BigInt(existing.quantity) + BigInt(quantity)),
@@ -281,7 +318,7 @@ export function createOrderService(
             `INSERT INTO order_items (id,order_id,product_id,product_name_snapshot,quantity,unit_price_cents,unit_cost_cents,created_at)
           VALUES (?,?,?,?,?,?,?,?)`,
           ).run(
-            randomUUID(),
+            itemId,
             orderId,
             product.id,
             product.name,
@@ -290,6 +327,14 @@ export function createOrderService(
             product.purchaseCostCents,
             now,
           );
+        if (coffee) {
+          const issue = changeCoffeeStock(db, orderId, -quantity, now);
+          if (issue) throw new OrderError(issue);
+        }
+        if (actor)
+          db.prepare(
+            'INSERT INTO duo_order_lines VALUES (?,?,?) ON CONFLICT(item_id) DO UPDATE SET coffee_portions=coffee_portions+excluded.coffee_portions',
+          ).run(itemId, actor, coffee ? quantity : 0);
         touch(orderId, now);
         return read(tableId);
       });
@@ -300,7 +345,13 @@ export function createOrderService(
         const { requestId, tableId, orderId, expectedRevision, items } = draftCommand(input);
         const key = 'fox_order_draft_v1:' + requestId;
         const fingerprint = createHash('sha256')
-          .update(JSON.stringify([tableId, orderId, expectedRevision, items]))
+          .update(
+            JSON.stringify(
+              duo
+                ? [tableId, orderId, expectedRevision, items, duo.operator()]
+                : [tableId, orderId, expectedRevision, items],
+            ),
+          )
           .digest('hex');
         const previous = db.prepare('SELECT value FROM settings WHERE key=?').get(key) as
           | { value: string }

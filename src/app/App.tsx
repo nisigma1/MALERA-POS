@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Tables } from '../pages/Tables';
 import { Inventory } from '../pages/Inventory';
 import { Reports } from '../pages/Reports';
@@ -10,6 +10,10 @@ import { PrintNotices } from '../components/receipts/PrintNotices';
 import { useData } from './useData';
 import { OrderDraftContext } from './orderDraftContext';
 import { PRODUCT_NAME } from '../domain/brand';
+import { DataState } from '../components/common/DataState';
+import { OperatorLogin } from '../components/branding/OperatorLogin';
+import { OperatorContext, openSession } from './operatorContext';
+import { OPERATORS, type OperatorSession } from '../domain/operators';
 import type { TableDraft } from '../domain/orderDraft';
 
 const loadIdentity = () => window.fox.settings.get();
@@ -19,11 +23,49 @@ const sections = [
   { id: 'reports', label: 'Raportet', component: Reports },
   { id: 'settings', label: 'Cilësimet', component: Settings },
 ] as const;
+const loadSession = () => window.fox.operators?.status() ?? Promise.resolve(openSession);
 export function App() {
+  const { data, error, retry, setData } = useData(loadSession);
+  const [logoutError, setLogoutError] = useState(false);
+  if (!data) return <DataState error={error} retry={retry} />;
+  if (data.required && !data.operator)
+    return <OperatorLogin configured={data.configured} onLogin={setData} />;
+  return (
+    <OperatorContext.Provider value={data}>
+      <AppScreen
+        key={data.operator ?? 'local'}
+        session={data}
+        logoutError={logoutError}
+        onLogout={async () => {
+          setLogoutError(false);
+          try {
+            setData(await window.fox.operators.logout());
+          } catch {
+            setLogoutError(true);
+          }
+        }}
+      />
+    </OperatorContext.Provider>
+  );
+}
+function AppScreen({
+  session,
+  logoutError,
+  onLogout,
+}: {
+  session: OperatorSession;
+  logoutError: boolean;
+  onLogout: () => Promise<void>;
+}) {
+  const employee = session.required && session.operator !== 'OWNER';
   const [section, setSection] = useState<(typeof sections)[number]>(sections[0]);
   const [compact, setCompact] = useState(false);
   const [drafts, setDrafts] = useState(() => new Map<string, TableDraft>());
-  const identity = useData(loadIdentity);
+  const loadBusiness = useCallback(
+    () => (employee ? Promise.resolve({ businessName: 'DUO' }) : loadIdentity()),
+    [employee],
+  );
+  const identity = useData(loadBusiness);
   const businessName = identity.data?.businessName.trim();
   const Page = section.component;
   const [now, setNow] = useState(new Date());
@@ -61,7 +103,7 @@ export function App() {
             </Button>
           </div>
           <nav id="main-nav" aria-label="Navigimi kryesor">
-            {sections.map((item) => (
+            {(employee ? sections.slice(0, 1) : sections).map((item) => (
               <button
                 key={item.id}
                 data-nav={item.id}
@@ -87,6 +129,10 @@ export function App() {
         </aside>
         <div className="workspace">
           <div className="topbar">
+            {session.operator && (
+              <Button onClick={() => void onLogout()}>{OPERATORS[session.operator]} · Dil</Button>
+            )}
+            {logoutError && <span role="alert">Dalja nuk u krye. Provo përsëri.</span>}
             <time dateTime={now.toISOString()}>
               <span>
                 <Icon name="calendar" />
@@ -98,8 +144,14 @@ export function App() {
               </strong>
             </time>
           </div>
-          <PrintNotices />
+          {!employee && <PrintNotices />}
           <main className="content">
+            {session.setupPending && (
+              <p className="notice">
+                Konfiguroni PIN-et në HP për të aktivizuar llogaritë, raportet e turneve dhe stokun
+                e kafesë në kg.
+              </p>
+            )}
             {section.id === 'settings' ? <Settings onNameChanged={identity.refresh} /> : <Page />}
           </main>
         </div>

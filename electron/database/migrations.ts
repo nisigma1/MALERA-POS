@@ -297,6 +297,29 @@ WHEN OLD.status!='BOOKED' OR NEW.status NOT IN ('ARRIVED','CANCELLED')
 BEGIN SELECT RAISE(ABORT,'Reservation details immutable'); END;
 `,
   },
+  {
+    version: 7,
+    sql: `
+CREATE TABLE duo_order_lines (
+  item_id TEXT PRIMARY KEY NOT NULL REFERENCES order_items(id) ON DELETE CASCADE,
+  operator_id TEXT NOT NULL CHECK(operator_id IN ('OWNER','AM','PM')),
+  coffee_portions INTEGER NOT NULL CHECK(coffee_portions >= 0)
+) STRICT;
+CREATE TRIGGER duo_order_line_insert_open BEFORE INSERT ON duo_order_lines
+WHEN NOT EXISTS(SELECT 1 FROM order_items i JOIN orders o ON o.id=i.order_id
+ WHERE i.id=NEW.item_id AND o.status='OPEN' AND NEW.coffee_portions<=i.quantity)
+BEGIN SELECT RAISE(ABORT,'DUO order item is invalid'); END;
+CREATE TRIGGER duo_order_line_update_open BEFORE UPDATE ON duo_order_lines
+WHEN NEW.item_id!=OLD.item_id OR NEW.operator_id!=OLD.operator_id
+ OR NOT EXISTS(SELECT 1 FROM order_items i JOIN orders o ON o.id=i.order_id
+ WHERE i.id=NEW.item_id AND o.status='OPEN' AND NEW.coffee_portions<=i.quantity)
+BEGIN SELECT RAISE(ABORT,'DUO order item is immutable or invalid'); END;
+CREATE TRIGGER duo_order_line_delete_open BEFORE DELETE ON duo_order_lines
+WHEN EXISTS(SELECT 1 FROM order_items i JOIN orders o ON o.id=i.order_id
+ WHERE i.id=OLD.item_id AND o.status='CLOSED')
+BEGIN SELECT RAISE(ABORT,'DUO sale attribution is immutable'); END;
+`,
+  },
 ];
 
 export function migrate(db: Database.Database, beforeMigration?: () => void): void {

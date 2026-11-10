@@ -2,7 +2,10 @@ import { readSalesReport } from './salesReports';
 import type Database from 'better-sqlite3';
 import type { TableSummary, CatalogProduct, ReportSummary, Settings } from '../../src/domain/types';
 
-export function createRepositories(db: Database.Database) {
+import { isCoffee } from '../../src/domain/operators';
+import { coffeeBalance } from './duoCoffee';
+
+export function createRepositories(db: Database.Database, duo = false) {
   return {
     getSalesReport: (period: unknown) => readSalesReport(db, period),
     listTables(): TableSummary[] {
@@ -24,7 +27,7 @@ export function createRepositories(db: Database.Database) {
         throw new Error('Active order total exceeds safe integer cents');
       return rows.map((row) => ({ ...row, enabled: row.enabled === 1 }));
     },
-    listProducts(): CatalogProduct[] {
+    listProducts(forOrders = false): CatalogProduct[] {
       const rows = db
         .prepare(
           `SELECT p.id,p.name,p.category_id AS categoryId,c.name AS categoryName,
@@ -38,10 +41,17 @@ export function createRepositories(db: Database.Database) {
         active: number;
         trackInventory: number | null;
       })[];
+      const sharedCoffee = duo && forOrders ? coffeeBalance(db) : null;
       return rows.map((row) => ({
         ...row,
         active: row.active === 1,
-        trackInventory: row.trackInventory === null ? null : row.trackInventory === 1,
+        trackInventory:
+          duo && forOrders && isCoffee(row.id)
+            ? true
+            : row.trackInventory === null
+              ? null
+              : row.trackInventory === 1,
+        stockQuantity: duo && forOrders && isCoffee(row.id) ? sharedCoffee : row.stockQuantity,
       }));
     },
     getSettings(): Settings {

@@ -276,7 +276,7 @@ describe('Phase 9.3 independent functional certification', () => {
     health();
   });
   it('fresh production-like DB has no financial, reservation, order or receipt history', () => {
-    expect(inspectDatabase(db, true)).toBe(6);
+    expect(inspectDatabase(db, true)).toBe(7);
     expect(createRepositories(db).listProducts()).toHaveLength(21);
     expect(db.prepare('SELECT count(*) n FROM categories').get()).toEqual({ n: 5 });
     for (const table of [
@@ -539,7 +539,7 @@ describe('Phase 9.3 independent functional certification', () => {
     const before = rows(),
       financial = services().finance.report({ period: 'ALL' });
     await createBackup(db, backup, '0.7.1-rc.2');
-    expect((await validateBackup(backup)).schemaVersion).toBe(6);
+    expect((await validateBackup(backup)).schemaVersion).toBe(7);
     const s = services(),
       open = s.orders.getForTable('M6').order!;
     expect(s.checkout.completeOrder({ orderId: open.id }).ok).toBe(true);
@@ -589,7 +589,7 @@ describe('Phase 9.3 independent functional certification', () => {
     expect(services().orders.getForTable('T10').reservation).toBeNull();
     health();
   });
-  it('schema5→6 preserves independently computed cents and every historical row exactly once', () => {
+  it('schema5→7 preserves independently computed cents and every historical row exactly once', () => {
     db.close();
     const root = folder(),
       file = path.join(root, 'fox.sqlite');
@@ -631,7 +631,7 @@ describe('Phase 9.3 independent functional certification', () => {
     health();
     const evidence = {
       beforeSchema: 5,
-      afterSchema: 6,
+      afterSchema: 7,
       countsBefore: Object.fromEntries(
         Object.entries(before).map(([name, value]) => [name, value.length]),
       ),
@@ -648,7 +648,7 @@ describe('Phase 9.3 independent functional certification', () => {
       canonical: approved,
       quickCheck: 'ok',
       foreignKeyCheck: 'ok',
-      migrationCount: 6,
+      migrationCount: 7,
       idempotent: true,
     };
     fs.mkdirSync('outputs', { recursive: true });

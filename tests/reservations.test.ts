@@ -243,11 +243,11 @@ describe('persistent phone reservations', () => {
     expect(context().orders.getForTable('M5').reservation).toEqual(saved);
     const backup = path.join(root, 'saved.sqlite');
     await createBackup(db, backup, '0.7.1-rc.1');
-    expect((await validateBackup(backup)).schemaVersion).toBe(6);
+    expect((await validateBackup(backup)).schemaVersion).toBe(7);
     db.close();
     db = openDatabase(backup);
     expect(snapshot()).toEqual(before);
-    expect(inspectDatabase(db, true)).toBe(6);
+    expect(inspectDatabase(db, true)).toBe(7);
   });
   it('upgrades schema5 with a safety backup and identical historical financial rows', () => {
     // Windows run 38268258088 completed assertions in 10.75s but exceeded the
@@ -291,7 +291,7 @@ describe('persistent phone reservations', () => {
     expect(context().finance.report({ period: 'ALL' })).toEqual(report);
     expect(context().finance.cashPreview({ openingCents: 100 })).toEqual(cash);
     expect(db.prepare('SELECT count(*) AS n FROM table_reservations').get()).toEqual({ n: 0 });
-    expect(inspectDatabase(db, true)).toBe(6);
+    expect(inspectDatabase(db, true)).toBe(7);
     const backup = fs.readdirSync(path.join(root, 'backups')).find((f) => f.endsWith('.sqlite'))!;
     const old = new Database(path.join(root, 'backups', backup), { readonly: true });
     try {

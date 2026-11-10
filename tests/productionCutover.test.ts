@@ -49,7 +49,7 @@ it('initializes approved references with zero business history and truthful unco
       summary: { salesCents: 0, completedOrders: 0 },
       cashCents: 0,
     });
-    expect(inspectDatabase(db, true)).toBe(6);
+    expect(inspectDatabase(db, true)).toBe(7);
   } finally {
     db.close();
   }

@@ -4,6 +4,7 @@ import type { CheckoutErrorCode, CheckoutResult } from '../../src/domain/types';
 import type { createOrderService } from './orders';
 import { createReceiptRepository } from '../receipts/repository';
 import { logError } from '../main/logging';
+import { COFFEE_STOCK_ID, isCoffee } from '../../src/domain/operators';
 import { exactQuantity, assertCashTotals } from './numericSafety';
 import {
   prepareFinancialCapacity,
@@ -26,7 +27,11 @@ const fail = (code: CheckoutErrorCode, message: string): never => {
 export function createCheckoutService(
   db: Database.Database,
   orders: ReturnType<typeof createOrderService>,
+  duo = false,
 ) {
+  const hasDuoLines = Boolean(
+    db.prepare("SELECT 1 FROM sqlite_schema WHERE name='duo_order_lines' AND type='table'").get(),
+  );
   const receipts = createReceiptRepository(db);
   return {
     completeOrder(input: unknown): CheckoutResult {
@@ -96,6 +101,27 @@ export function createCheckoutService(
               if (!Number.isSafeInteger(quantity))
                 return fail('CHECKOUT_FAILED', 'Sasia tejkalon kufirin e lejuar.');
               quantities.set(item.productId, { name: item.name, quantity });
+            }
+            const recorded = hasDuoLines
+              ? (db
+                  .prepare(
+                    'SELECT i.product_id AS id,SUM(d.coffee_portions) AS portions FROM order_items i JOIN duo_order_lines d ON d.item_id=i.id WHERE i.order_id=? GROUP BY i.product_id',
+                  )
+                  .all(row.id) as { id: string; portions: number }[])
+              : [];
+            if (duo || recorded.some((line) => line.portions > 0)) {
+              let remaining = 0;
+              for (const [productId, item] of quantities) {
+                if (!isCoffee(productId)) continue;
+                const reserved = recorded.find((line) => line.id === productId)?.portions ?? 0;
+                if (!Number.isSafeInteger(reserved) || reserved < 0 || reserved > item.quantity)
+                  return fail('CHECKOUT_FAILED', 'Sasia e konfirmuar e kafesë nuk përputhet.');
+                remaining += item.quantity - reserved;
+                quantities.delete(productId);
+              }
+              if (!Number.isSafeInteger(remaining))
+                return fail('CHECKOUT_FAILED', 'Sasia e kafesë është jashtë kufirit.');
+              if (remaining) quantities.set(COFFEE_STOCK_ID, { name: 'Kafe', quantity: remaining });
             }
             const deductions: { productId: string; quantity: number; balance: number }[] = [];
             // Preflight every product before any write. Existing inactive lines retain their snapshots.

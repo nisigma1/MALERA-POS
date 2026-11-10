@@ -253,7 +253,7 @@ async function backup(file) {
   const copy = observe(file);
   assert.deepEqual(copy.tables, observe().tables);
   check(
-    copy.manifest.schemaVersion === 6 && copy.quickCheck === 'ok' && copy.foreignKeys.length === 0,
+    copy.manifest.schemaVersion === 7 && copy.quickCheck === 'ok' && copy.foreignKeys.length === 0,
     'Backup checksum/schema/integrity/FK and exact state',
   );
   return copy;

@@ -345,7 +345,7 @@ try {
       assert.ok((await ui.js(`window.fox.reservations.cancel(${JSON.stringify(cmd)})`)).ok);
     }
     const state = await ui.js('window.fox.data.diagnostics()');
-    assert.equal(state.schemaVersion, 6);
+    assert.equal(state.schemaVersion, 7);
     const resources = await measure();
     assert.equal(resources.windows, 1);
     cycles.push({

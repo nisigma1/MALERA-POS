@@ -2,7 +2,7 @@ import { localInputDisplay } from '../domain/operatorInput';
 import { profitPresentation } from '../presentation/profit';
 import { LocalDateInput } from '../components/common/LocalDateInput';
 import { tableDisplayCode } from '../presentation/tableIdentity';
-import { Fragment, useCallback, useState } from 'react';
+import { Fragment, useCallback, useContext, useState } from 'react';
 import { localDate, type FinanceQuery } from '../domain/finance';
 import { CashControl, ExpenseList, LossHistory } from '../components/finance/OwnerFinance';
 import { useData } from '../app/useData';
@@ -14,8 +14,37 @@ import { formatMoney } from '../domain/money';
 
 import { EmptyState, PageHeader } from '../components/common/Controls';
 import { ReceiptActions } from '../components/receipts/ReceiptActions';
+import { OperatorContext } from '../app/operatorContext';
+import { OPERATORS, type ShiftPeriod } from '../domain/operators';
+
+function ShiftReport({ period }: { period: ShiftPeriod }) {
+  const load = useCallback(() => window.fox.operators.report(period), [period]);
+  const { data, error, retry } = useData(load);
+  if (!data) return <DataState error={error} retry={retry} />;
+  return (
+    <section className="settings-panel">
+      <h2>Shitjet e paguara</h2>
+      <p>{data.date}</p>
+      <dl>
+        {data.rows.map((row) => (
+          <div key={row.operator}>
+            <dt>
+              {row.operator === 'LEGACY' ? 'Pa përdorues të regjistruar' : OPERATORS[row.operator]}
+            </dt>
+            <dd>{formatMoney(row.totalCents)}</dd>
+          </div>
+        ))}
+      </dl>
+      <p>
+        Totali: <strong>{formatMoney(data.totalCents)}</strong>
+      </p>
+    </section>
+  );
+}
 
 export function Reports() {
+  const session = useContext(OperatorContext);
+  const [shift, setShift] = useState<ShiftPeriod | null>(null);
   const [query, setQuery] = useState<FinanceQuery>({ period: 'ALL' });
   const [tab, setTab] = useState<'overview' | 'expenses' | 'cash'>('overview');
   const [startDate, setStartDate] = useState(localDate()),
@@ -41,25 +70,37 @@ export function Reports() {
             Periudha
             <select
               aria-label="Periudha e raportit"
-              value={query.period}
-              onChange={(e) =>
-                setQuery(
-                  e.target.value === 'CUSTOM'
-                    ? { period: 'CUSTOM', startDate, endDate }
-                    : { period: e.target.value as FinanceQuery['period'] },
-                )
-              }
+              value={shift ?? query.period}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value === 'AM' || value === 'PM' || value === 'DAY') setShift(value);
+                else {
+                  setShift(null);
+                  setQuery(
+                    value === 'CUSTOM'
+                      ? { period: 'CUSTOM', startDate, endDate }
+                      : { period: value as FinanceQuery['period'] },
+                  );
+                }
+              }}
             >
               <option value="TODAY">Sot</option>
               <option value="WEEK">Këtë javë</option>
               <option value="MONTH">Këtë muaj</option>
               <option value="CUSTOM">Periudhë tjetër</option>
               <option value="ALL">Të gjitha</option>
+              {session.required && (
+                <>
+                  <option value="AM">Shitjet Paradite</option>
+                  <option value="PM">Shitjet Masdite</option>
+                  <option value="DAY">Totali i Ditës</option>
+                </>
+              )}
             </select>
           </label>
         }
       />
-      {query.period === 'CUSTOM' && (
+      {!shift && query.period === 'CUSTOM' && (
         <form
           className="finance-period"
           onSubmit={(e) => {
@@ -80,27 +121,36 @@ export function Reports() {
           </button>
         </form>
       )}
-      <div className="finance-tabs" role="group" aria-label="Kontrolli financiar">
-        {(
-          [
-            ['overview', 'Përmbledhje'],
-            ['expenses', 'Shpenzime'],
-            ['cash', 'Mbyll arkën'],
-          ] as const
-        ).map(([id, label]) => (
-          <button
-            className="button button-secondary"
-            key={id}
-            aria-pressed={tab === id}
-            data-finance-tab={id}
-            onClick={() => setTab(id)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      {!shift && (
+        <div className="finance-tabs" role="group" aria-label="Kontrolli financiar">
+          {(
+            [
+              ['overview', 'Përmbledhje'],
+              ['expenses', 'Shpenzime'],
+              ['cash', 'Mbyll arkën'],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              className="button button-secondary"
+              key={id}
+              aria-pressed={tab === id}
+              data-finance-tab={id}
+              onClick={() => setTab(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
     </>
   );
+  if (shift)
+    return (
+      <>
+        {header}
+        <ShiftReport key={shift} period={shift} />
+      </>
+    );
   if (!data)
     return (
       <>

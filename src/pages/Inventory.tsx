@@ -1,5 +1,5 @@
 import { useData } from '../app/useData';
-import { useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { DataState } from '../components/common/DataState';
 import { formatMoney } from '../domain/money';
 import { CATEGORIES } from '../domain/definitions';
@@ -9,8 +9,11 @@ import { Button, EmptyState, Icon, PageHeader, StockBadge } from '../components/
 import { ProductEditor } from '../components/inventory/ProductEditor';
 import { SupplyPanel } from '../components/inventory/SupplyPanel';
 import { StockLossPanel } from '../components/inventory/StockLossPanel';
+import { OperatorContext } from '../app/operatorContext';
+import { COFFEE_STOCK_ID, coffeeStockLabel, isCoffee } from '../domain/operators';
 const load = () => window.fox.products.list();
 export function Inventory() {
+  const duo = useContext(OperatorContext).required;
   const { data, error, retry, setData } = useData(load);
   const [category, setCategory] = useState<CategoryCode | ''>('');
   const [search, setSearch] = useState('');
@@ -40,7 +43,16 @@ export function Inventory() {
         (!category || p.categoryId === category) &&
         normalize(p.name).includes(normalize(search.trim())),
     ) ?? [];
-  const summary = data ? inventorySummary(data) : null;
+  const summary = data
+    ? inventorySummary(
+        data.map((product) =>
+          duo && isCoffee(product.id) && product.id !== COFFEE_STOCK_ID
+            ? { ...product, trackInventory: false }
+            : product,
+        ),
+      )
+    : null;
+  const coffee = duo ? data?.find((product) => product.id === COFFEE_STOCK_ID) : undefined;
   const header = (
     <PageHeader
       title="Stoku"
@@ -94,6 +106,14 @@ export function Inventory() {
           <small>Sipas çmimit të blerjes</small>
         </div>
       </dl>
+      {coffee && (
+        <p className="notice">
+          Stoku i kafesë:{' '}
+          <strong>
+            {coffee.stockQuantity === null ? 'Pa vendosur' : coffeeStockLabel(coffee.stockQuantity)}
+          </strong>
+        </p>
+      )}
       <div className="inventory-surface">
         <div className="inventory-toolbar">
           <div className="category-filters" role="group" aria-label="Filtro sipas kategorisë">
@@ -166,10 +186,20 @@ export function Inventory() {
                       <td className="product-name">{product.name}</td>
                       <td>{product.categoryName}</td>
                       <td className="stock-cell numeric">
-                        {product.trackInventory === true && product.stockQuantity !== null && (
-                          <strong>{product.stockQuantity}</strong>
+                        {duo && isCoffee(product.id) && product.id !== COFFEE_STOCK_ID ? (
+                          'Stok i përbashkët'
+                        ) : (
+                          <>
+                            {product.trackInventory === true && product.stockQuantity !== null && (
+                              <strong>
+                                {duo && product.id === COFFEE_STOCK_ID
+                                  ? coffeeStockLabel(product.stockQuantity)
+                                  : product.stockQuantity}
+                              </strong>
+                            )}
+                            {state !== 'KNOWN' && <StockBadge state={state} />}
+                          </>
                         )}
-                        {state !== 'KNOWN' && <StockBadge state={state} />}
                       </td>
                       <td className="numeric">
                         {product.purchaseCostCents === null
