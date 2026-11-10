@@ -49,6 +49,7 @@ let commit; try {commit=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'
 const checksum=`${sha256}  ${artifact}\n`;
 const stamp=JSON.parse(fs.readFileSync(path.join(root,'win-unpacked/resources/fox-release.json'),'utf8'));
 if(stamp.version!==version||!['QA','RC','PRODUCTION'].includes(stamp.channel))throw Error('Invalid release channel stamp');
+if(stamp.sourceCommit!==commit)throw Error('Installed resource/source commit mismatch');
 const signatures=JSON.parse(fs.readFileSync(path.join(root,'signature-verification.json'),'utf8').replace(/^\uFEFF/,''));
 if(stamp.channel!=='QA'&&signatures.some(s=>s.status!=='Valid'||!s.timestamp))throw Error('Trusted signatures required');
 const signing=stamp.channel==='QA'?'UNSIGNED':'SIGNED';

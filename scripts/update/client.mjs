@@ -102,8 +102,10 @@ async function apply(){
  const backupPath=await backup(descriptor);
  if(appRunning()){status('waiting-for-app-to-close',{commit:descriptor.commit});return;}
  status('installing',{commit:descriptor.commit,backupPath});
- const result=spawnSync(installer,['/currentuser','/S',`/D=${path.dirname(executable)}`],{windowsHide:true,encoding:'utf8',timeout:180000});
+ const result=spawnSync(installer,['/currentuser','/S'],{windowsHide:true,encoding:'utf8',timeout:180000});
  if(result.status!==0||!fs.existsSync(executable))throw Error('Installer failed; backup preserved. See update logs before reopening');
+ const installedStamp=JSON.parse(fs.readFileSync(path.join(path.dirname(executable),'resources','fox-release.json'),'utf8'));
+ if(installedStamp.sourceCommit!==descriptor.commit||installedStamp.version!==descriptor.version)throw Error('Installed files do not match the downloaded source commit; backup preserved');
  const unpack=path.join(path.dirname(executable),'resources','app.asar.unpacked','node_modules','better-sqlite3','prebuilds','win32-x64.node');
  if(!fs.existsSync(unpack))throw Error('Updated application native module missing; backup preserved');
  Object.assign(state,{commit:descriptor.commit,version:descriptor.version,releaseId:pending.releaseId,installedAt:new Date().toISOString(),backupPath});

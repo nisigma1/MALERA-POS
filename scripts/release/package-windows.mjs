@@ -27,7 +27,7 @@ if(!npmCli) throw Error('Use npm run package:win');
 fs.mkdirSync('work',{recursive:true});
 const config=path.resolve('work/release-signing.json');
 fs.writeFileSync(config,JSON.stringify({extends:path.resolve('electron-builder.json'),...signing}));
-fs.writeFileSync('work/fox-release.json',JSON.stringify({version,signing:qa?'UNSIGNED':'SIGNED',channel:qa?'QA':version.includes('-rc.')?'RC':'PRODUCTION'}));
+fs.writeFileSync('work/fox-release.json',JSON.stringify({version,signing:qa?'UNSIGNED':'SIGNED',channel:qa?'QA':version.includes('-rc.')?'RC':'PRODUCTION',sourceCommit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim()}));
 for(const params of [[npmCli,'run','build:release'],['node_modules/electron-builder/cli.js','--config',config,'--win','nsis','--x64','--publish','never',...args]]) {
   const result=spawnSync(process.execPath,params,{stdio:'inherit',windowsHide:true});
   if(result.status!==0)process.exit(result.status??1);
