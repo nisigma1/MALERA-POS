@@ -61,6 +61,7 @@ async function start() {
     minWidth: 900,
     minHeight: 460,
     title: 'MALERA POS',
+    ...(app.isPackaged ? { icon: path.join(process.resourcesPath, 'duo-bar.ico') } : {}),
     show: !process.env.FOX_VERIFY_DIR,
     backgroundColor: '#f4f3ef',
     autoHideMenuBar: true,

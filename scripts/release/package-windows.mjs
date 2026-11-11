@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { execFileSync } from 'node:child_process';
+import { build } from 'esbuild';
 import { signingConfiguration } from './signing-config.mjs';
 const qa = process.argv.includes('--qa');
 const args = process.argv.slice(2).filter((arg) => arg !== '--qa');
@@ -57,6 +58,14 @@ fs.writeFileSync(
     sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
   }),
 );
+await build({
+  entryPoints: ['scripts/update/client.mjs'],
+  bundle: true,
+  platform: 'node',
+  format: 'esm',
+  target: 'node22',
+  outfile: 'work/malera-update-client.mjs',
+});
 for (const params of [
   [npmCli, 'run', 'build:release'],
   [

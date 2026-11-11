@@ -150,7 +150,7 @@ test('an abandoned empty lock can recover without touching application data', as
 });
 
 test(
-  'ordinary launch needs no process probe, while a staged update still requires it',
+  'an unavailable process probe defers installation without blocking the installed POS',
   {
     skip: process.platform !== 'win32',
   },
@@ -182,9 +182,21 @@ test(
     assert.equal(ordinary.status, 0, ordinary.stderr);
     fs.writeFileSync(path.join(root, 'pending.json'), '{}');
     const pending = launch();
-    assert.equal(pending.status, 1, pending.stderr);
-    assert.match(pending.stderr, /Cannot determine whether POS is closed/);
+    assert.equal(pending.status, 0, pending.stderr);
+    const statusFile = path.join(root, 'status.json');
+    const deferred = JSON.parse(fs.readFileSync(statusFile, 'utf8'));
+    assert.equal(deferred.phase, 'update-deferred');
+    assert.match(deferred.message, /Cannot determine whether POS is closed/);
     assert.equal(fs.readFileSync(path.join(root, 'pending.json'), 'utf8'), '{}');
     assert.equal(fs.readFileSync(stateFile, 'utf8'), JSON.stringify({ commit: 'old' }));
+
+    // An interrupted installation must not fall back to potentially mixed files.
+    fs.unlinkSync(path.join(root, 'pending.json'));
+    const marker = path.join(root, 'installation-in-progress.json');
+    fs.writeFileSync(marker, '{}');
+    const interrupted = launch();
+    assert.equal(interrupted.status, 1, interrupted.stderr);
+    assert.match(interrupted.stderr, /earlier installation did not finish verification/);
+    assert.equal(fs.readFileSync(marker, 'utf8'), '{}');
   },
 );

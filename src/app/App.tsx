@@ -67,6 +67,7 @@ function AppScreen({
   );
   const identity = useData(loadBusiness);
   const businessName = identity.data?.businessName.trim();
+  const showDuoMark = session.required || /^DUO(?:\s+BAR)?$/i.test(businessName ?? '');
   const Page = section.component;
   const [now, setNow] = useState(new Date());
   const [date, time] = formatLocalDateTime(now).split(' ');
@@ -118,7 +119,7 @@ function AppScreen({
           </nav>
           <div className="local-label">
             <div className="brand" title={businessName ?? PRODUCT_NAME}>
-              {businessName?.toUpperCase() === 'DUO' ? (
+              {showDuoMark ? (
                 <img className="duo-bar-mark" src={duoBarMark} alt="DUO BAR" />
               ) : (
                 <>

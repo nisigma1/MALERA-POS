@@ -29,6 +29,11 @@ const write = (file, value) => {
   fs.renameSync(next, file);
 };
 const state = {};
+const installationFile = path.join(home, 'installation-in-progress.json');
+const requireNoInterruptedInstall = () => {
+  if (fs.existsSync(installationFile))
+    throw Error('An earlier installation did not finish verification; backup preserved');
+};
 const status = (phase, extra = {}) =>
   write(path.join(home, 'status.json'), {
     phase,
@@ -70,7 +75,7 @@ function appRunning() {
     '$target=' +
     "'" +
     executable.replaceAll("'", "''") +
-    "'; @((Get-CimInstance Win32_Process -ErrorAction Stop | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.Equals($target,[StringComparison]::OrdinalIgnoreCase) })).Count";
+    "'; @((Get-CimInstance Win32_Process -Filter \"Name='FOX Kafeteri.exe'\" -ErrorAction Stop | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.Equals($target,[StringComparison]::OrdinalIgnoreCase) })).Count";
   const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', code], {
     encoding: 'utf8',
     windowsHide: true,
@@ -101,7 +106,8 @@ async function verifyFile(file, descriptor) {
 }
 async function stage() {
   const previousStage = read(pendingFile, null);
-  if (previousStage?.descriptor?.commit === state.commit) fs.unlinkSync(pendingFile);
+  if (state.commit && previousStage?.descriptor?.commit === state.commit)
+    fs.unlinkSync(pendingFile);
   const releases = selectRelease(
     await json(`https://api.github.com/repos/${config.repository}/releases?per_page=30`),
     state,
@@ -226,20 +232,30 @@ async function backup(descriptor) {
 async function apply() {
   const pending = read(pendingFile, null);
   if (!pending) return;
-  if (appRunning()) return;
-  const descriptor = validateDescriptor(pending.descriptor, config);
-  if (descriptor.commit === state.commit) {
-    fs.unlinkSync(pendingFile);
-    return;
-  }
-  const installer = path.join(home, 'downloads', descriptor.commit + '.exe');
-  await verifyFile(installer, descriptor);
-  const backupPath = await backup(descriptor);
-  if (appRunning()) {
-    status('waiting-for-app-to-close', { commit: descriptor.commit });
+  let descriptor, installer, backupPath;
+  try {
+    if (appRunning()) return;
+    descriptor = validateDescriptor(pending.descriptor, config);
+    if (descriptor.commit === state.commit) {
+      fs.unlinkSync(pendingFile);
+      return;
+    }
+    installer = path.join(home, 'downloads', descriptor.commit + '.exe');
+    await verifyFile(installer, descriptor);
+    backupPath = await backup(descriptor);
+    if (appRunning()) {
+      status('waiting-for-app-to-close', { commit: descriptor.commit });
+      return;
+    }
+  } catch (error) {
+    // No installer was started. Preserve the stage and open the existing POS.
+    status('update-deferred', { message: error.message, commit: state.commit ?? null });
     return;
   }
   status('installing', { commit: descriptor.commit, backupPath });
+  fs.writeFileSync(installationFile, JSON.stringify({ commit: descriptor.commit, backupPath }), {
+    flag: 'wx',
+  });
   const notice = spawn(
     'powershell.exe',
     [
@@ -286,27 +302,43 @@ async function apply() {
     backupPath,
   });
   write(stateFile, state);
-  fs.unlinkSync(pendingFile);
-  refreshShortcuts();
-  status('updated', { commit: state.commit, version: state.version, backupPath });
+  fs.unlinkSync(installationFile);
+  try {
+    fs.unlinkSync(pendingFile);
+  } catch (error) {
+    if (error.code !== 'ENOENT') console.error('Completed update stage could not be removed');
+  }
+  status('updated', {
+    commit: state.commit,
+    version: state.version,
+    backupPath,
+    ...(refreshShortcuts() ? {} : { warning: 'App updated, but update shortcuts need repair' }),
+  });
 }
 function refreshShortcuts() {
   const quote = (value) => "'" + value.replaceAll("'", "''") + "'";
-  const script = `$ErrorActionPreference='Stop';$shell=New-Object -ComObject WScript.Shell;$app=${quote(executable)};$launcher=${quote(path.join(home, 'launch.vbs'))};$roots=@([Environment]::GetFolderPath('Desktop'),(Join-Path ([Environment]::GetFolderPath('StartMenu')) 'Programs'));foreach($root in $roots){Get-ChildItem -LiteralPath $root -Filter '*.lnk' -Recurse | ForEach-Object {$link=$shell.CreateShortcut($_.FullName);if($link.TargetPath -eq $app){$link.TargetPath=Join-Path $env:WINDIR 'System32\\wscript.exe';$link.Arguments='"'+$launcher+'"';$link.WorkingDirectory=${quote(home)};$link.IconLocation=$app+',0';$link.Save()}}}`;
+  const icon = path.join(path.dirname(executable), 'resources', 'duo-bar.ico');
+  const iconSource = fs.existsSync(icon) ? icon : executable;
+  const script = `$ErrorActionPreference='Stop';$shell=New-Object -ComObject WScript.Shell;$app=${quote(executable)};$launcher=${quote(path.join(home, 'launch.vbs'))};$roots=@([Environment]::GetFolderPath('Desktop'),(Join-Path ([Environment]::GetFolderPath('StartMenu')) 'Programs'));foreach($root in $roots){Get-ChildItem -LiteralPath $root -Filter '*.lnk' -Recurse | ForEach-Object {$link=$shell.CreateShortcut($_.FullName);if($link.TargetPath -eq $app){$link.TargetPath=Join-Path $env:WINDIR 'System32\\wscript.exe';$link.Arguments='"'+$launcher+'"';$link.WorkingDirectory=${quote(home)};$link.IconLocation=${quote(iconSource)}+',0';$link.Save()}}}`;
   const result = spawnSync(
     'powershell.exe',
     ['-NoProfile', '-NonInteractive', '-Command', script],
     { windowsHide: true, encoding: 'utf8', timeout: 20000 },
   );
-  if (result.status !== 0) throw Error('App updated, but update shortcuts need repair');
+  return result.status === 0;
 }
-function startApp() {
+async function startApp() {
+  requireNoInterruptedInstall();
   if (!fs.existsSync(executable)) throw Error('MALERA executable is missing');
   const env = { ...process.env };
   for (const key of Object.keys(env))
     if (key.startsWith('FOX_VERIFY_') || ['ELECTRON_RUN_AS_NODE', 'FOX_DEV_URL'].includes(key))
       delete env[key];
   const child = spawn(executable, [], { detached: true, stdio: 'ignore', env, windowsHide: false });
+  await new Promise((resolve, reject) => {
+    child.once('spawn', resolve);
+    child.once('error', reject);
+  });
   child.unref();
 }
 const lockFile = path.join(home, 'update.lock');
@@ -316,7 +348,7 @@ try {
     stateFile,
     mode: launch ? 'launch' : 'check',
     onBusy: (owner) => {
-      if (launch && owner.mode === 'check') startApp();
+      if (launch && owner.mode === 'check') return startApp();
     },
     work: async (currentState) => {
       Object.assign(state, currentState);
@@ -330,8 +362,9 @@ try {
       }
       // Opening the POS never waits for network calls or downloads. Only the
       // scheduled checker stages new releases; launch applies an existing stage.
+      requireNoInterruptedInstall();
       await apply();
-      startApp();
+      await startApp();
     },
   });
 } catch (error) {

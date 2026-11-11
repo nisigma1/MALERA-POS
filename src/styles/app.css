@@ -81,6 +81,12 @@ h3 {
   gap: 0.35rem;
 }
 
+.operator-duo-mark {
+  display: block;
+  width: 5rem;
+  height: auto;
+}
+
 .sidebar {
   height: 100vh;
   padding: 20px 12px 14px;

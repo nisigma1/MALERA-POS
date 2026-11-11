@@ -8,6 +8,14 @@
     {
       "from": "work/fox-release.json",
       "to": "fox-release.json"
+    },
+    {
+      "from": "work/malera-update-client.mjs",
+      "to": "malera-update-client.mjs"
+    },
+    {
+      "from": "build/duo-bar.ico",
+      "to": "duo-bar.ico"
     }
   ],
   "files": [

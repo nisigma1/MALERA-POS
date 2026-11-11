@@ -43,6 +43,10 @@ jobs:
           $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
           node scripts/qa/verify-installed.mjs "release/FOX-Setup-$version-x64.exe" "release/FOX-Setup-$version-x64.exe"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify the registered updater and DUO shortcut
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          ./scripts/qa/verify-update-install.ps1 -Installer "release/FOX-Setup-$version-x64.exe"
       - run: node scripts/update/publish-descriptor.mjs
       - name: Publish immutable desktop QA candidate
         env:

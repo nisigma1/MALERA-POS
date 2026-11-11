@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { OPERATORS, type OperatorId, type OperatorSession } from '../../domain/operators';
 import { Button } from '../common/Controls';
-import { MaleraMark } from './MaleraMark';
+import duoBarMark from '../../assets/duo-bar-mark.png';
 
 const accounts = Object.entries(OPERATORS) as [OperatorId, string][];
 
@@ -86,7 +86,7 @@ export function OperatorLogin({
           }
         }}
       >
-        <MaleraMark />
+        <img className="operator-duo-mark" src={duoBarMark} alt="DUO BAR" />
         <h1>Hyrja në DUO</h1>
         {(session.configured || session.setupPending) && (
           <label>
