@@ -190,3 +190,63 @@ try { & './scripts/release/provision-duo-pins.ps1' } catch {
   },
   60000,
 );
+
+it.runIf(process.platform === 'win32')(
+  'enrolls only an unconfigured DUO terminal and reopens with the PINs saved from the app',
+  () => {
+    const firstRun = path.join(root, 'first-run');
+    mkdirSync(firstRun);
+    const pins = { OWNER: ownerPin, AM: workerPin, PM: workerPin };
+    const access = createOperatorSession(firstRun, true, Date.now, true);
+    expect(access.status()).toEqual({
+      required: true,
+      configured: false,
+      operator: null,
+      setupPending: true,
+    });
+    expect(() => createOperatorSession(firstRun, false).enroll(pins)).toThrow('nuk është');
+    expect(() => access.login({ id: 'OWNER', pin: ownerPin })).toThrow('konfigurohet');
+    expect(() => access.enroll({ ...pins, OWNER: workerPin })).toThrow('i ndryshëm');
+    expect(() => access.enroll({ OWNER: ownerPin })).toThrow('katër shifra');
+    expect(requiresOperatorLogin(firstRun)).toBe(false);
+
+    const webContents = { mainFrame: {} };
+    const event = {
+      sender: webContents,
+      senderFrame: webContents.mainFrame,
+    } as unknown as IpcMainInvokeEvent;
+    registerIpc(
+      { webContents } as unknown as BrowserWindow,
+      { listTables: () => [] } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      undefined,
+      undefined,
+      undefined,
+      access,
+    );
+    const enroll = handlers.get(OPERATOR_IPC.enroll)!;
+    expect(() => enroll({ ...event, senderFrame: {} } as IpcMainInvokeEvent, pins)).toThrow(
+      'Unauthorized',
+    );
+    expect(() => handlers.get(IPC.tables)!(event)).toThrow('nuk lejohet');
+    expect(enroll(event, pins)).toEqual({ required: true, configured: true, operator: null });
+    expect(() => enroll(event, { ...pins, OWNER: wrongPin })).toThrow('nuk është');
+    expect(() => handlers.get(IPC.tables)!(event)).toThrow('nuk lejohet');
+
+    const restarted = createOperatorSession(firstRun, true);
+    expect(restarted.login({ id: 'OWNER', pin: ownerPin })).toMatchObject({ operator: 'OWNER' });
+    restarted.logout();
+    expect(restarted.login({ id: 'PM', pin: workerPin })).toMatchObject({ operator: 'PM' });
+
+    rmSync(path.join(firstRun, OPERATOR_FILE));
+    expect(requiresOperatorLogin(firstRun)).toBe(true);
+    expect(() => createOperatorSession(firstRun, true, Date.now, true).enroll(pins)).toThrow(
+      'nuk është',
+    );
+  },
+  30000,
+);

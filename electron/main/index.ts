@@ -90,8 +90,10 @@ async function start() {
   window.webContents.session.webRequest.onBeforeRequest((details, callback) => {
     callback({ cancel: !allowedResource(details.url, path.resolve(__dirname, '../dist'), devUrl) });
   });
-  const duo = app.isPackaged && !qaDirectory && requiresOperatorLogin(userData);
-  const setupPending = app.isPackaged && !qaDirectory && isDuoCatalogTerminal() && !duo;
+  const targetDuo = app.isPackaged && !qaDirectory && isDuoCatalogTerminal();
+  const enrolled = app.isPackaged && !qaDirectory && requiresOperatorLogin(userData);
+  const setupPending = targetDuo && !enrolled;
+  const duo = targetDuo || enrolled;
   const access = createOperatorSession(userData, duo, Date.now, setupPending);
   window.webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
     if (isMainFrame && !isInPlace) access.logout();

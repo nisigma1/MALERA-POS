@@ -65,6 +65,7 @@ import type { OperatorId, OperatorSession, ShiftPeriod, ShiftSales } from '../do
 export const OPERATOR_IPC = {
   status: 'fox:operators:status',
   login: 'fox:operators:login',
+  enroll: 'fox:operators:enroll',
   logout: 'fox:operators:logout',
   report: 'fox:operators:report',
   catalog: 'fox:operators:catalog',
@@ -74,6 +75,7 @@ export interface FoxApi {
   operators: {
     status(): Promise<OperatorSession>;
     login(input: { id: OperatorId; pin: string }): Promise<OperatorSession>;
+    enroll(pins: Record<OperatorId, string>): Promise<OperatorSession>;
     logout(): Promise<OperatorSession>;
     report(period: ShiftPeriod): Promise<ShiftSales>;
     catalog(): Promise<CatalogProduct[]>;

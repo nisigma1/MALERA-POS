@@ -11,6 +11,7 @@ const api: FoxApi = {
   operators: {
     status: () => ipcRenderer.invoke(OPERATOR_IPC.status),
     login: (input) => ipcRenderer.invoke(OPERATOR_IPC.login, input),
+    enroll: (pins) => ipcRenderer.invoke(OPERATOR_IPC.enroll, pins),
     logout: () => ipcRenderer.invoke(OPERATOR_IPC.logout),
     report: (period) => ipcRenderer.invoke(OPERATOR_IPC.report, period),
     catalog: () => ipcRenderer.invoke(OPERATOR_IPC.catalog),

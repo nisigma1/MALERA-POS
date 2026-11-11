@@ -28,8 +28,7 @@ export function App() {
   const { data, error, retry, setData } = useData(loadSession);
   const [logoutError, setLogoutError] = useState(false);
   if (!data) return <DataState error={error} retry={retry} />;
-  if (data.required && !data.operator)
-    return <OperatorLogin configured={data.configured} onLogin={setData} />;
+  if (data.required && !data.operator) return <OperatorLogin session={data} onSession={setData} />;
   return (
     <OperatorContext.Provider value={data}>
       <AppScreen
@@ -146,12 +145,6 @@ function AppScreen({
           </div>
           {!employee && <PrintNotices />}
           <main className="content">
-            {session.setupPending && (
-              <p className="notice">
-                Konfiguroni PIN-et në HP për të aktivizuar llogaritë, raportet e turneve dhe stokun
-                e kafesë në kg.
-              </p>
-            )}
             {section.id === 'settings' ? <Settings onNameChanged={identity.refresh} /> : <Page />}
           </main>
         </div>

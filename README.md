@@ -81,14 +81,10 @@ This repository begins with one consolidated source commit. Earlier history was 
 
 ## Përgatitja e llogarive në terminalin DUO
 
-Përditësimi e lë terminalin të përdorshëm derisa të konfigurohen PIN-et.
-Për të aktivizuar llogaritë, raportet e turneve dhe kafenë në kg, krijo një
-kopje rezervë përmes MALERA POS. Pastaj mbylle aplikacionin dhe, nga
-llogaria e zakonshme e Windows-it në HP, ekzekuto `scripts/release/provision-duo-pins.ps1`
-me Windows PowerShell. Fut PIN-et vetëm në kërkesat e maskuara në terminal.
-Verifikuesit ruhen në profilin e Windows-it dhe mbrohen me DPAPI. Mbaje PIN-in
-e pronarit privat. Punonjësi zgjedh llogarinë e vet para hyrjes dhe del nga
-llogaria kur ia dorëzon terminalin turnit tjetër.
+Pas përditësimit, pronari hap MALERA POS në HP dhe zgjedh **PRONARI DUO**.
+Në hapjen e parë cakton PIN-et e tri llogarive drejtpërdrejt në aplikacion.
+Verifikuesit ruhen në profilin e Windows-it dhe mbrohen me DPAPI. Punonjësi
+zgjedh llogarinë e vet para hyrjes dhe del kur ia dorëzon terminalin turnit tjetër.
 
 Te Stoku, furnizimi i përbashkët i kafesë futet në kg. Një kg jep 110 porcione.
 Porositë e konfirmuara e zbresin stokun menjëherë. Raportet e turnit ia

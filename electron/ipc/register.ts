@@ -52,6 +52,7 @@ export function registerIpc(
     for (const [channel, count, action] of [
       [OPERATOR_IPC.status, 0, () => access.status()],
       [OPERATOR_IPC.login, 1, (input: unknown) => access.login(input)],
+      [OPERATOR_IPC.enroll, 1, (input: unknown) => access.enroll(input)],
       [OPERATOR_IPC.logout, 0, () => access.logout()],
     ] as const)
       ipcMain.handle(channel, (event, ...args: unknown[]) => {
