@@ -255,7 +255,7 @@ export function createOrderService(
         const { tableId, targetId } = command(input, 'productId');
         const view = read(tableId);
         writable(view);
-        const product = repositories.listProducts().find((p) => p.id === targetId);
+        const product = repositories.listProducts(true).find((p) => p.id === targetId);
         if (!product) throw new OrderError('Produkti nuk u gjet.');
         const actor = duo?.operator();
         if (duo && !actor) throw new OrderError('Hyr me PIN për të ruajtur porosinë.');

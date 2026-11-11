@@ -115,12 +115,13 @@ function AppScreen({
               </button>
             ))}
           </nav>
-          <div className="local-label" data-ready={Boolean(identity.data)}>
+          <div className="local-label">
             <div className="brand" title={businessName ?? PRODUCT_NAME}>
               <Icon name="cup" />
               <strong>{businessName ?? PRODUCT_NAME}</strong>
             </div>
             <span className="local-helper">
+              <Icon name="device" />
               <strong>Në këtë pajisje</strong>
               <span>Të dhënat ruhen këtu</span>
             </span>

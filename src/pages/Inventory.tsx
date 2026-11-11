@@ -13,7 +13,7 @@ import { OperatorContext } from '../app/operatorContext';
 import { COFFEE_STOCK_ID, coffeeStockLabel, isCoffee } from '../domain/operators';
 const load = () => window.fox.products.list();
 export function Inventory() {
-  const duo = useContext(OperatorContext).required;
+  const { required: duo, duoMenu } = useContext(OperatorContext);
   const { data, error, retry, setData } = useData(load);
   const [category, setCategory] = useState<CategoryCode | ''>('');
   const [search, setSearch] = useState('');
@@ -37,15 +37,21 @@ export function Inventory() {
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .toLocaleLowerCase('sq-AL');
+  const products = duoMenu ? data?.filter((product) => product.id !== COFFEE_STOCK_ID) : data;
+  const categories = duoMenu
+    ? CATEGORIES.filter((category) =>
+        products?.some((product) => product.categoryId === category.id),
+      )
+    : CATEGORIES;
   const filtered =
-    data?.filter(
+    products?.filter(
       (p) =>
         (!category || p.categoryId === category) &&
         normalize(p.name).includes(normalize(search.trim())),
     ) ?? [];
-  const summary = data
+  const summary = products
     ? inventorySummary(
-        data.map((product) =>
+        products.map((product) =>
           duo && isCoffee(product.id) && product.id !== COFFEE_STOCK_ID
             ? { ...product, trackInventory: false }
             : product,
@@ -120,7 +126,7 @@ export function Inventory() {
             <Button variant="ghost" onClick={() => setCategory('')} aria-pressed={category === ''}>
               Të gjitha
             </Button>
-            {CATEGORIES.map((c) => (
+            {categories.map((c) => (
               <Button
                 variant="ghost"
                 key={c.id}
@@ -147,7 +153,7 @@ export function Inventory() {
         </div>
         <div className="table-caption">
           <span>
-            {filtered.length} produkte{category || search ? ` nga ${data.length}` : ''}
+            {filtered.length} produkte{category || search ? ` nga ${summary.total}` : ''}
           </span>
           <span className="feedback" role="status">
             {feedback && (
@@ -197,7 +203,11 @@ export function Inventory() {
                                   : product.stockQuantity}
                               </strong>
                             )}
-                            {state !== 'KNOWN' && <StockBadge state={state} />}
+                            {duoMenu && product.stockQuantity === null ? (
+                              <span>Pa numëruar</span>
+                            ) : (
+                              state !== 'KNOWN' && <StockBadge state={state} />
+                            )}
                           </>
                         )}
                       </td>

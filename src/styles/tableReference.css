@@ -25,23 +25,12 @@
   background: var(--warning-soft);
   border-color: var(--warning);
 }
-.order-context > span:first-child::after {
-  content: '·';
-  margin-inline-start: 0.65em;
-}
-.order-context .badge {
+.order-context .badge-neutral {
+  border: 1px solid var(--border);
+  border-radius: 6px;
   background: transparent;
   color: var(--secondary);
-  padding: 0;
-}
-.order-context .badge-success .badge-dot {
-  background: var(--success);
-}
-.order-context .badge-info .badge-dot {
-  background: var(--info);
-}
-.order-context .badge-warning .badge-dot {
-  background: var(--warning);
+  padding: 2px 7px;
 }
 
 @media (min-width: 1160px) and (max-width: 2399px) and (min-height: 660px) {
@@ -65,8 +54,8 @@
     font-size: max(11px, calc(13 * var(--ref)));
   }
   .sidebar .sidebar-toggle {
-    width: calc(33 * var(--ref));
-    min-height: calc(32 * var(--ref));
+    width: max(44px, calc(33 * var(--ref)));
+    min-height: max(44px, calc(32 * var(--ref)));
   }
   .sidebar nav {
     gap: calc(3 * var(--ref));
@@ -99,16 +88,6 @@
     border-bottom: 1px solid var(--border);
     border-radius: calc(13 * var(--ref)) calc(13 * var(--ref)) 0 0;
     background: var(--surface-muted);
-  }
-  .local-helper::before {
-    content: '';
-    flex: 0 0 calc(13 * var(--ref));
-    height: calc(13 * var(--ref));
-    border-radius: 50%;
-    background: var(--subtle);
-  }
-  .local-label[data-ready='true'] .local-helper::before {
-    background: #70c955;
   }
   .local-helper > span {
     position: absolute;

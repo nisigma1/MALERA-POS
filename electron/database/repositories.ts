@@ -2,10 +2,11 @@ import { readSalesReport } from './salesReports';
 import type Database from 'better-sqlite3';
 import type { TableSummary, CatalogProduct, ReportSummary, Settings } from '../../src/domain/types';
 
-import { isCoffee } from '../../src/domain/operators';
+import { COFFEE_STOCK_ID, isCoffee } from '../../src/domain/operators';
 import { coffeeBalance } from './duoCoffee';
+import { isDuoMenuProduct } from './duoCatalog';
 
-export function createRepositories(db: Database.Database, duo = false) {
+export function createRepositories(db: Database.Database, duo = false, duoMenu = false) {
   return {
     getSalesReport: (period: unknown) => readSalesReport(db, period),
     listTables(): TableSummary[] {
@@ -42,7 +43,12 @@ export function createRepositories(db: Database.Database, duo = false) {
         trackInventory: number | null;
       })[];
       const sharedCoffee = duo && forOrders ? coffeeBalance(db) : null;
-      return rows.map((row) => ({
+      const visible = duoMenu
+        ? rows.filter(
+            (row) => isDuoMenuProduct(row.id) || (!forOrders && row.id === COFFEE_STOCK_ID),
+          )
+        : rows;
+      return visible.map((row) => ({
         ...row,
         active: row.active === 1,
         trackInventory:

@@ -12,10 +12,21 @@ import { DataState } from '../components/common/DataState';
 import { formatLocalDateTime, formatSaleNumber } from '../domain/display';
 import { formatMoney } from '../domain/money';
 
-import { EmptyState, PageHeader } from '../components/common/Controls';
+import { Button, EmptyState, Icon, PageHeader, SidePanel } from '../components/common/Controls';
 import { ReceiptActions } from '../components/receipts/ReceiptActions';
 import { OperatorContext } from '../app/operatorContext';
 import { OPERATORS, type ShiftPeriod } from '../domain/operators';
+
+const periods = [
+  ['TODAY', 'Sot'],
+  ['WEEK', 'Këtë javë'],
+  ['MONTH', 'Këtë muaj'],
+  ['CUSTOM', 'Periudhë tjetër'],
+  ['ALL', 'Të gjitha'],
+  ['AM', 'Shitjet Paradite'],
+  ['PM', 'Shitjet Masdite'],
+  ['DAY', 'Totali i Ditës'],
+] as const;
 
 function ShiftReport({ period }: { period: ShiftPeriod }) {
   const load = useCallback(() => window.fox.operators.report(period), [period]);
@@ -45,6 +56,7 @@ function ShiftReport({ period }: { period: ShiftPeriod }) {
 export function Reports() {
   const session = useContext(OperatorContext);
   const [shift, setShift] = useState<ShiftPeriod | null>(null);
+  const [choosingPeriod, setChoosingPeriod] = useState(false);
   const [query, setQuery] = useState<FinanceQuery>({ period: 'ALL' });
   const [tab, setTab] = useState<'overview' | 'expenses' | 'cash'>('overview');
   const [startDate, setStartDate] = useState(localDate()),
@@ -66,40 +78,48 @@ export function Reports() {
         title="Raportet"
         helper="Shitjet, shpenzimet dhe arka."
         actions={
-          <label className="report-filter">
-            Periudha
-            <select
-              aria-label="Periudha e raportit"
-              value={shift ?? query.period}
-              onChange={(e) => {
-                const value = e.target.value;
-                if (value === 'AM' || value === 'PM' || value === 'DAY') setShift(value);
-                else {
-                  setShift(null);
-                  setQuery(
-                    value === 'CUSTOM'
-                      ? { period: 'CUSTOM', startDate, endDate }
-                      : { period: value as FinanceQuery['period'] },
-                  );
-                }
-              }}
-            >
-              <option value="TODAY">Sot</option>
-              <option value="WEEK">Këtë javë</option>
-              <option value="MONTH">Këtë muaj</option>
-              <option value="CUSTOM">Periudhë tjetër</option>
-              <option value="ALL">Të gjitha</option>
-              {session.required && (
-                <>
-                  <option value="AM">Shitjet Paradite</option>
-                  <option value="PM">Shitjet Masdite</option>
-                  <option value="DAY">Totali i Ditës</option>
-                </>
-              )}
-            </select>
-          </label>
+          <div className="report-filter">
+            <span>Periudha</span>
+            <Button aria-haspopup="dialog" onClick={() => setChoosingPeriod(true)}>
+              <Icon name="calendar" />
+              {periods.find(([value]) => value === (shift ?? query.period))?.[1]}
+            </Button>
+          </div>
         }
       />
+      {choosingPeriod && (
+        <SidePanel
+          title="Periudha e raportit"
+          subtitle=""
+          busy={false}
+          onClose={() => setChoosingPeriod(false)}
+          footer={null}
+        >
+          <div className="report-period-options">
+            {periods.slice(0, session.required ? periods.length : 5).map(([value, label]) => (
+              <Button
+                key={value}
+                variant={value === (shift ?? query.period) ? 'primary' : 'secondary'}
+                aria-pressed={value === (shift ?? query.period)}
+                onClick={() => {
+                  setChoosingPeriod(false);
+                  if (value === 'AM' || value === 'PM' || value === 'DAY') setShift(value);
+                  else {
+                    setShift(null);
+                    setQuery(
+                      value === 'CUSTOM'
+                        ? { period: value, startDate, endDate }
+                        : { period: value },
+                    );
+                  }
+                }}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+        </SidePanel>
+      )}
       {!shift && query.period === 'CUSTOM' && (
         <form
           className="finance-period"

@@ -10,6 +10,7 @@ export interface OperatorSession {
   configured: boolean;
   operator: OperatorId | null;
   setupPending?: boolean;
+  duoMenu?: boolean;
 }
 export interface ShiftSales {
   date: string;

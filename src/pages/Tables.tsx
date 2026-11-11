@@ -453,7 +453,7 @@ export function Tables() {
                 <h2 id="order-heading">Tavolina {tableDisplayCode(table.code)}</h2>
                 <div className="order-context">
                   <span>{tableDisplayArea(table.code, table.area as Area)}</span>
-                  <StatusBadge dot tone={table.status === 'FREE' ? 'success' : tone(table.status)}>
+                  <StatusBadge dot={false} tone={tone(table.status)}>
                     {TABLE_STATUS_LABELS[table.status]}
                   </StatusBadge>
                 </div>
@@ -580,7 +580,16 @@ export function Tables() {
                         <OrderDraftEditor
                           key={`draft:${table.id}`}
                           products={catalog.data}
-                          categories={CATEGORIES}
+                          categories={
+                            session.duoMenu
+                              ? CATEGORIES.filter((category) =>
+                                  catalog.data?.some(
+                                    (product) => product.categoryId === category.id,
+                                  ),
+                                )
+                              : CATEGORIES
+                          }
+                          showStock={session.duoMenu}
                           draft={draft}
                           onChange={(update) => changeDraft(table.id, update)}
                           subtotal={subtotal}

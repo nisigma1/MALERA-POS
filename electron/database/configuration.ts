@@ -9,11 +9,13 @@ import {
 import type { CatalogProduct, Settings } from '../../src/domain/types';
 import type { createRepositories } from './repositories';
 import { COFFEE_STOCK_ID, coffeePortions, isCoffee } from '../../src/domain/operators';
+import { isDuoMenuProduct } from './duoCatalog';
 import { exactQuantity, assertCashTotals } from './numericSafety';
 export function createConfigurationService(
   db: Database.Database,
   repositories: ReturnType<typeof createRepositories>,
   duo = false,
+  duoMenu = false,
 ) {
   const find = (id: string) => repositories.listProducts().find((product) => product.id === id);
   const failure = (errors: Record<string, string>): MutationResult<CatalogProduct> => ({
@@ -120,7 +122,12 @@ export function createConfigurationService(
             return { ok: true, data: product } as const;
           }
           if (!product.active) return failure({ productId: 'Aktivizo produktin para furnizimit.' });
-          if (product.trackInventory !== true)
+          const firstCount =
+            duoMenu &&
+            isDuoMenuProduct(product.id) &&
+            product.trackInventory === false &&
+            product.stockQuantity === null;
+          if (product.trackInventory !== true && !firstCount)
             return failure({
               productId: 'Aktivizo ndjekjen e stokut te produkti para furnizimit.',
             });
@@ -153,6 +160,11 @@ export function createConfigurationService(
             .prepare('UPDATE inventory_balances SET quantity=?,updated_at=? WHERE product_id=?')
             .run(quantity, now, product.id);
           if (result.changes !== 1) throw new Error('Inventory balance is missing');
+          if (firstCount)
+            db.prepare('UPDATE products SET track_inventory=1,updated_at=? WHERE id=?').run(
+              now,
+              product.id,
+            );
           if (value.drawerPaymentCents !== undefined) {
             db.prepare(
               'INSERT INTO cash_sessions SELECT ?,? WHERE NOT EXISTS(SELECT 1 FROM cash_sessions s WHERE NOT EXISTS(SELECT 1 FROM cash_closes c WHERE c.session_id=s.id))',

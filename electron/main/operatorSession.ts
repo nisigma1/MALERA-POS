@@ -106,6 +106,7 @@ export function createOperatorSession(
   required: boolean,
   clock = Date.now,
   setupPending = false,
+  duoMenu = false,
 ) {
   const file = path.join(directory, OPERATOR_FILE);
   const attemptsFile = path.join(directory, ATTEMPTS_FILE);
@@ -117,6 +118,7 @@ export function createOperatorSession(
       configured: !required || verifiers !== null,
       operator,
       ...(setupPending && !verifiers ? { setupPending: true } : {}),
+      ...(duoMenu ? { duoMenu: true } : {}),
     };
   }
   function writeAttempts(attempts: Partial<Record<OperatorId, Attempts>>) {

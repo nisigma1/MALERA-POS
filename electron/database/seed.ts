@@ -5,11 +5,14 @@ import {
   INITIAL_PRODUCTS,
   SERVICE_POSITIONS,
 } from '../../src/domain/definitions';
-import { addDuoCatalog } from './duoCatalog';
+import { addDuoCatalog, configureDuoMenu } from './duoCatalog';
 export function seed(db: Database.Database, includeDuoCatalog = false): void {
   db.transaction(() => {
     const now = new Date().toISOString();
-    if (includeDuoCatalog) addDuoCatalog(db, now);
+    if (includeDuoCatalog) {
+      addDuoCatalog(db, now);
+      configureDuoMenu(db, now);
+    }
     const table =
       db.prepare(`INSERT INTO cafe_tables (id,code,area,sort_order,created_at,updated_at)
       VALUES (@code,@code,@area,@sortOrder,@now,@now) ON CONFLICT(code) DO NOTHING`);

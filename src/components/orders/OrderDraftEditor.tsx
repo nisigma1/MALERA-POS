@@ -37,6 +37,7 @@ export function OrderDraftEditor({
   onChange,
   disabled,
   subtotal,
+  showStock = false,
 }: {
   products: CatalogProduct[];
   categories: readonly Category[];
@@ -44,9 +45,12 @@ export function OrderDraftEditor({
   onChange(update: (draft: OrderDraft) => OrderDraft): void;
   disabled: boolean;
   subtotal: number | null;
+  showStock?: boolean;
 }) {
   const [query, setQuery] = useState('');
-  const [category, setCategory] = useState<CategoryCode | ''>();
+  const [category, setCategory] = useState<CategoryCode | '' | undefined>(
+    showStock ? '' : undefined,
+  );
   const activeCategories = categories;
   const categoryIds = new Set(activeCategories.map((item) => item.id));
   const catalog = products.filter((product) => categoryIds.has(product.categoryId));
@@ -157,6 +161,13 @@ export function OrderDraftEditor({
                     <span className="draft-product-issue">{issue}</span>
                   )}
                 </p>
+                {showStock && (
+                  <p className="order-stock">
+                    {product.trackInventory && product.stockQuantity !== null
+                      ? `Stoku: ${product.stockQuantity}`
+                      : 'Stok pa numëruar'}
+                  </p>
+                )}
               </div>
               <div className="quantity-control">
                 <Button

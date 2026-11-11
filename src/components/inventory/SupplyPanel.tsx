@@ -20,11 +20,15 @@ export function SupplyPanel({
   onClose: () => void;
   onSaved: (product: CatalogProduct) => void;
 }) {
-  const duo = useContext(OperatorContext).required;
+  const { required: duo, duoMenu } = useContext(OperatorContext);
   const eligible = products.filter(
     (p) =>
       p.active &&
-      p.trackInventory === true &&
+      (p.trackInventory === true ||
+        (duoMenu &&
+          p.id !== COFFEE_STOCK_ID &&
+          p.trackInventory === false &&
+          p.stockQuantity === null)) &&
       (!duo || !isCoffee(p.id) || p.id === COFFEE_STOCK_ID),
   );
   const [productId, setProductId] = useState('');
@@ -157,6 +161,11 @@ export function SupplyPanel({
                 ))}
               </select>
             </Field>
+            {duoMenu && selected?.trackInventory === false && (
+              <p className="field-helper">
+                Shkruaj sasinë e numëruar. Stoku fillon të ndiqet pas ruajtjes.
+              </p>
+            )}
             <Field id="quantity" label={coffee ? 'Sasia (kg)' : 'Sasia'} error={errors.quantity}>
               <input
                 id="quantity"

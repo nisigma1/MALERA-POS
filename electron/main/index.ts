@@ -3,7 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import type Database from 'better-sqlite3';
 import { openDatabase } from '../database/connection';
-import { isDuoCatalogTerminal } from '../database/duoCatalog';
+import { hasDuoMenu, isDuoCatalogTerminal } from '../database/duoCatalog';
 import { createOperatorSession, requiresOperatorLogin } from './operatorSession';
 import { readShiftSales } from '../database/duoReports';
 import { createRepositories } from '../database/repositories';
@@ -94,12 +94,13 @@ async function start() {
   const enrolled = app.isPackaged && !qaDirectory && requiresOperatorLogin(userData);
   const setupPending = targetDuo && !enrolled;
   const duo = targetDuo || enrolled;
-  const access = createOperatorSession(userData, duo, Date.now, setupPending);
+  const duoMenu = targetDuo && hasDuoMenu(database);
+  const access = createOperatorSession(userData, duo, Date.now, setupPending, duoMenu);
   window.webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => {
     if (isMainFrame && !isInPlace) access.logout();
   });
   window.webContents.on('render-process-gone', () => access.logout());
-  const repositories = createRepositories(database, duo);
+  const repositories = createRepositories(database, duo, duoMenu);
   const orders = createOrderService(
     database,
     repositories,
@@ -112,7 +113,7 @@ async function start() {
   registerIpc(
     window,
     repositories,
-    createConfigurationService(database, repositories, duo),
+    createConfigurationService(database, repositories, duo, duoMenu),
     orders,
     createCheckoutService(database, orders, duo),
     createReceiptService(receiptRepository, printerAdapter, printManager),

@@ -22,8 +22,10 @@ export type IconName =
   | 'clock'
   | 'switch'
   | 'cup'
-  | 'receipt';
+  | 'receipt'
+  | 'device';
 const paths: Record<IconName, ReactNode> = {
+  device: <path d="M4 4h16v12H4zM8 20h8m-4-4v4" />,
   minus: <path d="M5 12h14" />,
   trash: (
     <>
