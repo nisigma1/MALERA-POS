@@ -22,6 +22,7 @@ function createQaDirectory(kind: string) {
   return directory;
 }
 
+// Keep headroom for full SQLite durability on hosted Windows, where one run exceeded 180 s.
 it('reconciles a 6,000-order DUO month through checkout, reopening and owned restore', async () => {
   const root = createQaDirectory('duo-month');
   const restoreRoot = createQaDirectory('duo-month-restore');
@@ -261,4 +262,4 @@ it('reconciles a 6,000-order DUO month through checkout, reopening and owned res
     vi.useRealTimers();
     if (db.open) db.close();
   }
-}, 180_000);
+}, 360_000);
