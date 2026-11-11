@@ -6,6 +6,7 @@ import { Settings } from '../pages/Settings';
 import { formatLocalDateTime } from '../domain/display';
 import { Button, Icon } from '../components/common/Controls';
 import { MaleraMark } from '../components/branding/MaleraMark';
+import duoBarMark from '../assets/duo-bar-mark.png';
 import { PrintNotices } from '../components/receipts/PrintNotices';
 import { useData } from './useData';
 import { OrderDraftContext } from './orderDraftContext';
@@ -117,8 +118,14 @@ function AppScreen({
           </nav>
           <div className="local-label">
             <div className="brand" title={businessName ?? PRODUCT_NAME}>
-              <Icon name="cup" />
-              <strong>{businessName ?? PRODUCT_NAME}</strong>
+              {businessName?.toUpperCase() === 'DUO' ? (
+                <img className="duo-bar-mark" src={duoBarMark} alt="DUO BAR" />
+              ) : (
+                <>
+                  <Icon name="cup" />
+                  <strong>{businessName ?? PRODUCT_NAME}</strong>
+                </>
+              )}
             </div>
             <span className="local-helper">
               <Icon name="device" />

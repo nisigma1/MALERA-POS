@@ -32,6 +32,7 @@
   "asarUnpack": ["node_modules/better-sqlite3/prebuilds/win32-x64.node"],
   "npmRebuild": true,
   "win": {
+    "icon": "build/duo-bar.ico",
     "target": [
       {
         "target": "nsis",

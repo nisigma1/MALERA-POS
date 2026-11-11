@@ -226,13 +226,10 @@ async function backup(descriptor) {
 async function apply() {
   const pending = read(pendingFile, null);
   if (!pending) return;
+  if (appRunning()) return;
   const descriptor = validateDescriptor(pending.descriptor, config);
   if (descriptor.commit === state.commit) {
     fs.unlinkSync(pendingFile);
-    return;
-  }
-  if (appRunning()) {
-    status('waiting-for-app-to-close', { commit: descriptor.commit });
     return;
   }
   const installer = path.join(home, 'downloads', descriptor.commit + '.exe');
@@ -333,7 +330,7 @@ try {
       }
       // Opening the POS never waits for network calls or downloads. Only the
       // scheduled checker stages new releases; launch applies an existing stage.
-      if (!appRunning()) await apply();
+      await apply();
       startApp();
     },
   });

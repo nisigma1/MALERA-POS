@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { withBrokerLock } from '../scripts/update/launch-control.mjs';
 
 function fixture(t) {
@@ -147,3 +148,43 @@ test('an abandoned empty lock can recover without touching application data', as
   assert.equal(worked, true);
   assert.equal(fs.existsSync(files.lockFile), false);
 });
+
+test(
+  'ordinary launch needs no process probe, while a staged update still requires it',
+  {
+    skip: process.platform !== 'win32',
+  },
+  (t) => {
+    const { stateFile } = fixture(t);
+    const root = path.dirname(stateFile);
+    const app = path.join(root, 'Programs', 'FOX Kafeteri');
+    fs.mkdirSync(app, { recursive: true });
+    fs.copyFileSync(process.execPath, path.join(app, 'FOX Kafeteri.exe'));
+    for (const name of ['client.mjs', 'core.mjs', 'launch-control.mjs'])
+      fs.copyFileSync(new URL('../scripts/update/' + name, import.meta.url), path.join(root, name));
+    fs.writeFileSync(
+      path.join(root, 'config.json'),
+      JSON.stringify({
+        repository: 'nisigma1/MALERA-POS',
+        branch: 'main',
+        allowUnsignedQA: true,
+      }),
+    );
+    const launch = () =>
+      spawnSync(process.execPath, [path.join(root, 'client.mjs'), '--launch'], {
+        cwd: root,
+        env: { ...process.env, PATH: root, APPDATA: root, LOCALAPPDATA: root },
+        encoding: 'utf8',
+        windowsHide: true,
+        timeout: 10_000,
+      });
+    const ordinary = launch();
+    assert.equal(ordinary.status, 0, ordinary.stderr);
+    fs.writeFileSync(path.join(root, 'pending.json'), '{}');
+    const pending = launch();
+    assert.equal(pending.status, 1, pending.stderr);
+    assert.match(pending.stderr, /Cannot determine whether POS is closed/);
+    assert.equal(fs.readFileSync(path.join(root, 'pending.json'), 'utf8'), '{}');
+    assert.equal(fs.readFileSync(stateFile, 'utf8'), JSON.stringify({ commit: 'old' }));
+  },
+);

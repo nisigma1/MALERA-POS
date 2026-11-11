@@ -178,6 +178,13 @@ h3 {
   height: 17px;
   color: var(--secondary);
 }
+.brand > .duo-bar-mark {
+  display: block;
+  width: 54px;
+  height: 54px;
+  border-radius: 8px;
+  margin-inline: auto;
+}
 .local-helper {
   display: grid;
   grid-template-columns: auto 1fr;
