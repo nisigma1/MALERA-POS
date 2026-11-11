@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { hostname } from 'node:os';
 import type Database from 'better-sqlite3';
 import { INITIAL_PRODUCTS } from '../../src/domain/definitions';
+import { COFFEE_STOCK_ID } from '../../src/domain/operators';
 import type { CategoryCode } from '../../src/domain/types';
 
 // Purchase cost and owner-editable launch price in cents per unit named on each row.
@@ -30,6 +31,7 @@ const drinks = [
 const productId = (index: number) => 'duo-drinks-v1-' + (index + 1);
 const menuIds = new Set(drinks.map((_, index) => productId(index)));
 const PRICE_SETUP = 'duo_menu_prices_v1';
+const ESPRESSO_SETUP = 'duo_menu_espresso_v1';
 
 export function isDuoMenuProduct(id: string) {
   return menuIds.has(id);
@@ -42,13 +44,27 @@ export function hasDuoMenu(db: Database.Database) {
 
 // Called in the seed transaction after the authorized HP catalog is present.
 export function configureDuoMenu(db: Database.Database, now: string) {
-  if (!hasDuoMenu(db) || db.prepare('SELECT 1 FROM settings WHERE key=?').get(PRICE_SETUP)) return;
-  const save =
-    db.prepare(`UPDATE products SET active=1, updated_at=?, selling_price_cents=COALESCE(selling_price_cents, ?),
+  if (!hasDuoMenu(db)) return;
+  const configured = db.prepare('SELECT 1 FROM settings WHERE key=?');
+  const mark = db.prepare("INSERT INTO settings VALUES (?, '1')");
+  if (!configured.get(PRICE_SETUP)) {
+    const save =
+      db.prepare(`UPDATE products SET active=1, updated_at=?, selling_price_cents=COALESCE(selling_price_cents, ?),
       track_inventory=COALESCE(track_inventory, (SELECT quantity IS NOT NULL FROM inventory_balances WHERE product_id=products.id))
       WHERE id=?`);
-  for (const [index, [, , , price]] of drinks.entries()) save.run(now, price, productId(index));
-  db.prepare("INSERT INTO settings VALUES (?, '1')").run(PRICE_SETUP);
+    for (const [index, [, , , price]] of drinks.entries()) save.run(now, price, productId(index));
+    mark.run(PRICE_SETUP);
+  }
+  if (
+    !configured.get(ESPRESSO_SETUP) &&
+    db.prepare('SELECT 1 FROM products WHERE id=?').get(COFFEE_STOCK_ID)
+  ) {
+    db.prepare('UPDATE products SET active=1, updated_at=? WHERE id=? AND active=0').run(
+      now,
+      COFFEE_STOCK_ID,
+    );
+    mark.run(ESPRESSO_SETUP);
+  }
 }
 
 export function isDuoCatalogTerminal(): boolean {

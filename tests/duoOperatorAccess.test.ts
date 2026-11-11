@@ -116,7 +116,7 @@ try { & './scripts/release/provision-duo-pins.ps1' } catch {
       senderFrame: contents.mainFrame,
     } as unknown as IpcMainInvokeEvent;
     const call = (channel: string, ...args: unknown[]) => handlers.get(channel)!(event, ...args);
-    const submitDraft = vi.fn(() => ({ ok: true }));
+    const submitDraft = vi.fn(() => ({ ok: true, data: { reservation: null } }));
     const shiftReport = vi.fn();
     const repo = { listTables: () => [], listProducts: () => [{ purchaseCostCents: 30 }] };
     registerIpc(

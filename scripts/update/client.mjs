@@ -80,10 +80,13 @@ function appRunning() {
     throw Error('Cannot determine whether POS is closed');
   return Number(result.stdout.trim()) > 0;
 }
+class InvalidInstallerContent extends Error {}
+
 async function verifyFile(file, descriptor) {
   const stat = fs.lstatSync(file);
-  if (!stat.isFile() || stat.isSymbolicLink() || stat.size < 1024 || stat.size > 300 * 1024 * 1024)
-    throw Error('Invalid installer file');
+  if (!stat.isFile() || stat.isSymbolicLink()) throw Error('Invalid installer file');
+  if (stat.size < 1024 || stat.size > 300 * 1024 * 1024)
+    throw new InvalidInstallerContent('Invalid installer size');
   const handle = fs.openSync(file, 'r');
   const magic = Buffer.alloc(2);
   try {
@@ -94,7 +97,7 @@ async function verifyFile(file, descriptor) {
   const hash = crypto.createHash('sha256');
   for await (const bytes of fs.createReadStream(file)) hash.update(bytes);
   if (magic.toString() !== 'MZ' || hash.digest('hex') !== descriptor.sha256)
-    throw Error('Installer integrity check failed');
+    throw new InvalidInstallerContent('Installer integrity check failed');
 }
 async function stage() {
   const previousStage = read(pendingFile, null);
@@ -141,8 +144,13 @@ async function stage() {
     fs.mkdirSync(path.dirname(installer), { recursive: true });
     const pending = read(pendingFile, null);
     if (pending?.descriptor?.commit === descriptor.commit && fs.existsSync(installer)) {
-      await verifyFile(installer, descriptor);
-      return;
+      try {
+        await verifyFile(installer, descriptor);
+        return;
+      } catch (error) {
+        if (!(error instanceof InvalidInstallerContent)) throw error;
+        // Keep the staged file in place until its replacement has been verified.
+      }
     }
     const response = await fetch(validateAssetUrl(asset.browser_download_url, config.repository), {
       headers,

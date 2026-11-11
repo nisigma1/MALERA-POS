@@ -14,7 +14,7 @@ import { COFFEE_STOCK_ID, coffeeStockLabel, isCoffee } from '../domain/operators
 const load = () => window.fox.products.list();
 export function Inventory() {
   const { required: duo, duoMenu } = useContext(OperatorContext);
-  const { data, error, retry, setData } = useData(load);
+  const { data: products, error, retry, setData } = useData(load);
   const [category, setCategory] = useState<CategoryCode | ''>('');
   const [search, setSearch] = useState('');
   const [editor, setEditor] = useState<CatalogProduct>();
@@ -37,7 +37,6 @@ export function Inventory() {
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .toLocaleLowerCase('sq-AL');
-  const products = duoMenu ? data?.filter((product) => product.id !== COFFEE_STOCK_ID) : data;
   const categories = duoMenu
     ? CATEGORIES.filter((category) =>
         products?.some((product) => product.categoryId === category.id),
@@ -58,25 +57,25 @@ export function Inventory() {
         ),
       )
     : null;
-  const coffee = duo ? data?.find((product) => product.id === COFFEE_STOCK_ID) : undefined;
+  const coffee = duo ? products?.find((product) => product.id === COFFEE_STOCK_ID) : undefined;
   const header = (
     <PageHeader
       title="Stoku"
       helper="Produktet, çmimet dhe stoku."
       actions={
         <>
-          <Button variant="primary" onClick={() => setSupply(true)} disabled={!data}>
+          <Button variant="primary" onClick={() => setSupply(true)} disabled={!products}>
             <Icon name="plus" />
             Shto stok
           </Button>
-          <Button data-stock-loss onClick={() => setLoss(true)} disabled={!data}>
+          <Button data-stock-loss onClick={() => setLoss(true)} disabled={!products}>
             Hiq si humbje
           </Button>
         </>
       }
     />
   );
-  if (!data || !summary)
+  if (!products || !summary)
     return (
       <>
         {header}
@@ -261,14 +260,14 @@ export function Inventory() {
       )}
       {supply && (
         <SupplyPanel
-          products={data}
+          products={products}
           onClose={() => setSupply(false)}
           onSaved={(product) => onSaved(product, 'Furnizimi u regjistrua.')}
         />
       )}
       {loss && (
         <StockLossPanel
-          products={data}
+          products={products}
           onClose={() => setLoss(false)}
           onSaved={() => {
             setLoss(false);

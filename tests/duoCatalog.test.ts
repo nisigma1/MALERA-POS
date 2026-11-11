@@ -10,6 +10,7 @@ import { createCheckoutService } from '../electron/database/checkout';
 import { inspectDatabase } from '../electron/database/health';
 import { addDuoCatalog } from '../electron/database/duoCatalog';
 import { createConfigurationService } from '../electron/database/configuration';
+import { readShiftSales } from '../electron/database/duoReports';
 
 let directory: string;
 let file: string;
@@ -119,12 +120,19 @@ it('keeps fresh, other business, non-target and locally changed catalogs out of 
   }
 });
 
-it('updates the existing 40-row HP catalog, preserves owner prices and starts stock with a real count', () => {
+it('orders Espresso alongside the 19 drinks and reconciles payment, stock and reopening', () => {
   const original = openDatabase(file);
   original.prepare("UPDATE settings SET value='DUO' WHERE key='business_name'").run();
   original.transaction(() => addDuoCatalog(original, new Date().toISOString()))();
   const cola = 'duo-drinks-v1-1';
+  const espresso = 'KAFE-1';
   original.prepare('UPDATE products SET selling_price_cents=? WHERE id=?').run(160, cola);
+  original
+    .prepare(
+      'UPDATE products SET active=0, selling_price_cents=120, purchase_cost_cents=30, track_inventory=1 WHERE id=?',
+    )
+    .run(espresso);
+  original.prepare('UPDATE inventory_balances SET quantity=535 WHERE product_id=?').run(espresso);
   original.close();
 
   const upgraded = openDatabase(file, '0.7.2-rc.4', true);
@@ -132,7 +140,14 @@ it('updates the existing 40-row HP catalog, preserves owner prices and starts st
     const repo = createRepositories(upgraded, true, true);
     const config = createConfigurationService(upgraded, repo, true, true);
     const menu = repo.listProducts(true);
-    expect(menu).toHaveLength(19);
+    expect(menu).toHaveLength(20);
+    expect(menu.filter((p) => p.categoryId === 'KAFE').map((p) => p.id)).toEqual([espresso]);
+    expect(menu.find((p) => p.id === espresso)).toMatchObject({
+      active: true,
+      sellingPriceCents: 120,
+      purchaseCostCents: 30,
+      stockQuantity: 535,
+    });
     expect(menu.every((product) => product.active && product.sellingPriceCents !== null)).toBe(
       true,
     );
@@ -151,29 +166,86 @@ it('updates the existing 40-row HP catalog, preserves owner prices and starts st
       data: { stockQuantity: 12, trackInventory: true },
     });
     expect(config.addSupply(count)).toMatchObject({ ok: true, data: { stockQuantity: 12 } });
-    const orders = createOrderService(upgraded, repo, { operator: () => 'OWNER' });
-    expect(orders.addProduct({ tableId: 'M1', productId: 'KAFE-1' }).ok).toBe(false);
-    const order = orders.addProduct({ tableId: 'M1', productId: cola });
+    const orders = createOrderService(upgraded, repo, { operator: () => 'AM' });
+    const draft = {
+      requestId: randomUUID(),
+      tableId: 'M1',
+      orderId: null,
+      expectedRevision: null,
+      items: [
+        { productId: espresso, quantity: 1 },
+        { productId: cola, quantity: 1 },
+      ],
+    };
+    const order = orders.submitDraft(draft);
     if (!order.ok || !order.data.order) throw Error('Expected a priced order');
-    expect(order.data.order.totalCents).toBe(160);
+    expect(order.data.order.totalCents).toBe(280);
+    expect(orders.submitDraft(draft).ok).toBe(true);
+    expect(repo.listProducts(true).find((p) => p.id === espresso)?.stockQuantity).toBe(534);
     expect(
       createCheckoutService(upgraded, orders, true).completeOrder({ orderId: order.data.order.id })
         .ok,
     ).toBe(true);
     expect(repo.listProducts(true).find((p) => p.id === cola)?.stockQuantity).toBe(11);
+    expect(repo.listProducts(true).find((p) => p.id === espresso)?.stockQuantity).toBe(534);
+    expect(readShiftSales(upgraded, 'AM').totalCents).toBe(280);
+    expect(readShiftSales(upgraded, 'DAY').totalCents).toBe(280);
+    expect(upgraded.prepare('SELECT count(*) FROM receipt_documents').pluck().get()).toBe(1);
     upgraded.prepare('UPDATE products SET active=0,selling_price_cents=200 WHERE id=?').run(cola);
+    upgraded
+      .prepare('UPDATE products SET active=0,selling_price_cents=130 WHERE id=?')
+      .run(espresso);
   } finally {
     upgraded.close();
   }
 
   const reopened = openDatabase(file, '0.7.2-rc.4', true);
   try {
-    expect(
-      createRepositories(reopened, true, true)
-        .listProducts(true)
-        .find((p) => p.id === cola),
-    ).toMatchObject({ active: false, sellingPriceCents: 200, stockQuantity: 11 });
+    const menu = createRepositories(reopened, true, true).listProducts(true);
+    expect(menu.find((p) => p.id === cola)).toMatchObject({
+      active: false,
+      sellingPriceCents: 200,
+      stockQuantity: 11,
+    });
+    expect(menu.find((p) => p.id === espresso)).toMatchObject({
+      active: false,
+      sellingPriceCents: 130,
+      stockQuantity: 534,
+    });
+    expect(readShiftSales(reopened, 'DAY').totalCents).toBe(280);
   } finally {
     reopened.close();
+  }
+});
+
+it('adds Espresso on an already configured terminal without reapplying drink defaults', () => {
+  const prior = openDatabase(file);
+  try {
+    prior.prepare("UPDATE settings SET value='DUO' WHERE key='business_name'").run();
+    prior.transaction(() => addDuoCatalog(prior, new Date().toISOString()))();
+    prior.prepare("INSERT INTO settings VALUES ('duo_menu_prices_v1', '1')").run();
+    prior.prepare("UPDATE products SET active=0,selling_price_cents=145 WHERE id='KAFE-1'").run();
+    prior
+      .prepare("UPDATE products SET active=0,selling_price_cents=215 WHERE id='duo-drinks-v1-1'")
+      .run();
+  } finally {
+    prior.close();
+  }
+  const upgraded = openDatabase(file, '0.7.2-rc.4', true);
+  try {
+    const menu = createRepositories(upgraded, true, true).listProducts(true);
+    expect(menu.find((p) => p.id === 'KAFE-1')).toMatchObject({
+      active: true,
+      sellingPriceCents: 145,
+      stockQuantity: null,
+    });
+    expect(menu.find((p) => p.id === 'duo-drinks-v1-1')).toMatchObject({
+      active: false,
+      sellingPriceCents: 215,
+      stockQuantity: null,
+    });
+    expect(upgraded.prepare('SELECT count(*) FROM inventory_movements').pluck().get()).toBe(0);
+  } finally {
+    upgraded.close();
   }
 });

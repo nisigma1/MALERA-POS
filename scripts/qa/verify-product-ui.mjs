@@ -75,6 +75,18 @@ try {
     throw Error('Timeout: ' + expression);
   };
   const api = (code) => js(`(async()=>{const fox=window.fox;${code}})()`);
+  const tap = async (selector) => {
+    const point = await js(`(() => {
+      const target = document.querySelector(${JSON.stringify(selector)});
+      if (!target || target.disabled) return null;
+      const rect = target.getBoundingClientRect();
+      const x = rect.left + rect.width / 2, y = rect.top + rect.height / 2;
+      return target.contains(document.elementFromPoint(x, y)) ? { x, y } : null;
+    })()`);
+    assert.ok(point, 'Control must be visible and accept a touch: ' + selector);
+    await command('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point] });
+    await command('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  };
   await until('document.querySelectorAll("[data-table-code]").length===27');
   result.initial = await api(
     'return {products:await fox.products.list(),tables:await fox.tables.list(),report:await fox.reports.getSalesReport("ALL")};',
@@ -100,10 +112,25 @@ try {
   }
   await js('location.reload()');
   await until('Boolean(document.querySelector("[data-order-product=KAFE-1]:not(:disabled)"))');
-  await js('document.querySelector("[data-order-product=KAFE-1]").click()');
+  await command('Emulation.setDeviceMetricsOverride', {
+    width: 1093,
+    height: 614,
+    deviceScaleFactor: 1.25,
+    mobile: false,
+  });
+  await command('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 });
+  await tap('[data-table-code=M4]');
+  await until('document.querySelector("#order-heading")?.textContent==="Tavolina B4"');
+  await tap('[data-table-code=M5]');
+  await until('document.querySelector("#order-heading")?.textContent==="Tavolina B5"');
+  await until('Boolean(document.querySelector("[data-order-product=KAFE-1]:not(:disabled)"))');
+  await tap('[data-order-product=KAFE-1]');
   await until('!!document.querySelector("[data-ops-save-order]:not(:disabled)")');
-  await js('document.querySelector("[data-ops-save-order]").click()');
+  await tap('[data-ops-save-order]');
   await until('Boolean(document.querySelector("[data-order-item]"))');
+  assert.equal(await js('document.querySelector("[data-order-quantity]")?.textContent'), '1');
+  await command('Emulation.setTouchEmulationEnabled', { enabled: false });
+  result.checks.push('One touch per table, product and order confirmation at 125% scaling');
   await api(
     'const w=await fox.orders.addProduct({tableId:"M1",productId:"CAJ-1"});return fox.orders.completeOrder({orderId:w.data.order.id});',
   );

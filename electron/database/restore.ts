@@ -9,6 +9,10 @@ declare const FOX_RELEASE: boolean;
 const journalName = 'fox-restore-journal.json';
 const oldName = 'fox-restore-original.sqlite';
 const stageName = 'fox-restore-stage.sqlite';
+const databaseFiles = ['', '-wal', '-shm'] as const;
+type DatabaseSuffix = (typeof databaseFiles)[number];
+type Preservation = { name: string; files: DatabaseSuffix[] };
+
 function paths(directory: string) {
   return {
     current: path.join(directory, 'fox.sqlite'),
@@ -24,16 +28,56 @@ function removeFile(filename: string) {
     fs.unlinkSync(filename);
   }
 }
+
+function regularFileExists(filename: string): boolean {
+  const stat = fs.lstatSync(filename, { throwIfNoEntry: false });
+  if (!stat) return false;
+  if (!stat.isFile()) throw Error('FOX_RESTORE_PATH');
+  return true;
+}
+
+function isPreservation(value: unknown): value is Preservation {
+  if (!value || typeof value !== 'object') return false;
+  const { name, files } = value as Partial<Preservation>;
+  return (
+    typeof name === 'string' &&
+    /^FOX-unreadable-preserved-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z-[a-f0-9]{6}\.sqlite$/.test(
+      name,
+    ) &&
+    Array.isArray(files) &&
+    files.every((suffix) => databaseFiles.includes(suffix)) &&
+    new Set(files).size === files.length
+  );
+}
+
+function preserveOriginal(directory: string, original: string, preservation: Preservation): void {
+  const archive = path.join(directory, preservation.name);
+  const remaining = databaseFiles.filter((suffix) => {
+    const sourceExists = regularFileExists(original + suffix);
+    const archiveExists = regularFileExists(archive + suffix);
+    const expected = preservation.files.includes(suffix);
+    // Each expected file must still be at exactly one of its two locations.
+    if (expected ? sourceExists === archiveExists : sourceExists || archiveExists)
+      throw Error('FOX_RESTORE_PRESERVATION_STATE');
+    return sourceExists;
+  });
+  for (const suffix of remaining) fs.renameSync(original + suffix, archive + suffix);
+}
+
 export function recoverInterruptedRestore(directory: string): void {
   const p = paths(directory);
-  if (!fs.existsSync(p.journal)) return;
-  if (fs.lstatSync(p.journal).isSymbolicLink() || fs.statSync(p.journal).size > 1024)
-    throw Error('FOX_RESTORE_JOURNAL');
+  const journalStat = fs.lstatSync(p.journal, { throwIfNoEntry: false });
+  if (!journalStat) return;
+  if (!journalStat.isFile() || journalStat.size > 1024) throw Error('FOX_RESTORE_JOURNAL');
   const journal = JSON.parse(fs.readFileSync(p.journal, 'utf8')) as {
     format?: unknown;
     state?: unknown;
-  };
-  if (journal.format !== 1 || !['REPLACING', 'COMPLETE'].includes(String(journal.state)))
+    preservation?: unknown;
+  } | null;
+  if (journal?.format !== 1 || (journal.state !== 'REPLACING' && journal.state !== 'COMPLETE'))
+    throw Error('FOX_RESTORE_JOURNAL');
+  const preservation = journal.preservation;
+  if (preservation !== undefined && (journal.state !== 'COMPLETE' || !isPreservation(preservation)))
     throw Error('FOX_RESTORE_JOURNAL');
   if (journal.state === 'COMPLETE') {
     const db = new Database(p.current, { readonly: true, fileMustExist: true });
@@ -42,7 +86,8 @@ export function recoverInterruptedRestore(directory: string): void {
     } finally {
       db.close();
     }
-    removeFile(p.old);
+    if (preservation) preserveOriginal(directory, p.old, preservation);
+    else removeFile(p.old);
   } else if (fs.existsSync(p.old)) {
     // A verified pre-restore backup also exists. Preserve failed candidate rather than repairing it.
     if (fs.existsSync(p.current))
@@ -148,21 +193,29 @@ export async function restoreUnreadableDatabase(
   applicationVersion?: string,
 ): Promise<void> {
   // Used only with the operational connection closed and explicit native confirmation.
+  const p = paths(directory);
+  const preservation: Preservation = {
+    name: backupName('unreadable-preserved'),
+    files: databaseFiles.filter((suffix) => regularFileExists(p.current + suffix)),
+  };
+  const archive = path.join(directory, preservation.name);
+  for (const suffix of databaseFiles)
+    if (regularFileExists(p.old + suffix) || regularFileExists(archive + suffix))
+      throw Error('FOX_RESTORE_PRESERVATION_STATE');
   await prepareRestore(backup, directory, applicationVersion);
-  const p = paths(directory),
-    preservation = path.join(directory, backupName('unreadable-preserved'));
   try {
     durableWrite(p.journal, JSON.stringify({ format: 1, state: 'REPLACING' }));
-    for (const suffix of ['', '-wal', '-shm'])
-      if (fs.existsSync(p.current + suffix)) fs.renameSync(p.current + suffix, p.old + suffix);
+    for (const suffix of preservation.files) fs.renameSync(p.current + suffix, p.old + suffix);
     fs.renameSync(p.stage, p.current);
-    durableWrite(p.journal + '.next', JSON.stringify({ format: 1, state: 'COMPLETE' }));
+    // Publish the archive identity before any move that startup may need to resume.
+    durableWrite(
+      p.journal + '.next',
+      JSON.stringify({ format: 1, state: 'COMPLETE', preservation }),
+    );
     fs.renameSync(p.journal + '.next', p.journal);
-    for (const suffix of ['', '-wal', '-shm'])
-      if (fs.existsSync(p.old + suffix)) fs.renameSync(p.old + suffix, preservation + suffix);
-    recoverInterruptedRestore(directory);
   } catch (error) {
     recoverInterruptedRestore(directory);
     throw error;
   }
+  recoverInterruptedRestore(directory);
 }

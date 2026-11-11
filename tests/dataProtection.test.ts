@@ -284,6 +284,80 @@ describe('safe restore', () => {
       .find((n) => n.startsWith('FOX-unreadable-preserved-') && n.endsWith('.sqlite'))!;
     expect(fs.readFileSync(path.join(directory, preserved), 'utf8')).toBe('CORRUPT EVIDENCE');
   });
+  it.each(['', '-wal'])(
+    'resumes committed unreadable recovery when archiving %j was interrupted',
+    async (interruptedSuffix) => {
+      sale();
+      const backup = path.join(directory, 'A.sqlite'),
+        original = path.join(directory, 'fox-restore-original.sqlite'),
+        journal = path.join(directory, 'fox-restore-journal.json'),
+        before = dump(),
+        originalFiles = [
+          ['', 'corrupt database'],
+          ['-wal', 'original WAL bytes'],
+          ['-shm', 'original SHM bytes'],
+        ] as const;
+      await createBackup(db, backup, version);
+      db.close();
+      for (const [suffix, bytes] of originalFiles) fs.writeFileSync(filename + suffix, bytes);
+      const rename = fs.renameSync;
+      const interrupted = vi.spyOn(fs, 'renameSync').mockImplementation((source, destination) => {
+        if (source === original + interruptedSuffix) throw Error('archiving interrupted');
+        return rename(source, destination);
+      });
+      await expect(restoreUnreadableDatabase(backup, directory)).rejects.toThrow(
+        'archiving interrupted',
+      );
+      interrupted.mockRestore();
+      const recorded = JSON.parse(fs.readFileSync(journal, 'utf8'));
+      expect(recorded).toMatchObject({
+        state: 'COMPLETE',
+        preservation: { files: ['', '-wal', '-shm'] },
+      });
+      const archive = path.join(directory, recorded.preservation.name);
+      expect(fs.existsSync(archive)).toBe(interruptedSuffix === '-wal');
+      expect(fs.existsSync(original + interruptedSuffix)).toBe(true);
+
+      recoverInterruptedRestore(directory);
+      recoverInterruptedRestore(directory);
+      db = openDatabase(filename);
+      expect(dump()).toEqual(before);
+      expect(fs.existsSync(journal)).toBe(false);
+      for (const [suffix, bytes] of originalFiles) {
+        expect(fs.readFileSync(archive + suffix, 'utf8')).toBe(bytes);
+        expect(fs.existsSync(original + suffix)).toBe(false);
+      }
+    },
+  );
+  it('refuses ambiguous archive collisions and unsafe journal paths without deleting evidence', () => {
+    const journal = path.join(directory, 'fox-restore-journal.json'),
+      original = path.join(directory, 'fox-restore-original.sqlite'),
+      name = 'FOX-unreadable-preserved-2026-11-11T13-14-15-000Z-000001.sqlite',
+      archive = path.join(directory, name),
+      before = dump();
+    db.close();
+    fs.writeFileSync(original, 'original database bytes');
+    fs.writeFileSync(archive, 'unrelated archive bytes');
+    for (const [archiveName, error] of [
+      [name, 'FOX_RESTORE_PRESERVATION_STATE'],
+      ['../outside.sqlite', 'FOX_RESTORE_JOURNAL'],
+    ] as const) {
+      fs.writeFileSync(
+        journal,
+        JSON.stringify({
+          format: 1,
+          state: 'COMPLETE',
+          preservation: { name: archiveName, files: [''] },
+        }),
+      );
+      expect(() => recoverInterruptedRestore(directory)).toThrow(error);
+      expect(fs.readFileSync(original, 'utf8')).toBe('original database bytes');
+      expect(fs.readFileSync(archive, 'utf8')).toBe('unrelated archive bytes');
+      expect(fs.existsSync(journal)).toBe(true);
+    }
+    db = openDatabase(filename);
+    expect(dump()).toEqual(before);
+  });
   it('migrates older compatible backup forward before replacing current state', async () => {
     const legacyFile = path.join(directory, 'legacy.sqlite'),
       legacy = new Database(legacyFile);

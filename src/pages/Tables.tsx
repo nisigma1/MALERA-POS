@@ -8,6 +8,7 @@ import { formatReservationTime, type ReserveTableInput } from '../domain/reserva
 import { RealFloorPlan } from '../components/floor-plan/RealFloorPlan';
 import { CATEGORIES, TABLE_STATUS_LABELS } from '../domain/definitions';
 import { formatMoney } from '../domain/money';
+import { isCoffee } from '../domain/operators';
 import type {
   Area,
   OrderWorkspace,
@@ -120,7 +121,11 @@ export function Tables() {
     const initial = data.find((item) => item.code === 'M5');
     if (initial) select(initial.id);
   }, [data]);
-  function run(key: string, action: () => Promise<MutationResult<OrderWorkspace>>) {
+  function run(
+    key: string,
+    action: () => Promise<MutationResult<OrderWorkspace>>,
+    changesCoffeeStock = false,
+  ) {
     const tableId = current.current;
     if (checkoutLock.current || !tableId || busy.current.has(key) || uncertain.current.has(tableId))
       return;
@@ -135,6 +140,7 @@ export function Tables() {
           const result = await action();
           if (!mounted.current) return;
           if (result.ok) {
+            if (session.required && changesCoffeeStock) catalog.refresh();
             setData((tables) =>
               tables?.map((table) => (table.id === tableId ? result.data.table : table)),
             );
@@ -307,6 +313,8 @@ export function Tables() {
       settleDraft(tableId, input.requestId, true);
       const saved = result.data;
       applyWorkspace(saved, 'Porosia u ruajt.');
+      if (session.required && draft.items.some((item) => isCoffee(item.productId)))
+        catalog.refresh();
       return saved;
     } catch {
       if (mounted.current) setMessage('Përgjigjja mungon. Provo të njëjtën porosi.');
@@ -608,6 +616,7 @@ export function Tables() {
                             const key = `${table.id}:item:${item.id}`;
                             const disabled = !canMutate || hasDraft || tablePending;
                             const input = { tableId: table.id, itemId: item.id };
+                            const changesCoffeeStock = isCoffee(item.productId);
                             return (
                               <div className="order-item" key={item.id} data-order-item={item.id}>
                                 <div className="order-item-name">
@@ -622,7 +631,11 @@ export function Tables() {
                                         disabled={disabled || item.quantity === 1}
                                         aria-label={`Ul sasinë e ${item.name}`}
                                         onClick={() =>
-                                          run(key, () => window.fox.orders.decrementItem(input))
+                                          run(
+                                            key,
+                                            () => window.fox.orders.decrementItem(input),
+                                            changesCoffeeStock,
+                                          )
                                         }
                                       >
                                         <Icon name="minus" />
@@ -633,7 +646,11 @@ export function Tables() {
                                         disabled={disabled}
                                         aria-label={`Rrit sasinë e ${item.name}`}
                                         onClick={() =>
-                                          run(key, () => window.fox.orders.incrementItem(input))
+                                          run(
+                                            key,
+                                            () => window.fox.orders.incrementItem(input),
+                                            changesCoffeeStock,
+                                          )
                                         }
                                       >
                                         <Icon name="plus" />
@@ -650,7 +667,11 @@ export function Tables() {
                                       disabled={disabled}
                                       aria-label={`Hiq ${item.name}`}
                                       onClick={() =>
-                                        run(key, () => window.fox.orders.removeItem(input))
+                                        run(
+                                          key,
+                                          () => window.fox.orders.removeItem(input),
+                                          changesCoffeeStock,
+                                        )
                                       }
                                     >
                                       <Icon name="trash" />

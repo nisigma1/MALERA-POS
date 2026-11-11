@@ -11,6 +11,7 @@ import type { createOrderService } from '../database/orders';
 import type { ReceiptService, PrintManager } from '../receipts/manager';
 import type { OperatorAccess } from '../main/operatorSession';
 import type { ShiftSales } from '../../src/domain/operators';
+import type { OrderWorkspace } from '../../src/domain/types';
 
 const employeeChannels = new Set<string>([
   IPC.tables,
@@ -32,6 +33,13 @@ export function registerIpc(
   access?: OperatorAccess,
   shiftReport?: (input: unknown) => ShiftSales,
 ): void {
+  const workspaceForOperator = (workspace: OrderWorkspace): OrderWorkspace =>
+    access?.required && access.current() !== 'OWNER' && workspace.reservation
+      ? {
+          ...workspace,
+          reservation: { ...workspace.reservation, customerName: '', phone: '', note: '' },
+        }
+      : workspace;
   const handle: typeof ipcMain.handle = (channel, listener) =>
     ipcMain.handle(channel, (event, ...args: unknown[]) => {
       if (data?.isMaintenance()) throw Error('FOX_DATA_MAINTENANCE');
@@ -258,22 +266,19 @@ export function registerIpc(
     )
       throw new Error('Unauthorized FOX request');
     try {
-      const workspace = orders.getForTable(args[0]);
-      return access?.required && access.current() !== 'OWNER' && workspace.reservation
-        ? {
-            ...workspace,
-            reservation: { ...workspace.reservation, customerName: '', phone: '', note: '' },
-          }
-        : workspace;
+      return workspaceForOperator(orders.getForTable(args[0]));
     } catch (error) {
       logError('ORDER_IPC', error);
       throw new Error('Porosia nuk mund të lexohet. Provo përsëri.');
     }
   });
-  const addToOrder = (input: unknown) =>
-    input !== null && typeof input === 'object' && Object.hasOwn(input, 'requestId')
-      ? orders.submitDraft(input)
-      : orders.addProduct(input);
+  const addToOrder = (input: unknown) => {
+    const result =
+      input !== null && typeof input === 'object' && Object.hasOwn(input, 'requestId')
+        ? orders.submitDraft(input)
+        : orders.addProduct(input);
+    return result.ok ? { ...result, data: workspaceForOperator(result.data) } : result;
+  };
   for (const [channel, handler] of [
     [IPC.updateProduct, configuration.updateProduct],
     [IPC.addSupply, configuration.addSupply],

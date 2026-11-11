@@ -44,9 +44,7 @@ export function createRepositories(db: Database.Database, duo = false, duoMenu =
       })[];
       const sharedCoffee = duo && forOrders ? coffeeBalance(db) : null;
       const visible = duoMenu
-        ? rows.filter(
-            (row) => isDuoMenuProduct(row.id) || (!forOrders && row.id === COFFEE_STOCK_ID),
-          )
+        ? rows.filter((row) => isDuoMenuProduct(row.id) || row.id === COFFEE_STOCK_ID)
         : rows;
       return visible.map((row) => ({
         ...row,
