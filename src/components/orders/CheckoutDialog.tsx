@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { productDisplayName } from '../../domain/display';
 import { formatMoney } from '../../domain/money';
 import type { ActiveOrderItem } from '../../domain/types';
 import { Button } from '../common/Controls';
@@ -7,12 +8,14 @@ export function CheckoutDialog({
   tableCode,
   items,
   totalCents,
+  hideVolume = false,
   onClose,
   onConfirm,
 }: {
   tableCode: string;
   items: ActiveOrderItem[];
   totalCents: number;
+  hideVolume?: boolean;
   onClose: () => void;
   onConfirm: () => Promise<string | null>;
 }) {
@@ -90,7 +93,7 @@ export function CheckoutDialog({
               {items.map((item) => (
                 <tr key={item.id} data-checkout-item={item.id}>
                   <td>
-                    <strong>{item.name}</strong>
+                    <strong>{productDisplayName(item.name, hideVolume)}</strong>
                     <small>{formatMoney(item.unitPriceCents)} / njësi</small>
                   </td>
                   <td>{item.quantity}</td>

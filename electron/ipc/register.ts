@@ -18,6 +18,7 @@ const employeeChannels = new Set<string>([
   OPERATOR_IPC.catalog,
   IPC.getOrder,
   IPC.addProduct,
+  IPC.completeOrder,
 ]);
 export function registerIpc(
   window: BrowserWindow,
@@ -222,7 +223,22 @@ export function registerIpc(
       args.length !== 1
     )
       throw new Error('Unauthorized FOX request');
-    const result = checkout.completeOrder(args[0]);
+    const request = args[0];
+    if (
+      access?.required &&
+      access.current() !== 'OWNER' &&
+      (!request ||
+        typeof request !== 'object' ||
+        !('expectedRevision' in request) ||
+        typeof request.expectedRevision !== 'string' ||
+        !request.expectedRevision)
+    )
+      return {
+        ok: false,
+        code: 'INVALID_REQUEST',
+        message: 'Rihap llogarinë dhe kontrollo totalin para pagesës.',
+      };
+    const result = checkout.completeOrder(request);
     if (result.ok) printManager.kick();
     return result;
   });

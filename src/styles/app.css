@@ -184,12 +184,20 @@ h3 {
   height: 17px;
   color: var(--secondary);
 }
+.brand:has(> .duo-bar-mark) {
+  padding-block: 5px;
+}
 .brand > .duo-bar-mark {
   display: block;
-  width: 54px;
-  height: 54px;
+  width: 100%;
+  min-width: 0;
+  height: 82px;
+  object-fit: contain;
   border-radius: 8px;
-  margin-inline: auto;
+  background: #000;
+}
+[data-sidebar-compact='true'] .brand > .duo-bar-mark {
+  height: 44px;
 }
 .local-helper {
   display: grid;

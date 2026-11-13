@@ -7,6 +7,7 @@ import { ReservationDialog } from '../components/reservations/ReservationDialog'
 import { formatReservationTime, type ReserveTableInput } from '../domain/reservations';
 import { RealFloorPlan } from '../components/floor-plan/RealFloorPlan';
 import { CATEGORIES, TABLE_STATUS_LABELS } from '../domain/definitions';
+import { productDisplayName } from '../domain/display';
 import { formatMoney } from '../domain/money';
 import { isCoffee } from '../domain/operators';
 import type {
@@ -44,6 +45,7 @@ export function Tables() {
   const { data, error, retry, setData } = useData(load);
   const session = useContext(OperatorContext);
   const employee = session.required && session.operator !== 'OWNER';
+  const hideVolume = session.required || Boolean(session.duoMenu);
   const catalog = useData(session.required ? loadDuoProducts : loadProducts);
   const [checkout, setCheckout] = useState<Checkout>();
   const checkoutLock = useRef(false);
@@ -394,7 +396,7 @@ export function Tables() {
     canMutate &&
     !tablePending &&
     !draft.retry &&
-    (hasDraft ? validDraft : Boolean(view?.order?.items.length));
+    (hasDraft ? !employee && validDraft : Boolean(view?.order?.items.length));
   function openCheckout() {
     if (!view || !canCheckout || busy.current.size || checkoutLock.current) return;
     const code = tableDisplayCode(view.table.code);
@@ -598,6 +600,7 @@ export function Tables() {
                               : CATEGORIES
                           }
                           showStock={session.duoMenu}
+                          hideVolume={hideVolume}
                           draft={draft}
                           onChange={(update) => changeDraft(table.id, update)}
                           subtotal={subtotal}
@@ -616,11 +619,12 @@ export function Tables() {
                             const key = `${table.id}:item:${item.id}`;
                             const disabled = !canMutate || hasDraft || tablePending;
                             const input = { tableId: table.id, itemId: item.id };
+                            const name = productDisplayName(item.name, hideVolume);
                             const changesCoffeeStock = isCoffee(item.productId);
                             return (
                               <div className="order-item" key={item.id} data-order-item={item.id}>
                                 <div className="order-item-name">
-                                  <strong>{item.name}</strong>
+                                  <strong>{name}</strong>
                                   <small>{formatMoney(item.unitPriceCents)} / njësi</small>
                                 </div>
                                 <div className="order-item-controls">
@@ -629,7 +633,7 @@ export function Tables() {
                                       <Button
                                         className="icon-button"
                                         disabled={disabled || item.quantity === 1}
-                                        aria-label={`Ul sasinë e ${item.name}`}
+                                        aria-label={`Ul sasinë e ${name}`}
                                         onClick={() =>
                                           run(
                                             key,
@@ -644,7 +648,7 @@ export function Tables() {
                                       <Button
                                         className="icon-button"
                                         disabled={disabled}
-                                        aria-label={`Rrit sasinë e ${item.name}`}
+                                        aria-label={`Rrit sasinë e ${name}`}
                                         onClick={() =>
                                           run(
                                             key,
@@ -665,7 +669,7 @@ export function Tables() {
                                       variant="ghost"
                                       className="icon-button remove-item"
                                       disabled={disabled}
-                                      aria-label={`Hiq ${item.name}`}
+                                      aria-label={`Hiq ${name}`}
                                       onClick={() =>
                                         run(
                                           key,
@@ -728,7 +732,7 @@ export function Tables() {
                       : 'POROSIT'}
                 </Button>
               )}
-              {!employee && !view?.reservation && (
+              {!view?.reservation && (
                 <Button
                   className="checkout-open"
                   data-open-checkout
@@ -755,6 +759,7 @@ export function Tables() {
         <CheckoutDialog
           tableCode={checkout.code}
           items={checkoutSummary.items}
+          hideVolume={hideVolume}
           totalCents={checkoutSummary.totalCents}
           onClose={cancelCheckout}
           onConfirm={confirmCheckout}

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { CatalogProduct, Category, CategoryCode } from '../../domain/types';
 import type { OrderDraft } from '../../domain/orderDraft';
+import { productDisplayName } from '../../domain/display';
 import { formatMoney } from '../../domain/money';
 import { Button, Icon } from '../common/Controls';
 
@@ -38,6 +39,7 @@ export function OrderDraftEditor({
   disabled,
   subtotal,
   showStock = false,
+  hideVolume = false,
 }: {
   products: CatalogProduct[];
   categories: readonly Category[];
@@ -46,6 +48,7 @@ export function OrderDraftEditor({
   disabled: boolean;
   subtotal: number | null;
   showStock?: boolean;
+  hideVolume?: boolean;
 }) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<CategoryCode | '' | undefined>(
@@ -66,7 +69,7 @@ export function OrderDraftEditor({
   const search = query.trim().toLowerCase();
   const visible = menu.filter((product) =>
     search
-      ? product.name.toLowerCase().includes(search)
+      ? productDisplayName(product.name, hideVolume).toLowerCase().includes(search)
       : !selectedCategory || product.categoryId === selectedCategory,
   );
   const lines = new Map(draft.items.map((item) => [item.productId, item]));
@@ -144,6 +147,7 @@ export function OrderDraftEditor({
       )}
       <div className="ops-products">
         {visible.map((product) => {
+          const name = productDisplayName(product.name, hideVolume);
           const line = lines.get(product.id);
           const quantity = line?.quantity ?? 0;
           const issue = line
@@ -152,7 +156,7 @@ export function OrderDraftEditor({
           return (
             <div className="ops-product" key={product.id}>
               <div>
-                <strong>{product.name}</strong>
+                <strong>{name}</strong>
                 <p>
                   {product.sellingPriceCents === null
                     ? 'Pa çmim'
@@ -174,7 +178,7 @@ export function OrderDraftEditor({
                   className="icon-button"
                   data-ops-remove={product.id}
                   disabled={disabled || quantity === 0}
-                  aria-label={`Hiq një ${product.name}`}
+                  aria-label={`Hiq një ${name}`}
                   onClick={() => changeQuantity(product.id, -1)}
                 >
                   <Icon name="minus" />
@@ -189,7 +193,7 @@ export function OrderDraftEditor({
                     quantity >= 999 ||
                     (quantity === 0 && draft.items.length >= 100)
                   }
-                  aria-label={`Shto një ${product.name}`}
+                  aria-label={`Shto një ${name}`}
                   onClick={() => changeQuantity(product.id, 1)}
                 >
                   <Icon name="plus" />

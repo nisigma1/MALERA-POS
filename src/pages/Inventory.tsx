@@ -1,6 +1,7 @@
 import { useData } from '../app/useData';
 import { useContext, useEffect, useState } from 'react';
 import { DataState } from '../components/common/DataState';
+import { productDisplayName } from '../domain/display';
 import { formatMoney } from '../domain/money';
 import { CATEGORIES } from '../domain/definitions';
 import { inventorySummary, stockState, unitProfit } from '../domain/configuration';
@@ -188,7 +189,9 @@ export function Inventory() {
                       className={product.active ? '' : 'inactive-row'}
                       onClick={() => setEditor(product)}
                     >
-                      <td className="product-name">{product.name}</td>
+                      <td className="product-name">
+                        {productDisplayName(product.name, duo || Boolean(duoMenu))}
+                      </td>
                       <td>{product.categoryName}</td>
                       <td className="stock-cell numeric">
                         {duo && isCoffee(product.id) && product.id !== COFFEE_STOCK_ID ? (
@@ -227,7 +230,7 @@ export function Inventory() {
                       <td className="row-actions">
                         <Button
                           variant="ghost"
-                          aria-label={`Edito ${product.name}`}
+                          aria-label={`Edito ${productDisplayName(product.name, duo || Boolean(duoMenu))}`}
                           onClick={(e) => {
                             e.stopPropagation();
                             setEditor(product);
