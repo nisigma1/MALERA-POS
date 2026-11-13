@@ -63,7 +63,10 @@ function BusinessName({
     </form>
   );
 }
-export function Settings({ onNameChanged }: { onNameChanged?: () => void } = {}) {
+export function Settings({
+  businessNameOnly = false,
+  onNameChanged,
+}: { businessNameOnly?: boolean; onNameChanged?: () => void } = {}) {
   const { data, error, retry } = useData(load);
   const header = <PageHeader title="Cilësimet" helper="Të dhënat bazë të MALERA POS." />;
   if (!data)
@@ -87,8 +90,12 @@ export function Settings({ onNameChanged }: { onNameChanged?: () => void } = {})
           </div>
           <BusinessName settings={data} onNameChanged={onNameChanged} />
         </section>
-        <ReceiptSettingsPanel />
-        <DataProtectionPanel />
+        {!businessNameOnly && (
+          <>
+            <ReceiptSettingsPanel />
+            <DataProtectionPanel />
+          </>
+        )}
       </div>
     </div>
   );

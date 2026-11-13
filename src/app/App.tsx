@@ -154,7 +154,11 @@ function AppScreen({
           </div>
           {!employee && <PrintNotices />}
           <main className="content">
-            {section.id === 'settings' ? <Settings onNameChanged={identity.refresh} /> : <Page />}
+            {section.id === 'settings' ? (
+              <Settings businessNameOnly={showDuoMark} onNameChanged={identity.refresh} />
+            ) : (
+              <Page />
+            )}
           </main>
         </div>
       </div>
